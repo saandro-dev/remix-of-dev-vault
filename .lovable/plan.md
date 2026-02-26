@@ -1,68 +1,30 @@
 
 
-# Estrutura Hierarquica: Projeto → Pastas → API Keys
+# Consolidar Cofre Global em Uma Unica Pagina com Filtros
 
-## Problema Atual
-A estrutura atual e plana: `Projeto → API Keys`. O usuario quer organizar por pastas dentro de cada projeto (ex: "Keys do Supabase", "Keys do Stripe", etc).
+## Mudancas
 
-## Analise de Solucoes
+### 1. Sidebar (`navigationConfig.ts`)
+Substituir os 4 itens do grupo "Cofre Global" (Frontend, Backend, DevOps, Seguranca) por um unico item:
+- `{ id: "vault", label: "Cofre Global", icon: Code2, path: "/vault" }`
 
-### Solucao A: Tabela `key_folders` separada
-- Manutenibilidade: 10/10
-- Zero DT: 10/10
-- Arquitetura: 10/10
-- Escalabilidade: 10/10
-- Seguranca: 10/10
-- **NOTA FINAL: 10/10**
+### 2. Rota (`appRoutes.tsx`)
+- Alterar `vault/:category` para simplesmente `vault`
+- Manter `vault/:moduleId` para detalhe do modulo
 
-### Solucao B: Campo `folder_name` (string) na tabela `api_keys`
-- Manutenibilidade: 6/10 — sem entidade propria, renomear pasta exige update em massa
-- Zero DT: 5/10 — inconsistencias de nomes inevitaveis
-- Arquitetura: 4/10 — viola SRP, sem CRUD de pastas
-- Escalabilidade: 5/10
-- Seguranca: 8/10
-- **NOTA FINAL: 5.5/10**
+### 3. VaultListPage
+- Remover dependencia de `useParams` para category
+- Buscar TODOS os modulos sempre (sem filtro por rota)
+- Adicionar `FilterPills` de categoria no topo (Todos / Frontend / Backend / DevOps / Seguranca) como filtro client-side
+- Adicionar estado `selectedCategory` que filtra junto com search e tags
+- Ao navegar para detalhe: `/vault/${mod.id}` (sem category no path)
 
-### DECISAO: Solucao A (Nota 10)
-
-## Mudancas no Banco
-
-**Nova tabela `key_folders`:**
-- `id` uuid PK
-- `project_id` uuid FK → projects
-- `user_id` uuid NOT NULL
-- `name` text NOT NULL
-- `color` text DEFAULT '#6B7280'
-- `created_at`, `updated_at` timestamps
-- UNIQUE(project_id, name)
-- RLS: user_id = auth.uid()
-
-**Alterar `api_keys`:**
-- Adicionar coluna `folder_id` uuid nullable FK → key_folders(id) ON DELETE CASCADE
-
-## Mudancas no Frontend
-
-### Nova rota e pagina
-- `/projects/:projectId` — agora mostra lista de pastas + botao "Nova Pasta"
-- `/projects/:projectId/folders/:folderId` — mostra as API Keys daquela pasta (reusa logica atual do ProjectDetailPage)
+### 4. VaultDetailPage
+- Ajustar rota de volta para `/vault` em vez de `/vault/:category`
 
 ### Arquivos afetados
-1. **Migration SQL** — criar `key_folders`, alterar `api_keys`
-2. **`src/modules/projects/pages/ProjectDetailPage.tsx`** — refatorar para mostrar pastas em vez de keys diretamente
-3. **Novo `src/modules/projects/pages/FolderDetailPage.tsx`** — CRUD de API Keys dentro de uma pasta (logica atual migra para ca)
-4. **`src/routes/appRoutes.tsx`** — adicionar rota `/projects/:projectId/folders/:folderId`
-
-### Fluxo UX
-```text
-Seus Projetos (lista)
-  └── Risecheckout (projeto)
-        ├── 📁 Keys do Supabase
-        │     ├── SUPABASE_URL
-        │     └── SUPABASE_ANON_KEY
-        ├── 📁 Keys do Stripe
-        │     └── STRIPE_SECRET_KEY
-        └── [+ Nova Pasta]
-```
-
-Clicar numa pasta abre a tela com a tabela de keys (identica a atual), mas filtrada por `folder_id`.
+1. `src/modules/navigation/config/navigationConfig.ts` — 4 items → 1 item
+2. `src/routes/appRoutes.tsx` — rota `vault/:category` → `vault`, `vault/:category/:moduleId` → `vault/:moduleId`
+3. `src/modules/vault/pages/VaultListPage.tsx` — adicionar FilterPills de categoria, remover useParams
+4. `src/modules/vault/pages/VaultDetailPage.tsx` — ajustar link de volta
 
