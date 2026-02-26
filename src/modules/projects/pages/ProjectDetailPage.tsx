@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { Plus, Loader2, ArrowLeft, Folder, Trash2 } from "lucide-react";
 
 export function ProjectDetailPage() {
@@ -18,6 +19,7 @@ export function ProjectDetailPage() {
   const [open, setOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [folderColor, setFolderColor] = useState("#3B82F6");
+  const { confirm, ConfirmDialog } = useConfirmDelete();
 
   const { data: project } = useQuery({
     queryKey: ["project", projectId],
@@ -80,10 +82,19 @@ export function ProjectDetailPage() {
     },
   });
 
+  const handleDeleteFolder = async (folder: { id: string; name: string }) => {
+    const confirmed = await confirm({
+      resourceType: "pasta",
+      resourceName: folder.name,
+    });
+    if (confirmed) deleteMutation.mutate(folder.id);
+  };
+
   const PRESET_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"];
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog />
       <div className="flex items-center gap-3">
         <Link to="/projects">
           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -187,7 +198,7 @@ export function ProjectDetailPage() {
                 className="absolute top-2 right-2 h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation();
-                  deleteMutation.mutate(folder.id);
+                  handleDeleteFolder(folder);
                 }}
               >
                 <Trash2 className="h-3.5 w-3.5" />

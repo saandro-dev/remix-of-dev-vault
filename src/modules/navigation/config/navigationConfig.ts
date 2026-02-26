@@ -3,11 +3,9 @@ import {
   Search,
   FolderOpen,
   Code2,
-  Server,
-  Shield,
-  MonitorSmartphone,
   Bug,
   Users,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,6 +56,14 @@ export const navigationConfig: NavigationGroup[] = [
     items: [
       { id: "bugs", label: "Diário de Bugs", icon: Bug, path: "/bugs" },
       { id: "community", label: "Comunidade", icon: Users, path: "/community" },
+    ],
+  },
+  {
+    id: "account",
+    label: "Conta",
+    defaultOpen: false,
+    items: [
+      { id: "settings", label: "Configurações", icon: Settings, path: "/settings" },
     ],
   },
 ];

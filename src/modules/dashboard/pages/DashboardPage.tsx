@@ -45,7 +45,7 @@ export function DashboardPage() {
 
   const statCards = [
     { label: "Projetos", value: stats?.projects, icon: FolderOpen, path: "/projects", color: "text-primary" },
-    { label: "Módulos no Cofre", value: stats?.modules, icon: Package, path: "/vault/frontend", color: "text-info" },
+    { label: "Módulos no Cofre", value: stats?.modules, icon: Package, path: "/vault", color: "text-info" },
     { label: "API Keys", value: stats?.keys, icon: Key, path: "/projects", color: "text-warning" },
     { label: "Bugs Abertos", value: stats?.openBugs, icon: Bug, path: "/bugs", color: "text-destructive" },
   ];
@@ -116,7 +116,7 @@ export function DashboardPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               { label: "Novo Projeto", path: "/projects", icon: FolderOpen },
-              { label: "Novo Módulo", path: "/vault/frontend", icon: Package },
+              { label: "Novo Módulo", path: "/vault", icon: Package },
               { label: "Registrar Bug", path: "/bugs", icon: Bug },
             ].map((shortcut) => (
               <Button
