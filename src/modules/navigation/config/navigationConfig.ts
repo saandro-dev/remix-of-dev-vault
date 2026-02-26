@@ -6,6 +6,7 @@ import {
   Bug,
   Users,
   Settings,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,6 +65,7 @@ export const navigationConfig: NavigationGroup[] = [
     defaultOpen: false,
     items: [
       { id: "settings", label: "Configurações", icon: Settings, path: "/settings" },
+      { id: "api-keys", label: "API & Integrações", icon: KeyRound, path: "/settings/api-keys" },
     ],
   },
 ];
