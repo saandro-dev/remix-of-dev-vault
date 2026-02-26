@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Search, Settings, LogOut } from "lucide-react";
+import { Search, Settings, LogOut, KeyRound } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,9 @@ export function Topbar({ onOpenSearch }: TopbarProps) {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={() => navigate("/settings")} className="gap-2 cursor-pointer">
               <Settings className="h-4 w-4" /> Configurações
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/settings/api-keys")} className="gap-2 cursor-pointer">
+              <KeyRound className="h-4 w-4" /> API & Integrações
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="gap-2 cursor-pointer text-destructive">

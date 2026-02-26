@@ -122,6 +122,119 @@ export type Database = {
           },
         ]
       }
+      devvault_api_audit_log: {
+        Row: {
+          action: string
+          api_key_id: string | null
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          http_status: number | null
+          id: number
+          ip_address: string | null
+          processing_time_ms: number | null
+          request_body: Json | null
+          success: boolean
+          user_id: string
+        }
+        Insert: {
+          action: string
+          api_key_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: never
+          ip_address?: string | null
+          processing_time_ms?: number | null
+          request_body?: Json | null
+          success?: boolean
+          user_id: string
+        }
+        Update: {
+          action?: string
+          api_key_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: never
+          ip_address?: string | null
+          processing_time_ms?: number | null
+          request_body?: Json | null
+          success?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devvault_api_audit_log_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "devvault_api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devvault_api_keys: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          key_name: string
+          key_prefix: string
+          last_used_at: string | null
+          revoked_at: string | null
+          user_id: string
+          vault_secret_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          key_name: string
+          key_prefix: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          user_id: string
+          vault_secret_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          key_name?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          user_id?: string
+          vault_secret_id?: string
+        }
+        Relationships: []
+      }
+      devvault_api_rate_limits: {
+        Row: {
+          action: string
+          attempts: number
+          blocked_until: string | null
+          identifier: string
+          last_attempt_at: string
+        }
+        Insert: {
+          action: string
+          attempts?: number
+          blocked_until?: string | null
+          identifier: string
+          last_attempt_at?: string
+        }
+        Update: {
+          action?: string
+          attempts?: number
+          blocked_until?: string | null
+          identifier?: string
+          last_attempt_at?: string
+        }
+        Relationships: []
+      }
       favorites: {
         Row: {
           created_at: string
@@ -349,12 +462,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_devvault_api_key: {
+        Args: { p_key_name: string; p_raw_key: string; p_user_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      revoke_devvault_api_key: {
+        Args: { p_key_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      validate_devvault_api_key: {
+        Args: { p_raw_key: string }
+        Returns: {
+          key_id: string
+          owner_id: string
+        }[]
       }
     }
     Enums: {
