@@ -1,15 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  handleCors,
-  createSuccessResponse,
-  createErrorResponse,
-  ERROR_CODES,
-  getClientIp,
-} from "../_shared/api-helpers.ts";
+import { withSentry } from "../_shared/sentry.ts";
+import { handleCorsV2, createSuccessResponse, createErrorResponse, ERROR_CODES, getClientIp } from "../_shared/api-helpers.ts";
 import { requireApiKeyAuth } from "../_shared/api-key-guard.ts";
 import { logApiCall } from "../_shared/api-audit-logger.ts";
 import { checkRateLimit } from "../_shared/rate-limit-guard.ts";
+import { getSupabaseClient } from "../_shared/supabase-client.ts";
+import { createLogger } from "../_shared/logger.ts";
 
 const VALID_CATEGORIES = ["frontend", "backend", "devops", "security"] as const;
 
@@ -29,9 +25,7 @@ function validatePayload(body: unknown): { valid: true; data: IngestPayload } | 
   if (!body || typeof body !== "object") {
     return { valid: false, message: "Request body must be a JSON object" };
   }
-
   const b = body as Record<string, unknown>;
-
   if (typeof b.title !== "string" || b.title.length < 5 || b.title.length > 150) {
     return { valid: false, message: "title must be a string between 5-150 characters" };
   }
@@ -58,7 +52,6 @@ function validatePayload(body: unknown): { valid: true; data: IngestPayload } | 
   if (b.context_markdown !== undefined && typeof b.context_markdown !== "string") {
     return { valid: false, message: "context_markdown must be a string" };
   }
-
   return {
     valid: true,
     data: {
@@ -75,44 +68,57 @@ function validatePayload(body: unknown): { valid: true; data: IngestPayload } | 
   };
 }
 
-serve(async (req) => {
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
+serve(
+  withSentry("vault-ingest", async (req) => {
+    const log = createLogger("vault-ingest");
 
-  if (req.method !== "POST") {
-    return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
-  }
+    // 1. CORS preflight
+    const corsResponse = handleCorsV2(req);
+    if (corsResponse) return corsResponse;
 
-  const startTime = Date.now();
-  const clientIp = getClientIp(req);
+    if (req.method !== "POST") {
+      return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
+    }
 
-  const rateResult = await checkRateLimit(clientIp, "vault-ingest");
-  if (rateResult.blocked) {
-    return createErrorResponse(
-      ERROR_CODES.RATE_LIMITED,
-      `Too many requests. Retry after ${rateResult.retryAfterSeconds}s`,
-      429,
-    );
-  }
+    const startTime = Date.now();
+    const clientIp = getClientIp(req);
 
-  const auth = await requireApiKeyAuth(req);
-  if (!auth) {
-    logApiCall({
-      userId: "unknown",
-      ipAddress: clientIp,
-      action: "vault-ingest",
-      success: false,
-      httpStatus: 401,
-      errorCode: ERROR_CODES.INVALID_API_KEY,
-      errorMessage: "Invalid or missing API key",
-    });
-    return createErrorResponse(ERROR_CODES.INVALID_API_KEY, "Invalid or missing API key", 401);
-  }
+    // 2. Rate limiting por IP
+    const rl = await checkRateLimit(clientIp, "vault-ingest");
+    if (rl.blocked) {
+      log.warn("Rate limit exceeded", { ip: clientIp });
+      return createErrorResponse(
+        req,
+        ERROR_CODES.RATE_LIMITED,
+        `Too many requests. Retry after ${rl.retryAfterSeconds}s`,
+        429,
+      );
+    }
 
-  try {
-    const body = await req.json();
+    // 3. Autenticação por API Key (Vault-backed)
+    const auth = await requireApiKeyAuth(req);
+    if (!auth) {
+      logApiCall({
+        userId: "unknown",
+        ipAddress: clientIp,
+        action: "vault-ingest",
+        success: false,
+        httpStatus: 401,
+        errorCode: ERROR_CODES.INVALID_API_KEY,
+        errorMessage: "Invalid or missing API key",
+      });
+      return createErrorResponse(req, ERROR_CODES.INVALID_API_KEY, "Invalid or missing API key", 401);
+    }
+
+    // 4. Validação do payload
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Invalid JSON body", 400);
+    }
+
     const validation = validatePayload(body);
-
     if (!validation.valid) {
       logApiCall({
         apiKeyId: auth.keyId,
@@ -126,15 +132,14 @@ serve(async (req) => {
         requestBody: body,
         processingTimeMs: Date.now() - startTime,
       });
-      return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, validation.message, 422);
+      return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, validation.message, 422);
     }
 
+    // 5. Inserir módulo no banco usando cliente "general"
     const { data } = validation;
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("DEVVAULT_SECRET_KEY")!;
-    const serviceClient = createClient(supabaseUrl, serviceKey);
+    const generalClient = getSupabaseClient("general");
 
-    const { data: inserted, error } = await serviceClient
+    const { data: inserted, error } = await generalClient
       .from("vault_modules")
       .insert({
         user_id: auth.userId,
@@ -151,7 +156,21 @@ serve(async (req) => {
       .select("id, title, category, created_at")
       .single();
 
-    if (error) throw error;
+    if (error) {
+      log.error("Failed to insert module", { userId: auth.userId, error: error.message });
+      logApiCall({
+        apiKeyId: auth.keyId,
+        userId: auth.userId,
+        ipAddress: clientIp,
+        action: "vault-ingest",
+        success: false,
+        httpStatus: 500,
+        errorCode: ERROR_CODES.INTERNAL_ERROR,
+        errorMessage: error.message,
+        processingTimeMs: Date.now() - startTime,
+      });
+      throw error;
+    }
 
     logApiCall({
       apiKeyId: auth.keyId,
@@ -164,19 +183,7 @@ serve(async (req) => {
       processingTimeMs: Date.now() - startTime,
     });
 
-    return createSuccessResponse({ module: inserted }, 201);
-  } catch (err) {
-    logApiCall({
-      apiKeyId: auth.keyId,
-      userId: auth.userId,
-      ipAddress: clientIp,
-      action: "vault-ingest",
-      success: false,
-      httpStatus: 500,
-      errorCode: ERROR_CODES.INTERNAL_ERROR,
-      errorMessage: err.message,
-      processingTimeMs: Date.now() - startTime,
-    });
-    return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, "Internal server error", 500);
-  }
-});
+    log.info("Module ingested", { userId: auth.userId, moduleId: inserted.id });
+    return createSuccessResponse(req, { module: inserted }, 201);
+  }),
+);

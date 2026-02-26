@@ -1,55 +1,73 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  handleCors,
-  createSuccessResponse,
-  createErrorResponse,
-  ERROR_CODES,
-} from "../_shared/api-helpers.ts";
+import { withSentry } from "../_shared/sentry.ts";
+import { handleCorsV2, createSuccessResponse, createErrorResponse, ERROR_CODES, getClientIp, extractBearerToken } from "../_shared/api-helpers.ts";
+import { getSupabaseClient, getUserFromToken } from "../_shared/supabase-client.ts";
+import { checkRateLimit } from "../_shared/rate-limit-guard.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-serve(async (req) => {
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
+serve(
+  withSentry("global-search", async (req) => {
+    const log = createLogger("global-search");
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Missing authorization", 401);
-  }
+    // 1. CORS preflight
+    const corsResponse = handleCorsV2(req);
+    if (corsResponse) return corsResponse;
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("DEVVAULT_SECRET_KEY")!;
-
-  const serviceClient = createClient(supabaseUrl, serviceKey);
-
-  const token = authHeader.replace("Bearer ", "");
-  const { data: { user }, error: authError } = await serviceClient.auth.getUser(token);
-
-  if (authError || !user) {
-    return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
-  }
-
-  try {
-    const { query } = await req.json();
-    if (!query || typeof query !== "string" || query.trim().length < 2) {
-      return createSuccessResponse({ results: [] });
+    // 2. Rate limiting por IP (limite generoso para não prejudicar UX)
+    const clientIp = getClientIp(req);
+    const rl = await checkRateLimit(clientIp, "global-search");
+    if (rl.blocked) {
+      log.warn("Rate limit exceeded", { ip: clientIp });
+      return createErrorResponse(
+        req,
+        ERROR_CODES.RATE_LIMITED,
+        `Too many requests. Try again in ${rl.retryAfterSeconds}s.`,
+        429,
+      );
     }
 
+    // 3. Autenticação do usuário via JWT
+    const token = extractBearerToken(req);
+    if (!token) {
+      return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Missing authorization", 401);
+    }
+
+    const user = await getUserFromToken(token);
+    if (!user) {
+      return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
+    }
+
+    // 4. Validação do payload
+    let body: { query?: unknown };
+    try {
+      body = await req.json();
+    } catch {
+      return createSuccessResponse(req, { results: [] });
+    }
+
+    const { query } = body;
+    if (!query || typeof query !== "string" || query.trim().length < 2) {
+      return createSuccessResponse(req, { results: [] });
+    }
+
+    // 5. Executar busca em paralelo usando cliente "general"
+    const generalClient = getSupabaseClient("general");
     const searchTerm = `%${query.trim()}%`;
 
     const [modulesRes, projectsRes, bugsRes] = await Promise.all([
-      serviceClient
+      generalClient
         .from("vault_modules")
         .select("id, title, category")
         .eq("user_id", user.id)
         .ilike("title", searchTerm)
         .limit(10),
-      serviceClient
+      generalClient
         .from("projects")
         .select("id, name, color")
         .eq("user_id", user.id)
         .ilike("name", searchTerm)
         .limit(10),
-      serviceClient
+      generalClient
         .from("bugs")
         .select("id, title, status")
         .eq("user_id", user.id)
@@ -78,9 +96,7 @@ serve(async (req) => {
       })),
     ];
 
-    return createSuccessResponse({ results });
-  } catch (err) {
-    console.error("[global-search] Error:", err.message);
-    return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
-  }
-});
+    log.info("Search completed", { userId: user.id, query: query.trim(), resultCount: results.length });
+    return createSuccessResponse(req, { results });
+  }),
+);
