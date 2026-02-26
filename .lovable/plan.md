@@ -1,50 +1,47 @@
 
 
-# Validacao do Sistema de API — Diagnostico Completo
+# Migracao: Criar Novos Secrets e Atualizar Edge Functions
 
-## Resultado dos Testes
+## Passo 1 — Voce (Manual no Dashboard)
 
-Todas as 5 Edge Functions estao deployadas e respondendo. Os testes de rejeicao (sem credenciais) passaram corretamente:
+Em **Settings > Edge Functions > Secrets**, criar:
 
-| Endpoint | Teste | Resultado |
+| Novo Secret | Valor |
+|---|---|
+| `DEVVAULT_PUBLISHABLE_KEY` | Valor da nova chave publicavel (`sb_publishable_...`) |
+| `DEVVAULT_SECRET_KEY` | Valor da nova chave secreta (`sb_secret_...`) |
+
+Os legados (`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) ficam la pois nao podem ser deletados, mas nenhum codigo vai referencia-los mais.
+
+## Passo 2 — Codigo (7 arquivos)
+
+Substituicoes em cada arquivo:
+
+| Arquivo | De | Para |
 |---|---|---|
-| `vault-ingest` POST sem API key | 401 INVALID_API_KEY | CORRETO |
-| `vault-ingest` GET | 405 Only POST allowed | CORRETO |
-| `create-api-key` POST sem JWT | 401 Missing authorization | CORRETO |
-| `revoke-api-key` POST sem JWT | 401 Missing authorization | CORRETO |
-| `global-search` POST sem JWT | 401 Missing authorization | CORRETO |
+| `supabase/functions/create-api-key/index.ts` | `SUPABASE_PUBLISHABLE_KEY` | `DEVVAULT_PUBLISHABLE_KEY` |
+| | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
+| `supabase/functions/revoke-api-key/index.ts` | `SUPABASE_PUBLISHABLE_KEY` | `DEVVAULT_PUBLISHABLE_KEY` |
+| | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
+| `supabase/functions/global-search/index.ts` | `SUPABASE_PUBLISHABLE_KEY` | `DEVVAULT_PUBLISHABLE_KEY` |
+| | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
+| `supabase/functions/vault-ingest/index.ts` | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
+| `supabase/functions/_shared/api-key-guard.ts` | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
+| `supabase/functions/_shared/api-audit-logger.ts` | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
+| `supabase/functions/_shared/rate-limit-guard.ts` | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
 
-## Bugs Criticos Encontrados
+## Resultado Final
 
-### Bug 1: `auth.getClaims()` nao existe no supabase-js v2
+| Secret | Status |
+|---|---|
+| `SUPABASE_URL` | Auto-injetado, manter (usado como esta) |
+| `SUPABASE_DB_URL` | Auto-injetado, manter |
+| `DEVVAULT_PUBLISHABLE_KEY` | **NOVO** — chave publica nova |
+| `DEVVAULT_SECRET_KEY` | **NOVO** — chave secreta nova |
+| `LOVABLE_API_KEY` | Interno Lovable, manter |
+| `SUPABASE_ANON_KEY` | Travado, ignorado pelo codigo |
+| `SUPABASE_SERVICE_ROLE_KEY` | Travado, ignorado pelo codigo |
+| `SUPABASE_PUBLISHABLE_KEY` | Sera substituido por `DEVVAULT_PUBLISHABLE_KEY` |
 
-Os arquivos `create-api-key/index.ts` e `revoke-api-key/index.ts` usam `userClient.auth.getClaims(token)` — esse metodo **nao existe** no supabase-js v2. Isso significa que criar e revogar chaves vai falhar com erro 500 quando um usuario autenticado tentar usar.
-
-**Correcao**: Substituir por `auth.getUser(token)` (mesmo padrao ja usado corretamente no `global-search/index.ts`).
-
-### Bug 2: Nomenclatura de secrets inconsistente
-
-Os mesmos dois arquivos usam `Deno.env.get("SUPABASE_ANON_KEY")` enquanto o padrao do projeto (e o `global-search`) usa `SUPABASE_PUBLISHABLE_KEY`. Ambos secrets existem no Supabase, entao nao vai dar erro de runtime, mas viola o padrao unico do projeto.
-
-**Correcao**: Trocar `SUPABASE_ANON_KEY` por `SUPABASE_PUBLISHABLE_KEY` nos dois arquivos.
-
-## O Que Esta Correto
-
-- Tabelas `devvault_api_keys`, `devvault_api_audit_log`, `devvault_api_rate_limits` — criadas com RLS correto
-- Funcoes SQL `create_devvault_api_key`, `validate_devvault_api_key`, `revoke_devvault_api_key` — usando Supabase Vault corretamente
-- `api-helpers.ts`, `api-key-guard.ts`, `api-audit-logger.ts`, `rate-limit-guard.ts` — implementados
-- `vault-ingest` — validacao Zod correta, schema mapeado para campos reais
-- `ApiKeysPage.tsx` — frontend completo com criacao, listagem, revogacao e reveal unico
-- `supabase/config.toml` — 4 functions registradas com `verify_jwt = false`
-- Rotas e navegacao — `/settings/api-keys` registrada e linkada
-
-## Plano de Correcao (2 arquivos)
-
-### 1. `supabase/functions/create-api-key/index.ts`
-- Linha 34: `SUPABASE_ANON_KEY` → `SUPABASE_PUBLISHABLE_KEY`
-- Linhas 42-48: Substituir bloco `getClaims` por `auth.getUser(token)`, extrair `user.id`
-
-### 2. `supabase/functions/revoke-api-key/index.ts`
-- Linha 24: `SUPABASE_ANON_KEY` → `SUPABASE_PUBLISHABLE_KEY`
-- Linhas 31-37: Substituir bloco `getClaims` por `auth.getUser(token)`, extrair `user.id`
+Zero dependencia de artefatos legados. Nomenclatura propria do DevVault.
 
