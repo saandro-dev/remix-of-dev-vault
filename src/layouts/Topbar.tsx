@@ -1,15 +1,31 @@
-import { Search, User } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Settings, LogOut } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TopbarProps {
   onOpenSearch?: () => void;
 }
 
 export function Topbar({ onOpenSearch }: TopbarProps) {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/login");
+  };
+
   return (
     <header className="h-14 flex items-center justify-between border-b border-border px-4 bg-background/80 backdrop-blur-sm sticky top-0 z-30">
       <div className="flex items-center gap-2">
@@ -37,11 +53,24 @@ export function Topbar({ onOpenSearch }: TopbarProps) {
 
         <ThemeToggle />
 
-        <Avatar className="h-8 w-8 cursor-pointer">
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-            DV
-          </AvatarFallback>
-        </Avatar>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Avatar className="h-8 w-8 cursor-pointer">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                DV
+              </AvatarFallback>
+            </Avatar>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => navigate("/settings")} className="gap-2 cursor-pointer">
+              <Settings className="h-4 w-4" /> Configurações
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="gap-2 cursor-pointer text-destructive">
+              <LogOut className="h-4 w-4" /> Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

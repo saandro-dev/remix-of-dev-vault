@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,8 +7,9 @@ import { CodeBlock } from "@/components/CodeBlock";
 import { TagCloud } from "@/components/TagCloud";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trash2, Copy, Check, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useConfirmDelete } from "@/components/common/ConfirmDelete";
+import { EditModuleSheet } from "@/modules/vault/components/EditModuleSheet";
+import { ArrowLeft, Trash2, Copy, Check, Loader2, Pencil } from "lucide-react";
 
 export function VaultDetailPage() {
   const { moduleId } = useParams<{ moduleId: string }>();
@@ -16,6 +18,8 @@ export function VaultDetailPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [depCopied, setDepCopied] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirmDelete();
 
   const { data: mod, isLoading } = useQuery({
     queryKey: ["vault_module", moduleId],
@@ -42,6 +46,15 @@ export function VaultDetailPage() {
       navigate(-1);
     },
   });
+
+  const handleDelete = async () => {
+    const confirmed = await confirm({
+      resourceType: "módulo",
+      resourceName: mod?.title ?? "",
+      requireTypeToConfirm: true,
+    });
+    if (confirmed) deleteMutation.mutate();
+  };
 
   const copyDeps = async () => {
     if (!mod?.dependencies) return;
@@ -73,6 +86,7 @@ export function VaultDetailPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      <ConfirmDialog />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link to="/vault">
@@ -85,9 +99,14 @@ export function VaultDetailPage() {
             <p className="text-sm text-muted-foreground">{mod.description}</p>
           </div>
         </div>
-        <Button variant="destructive" size="sm" className="gap-2" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
-          <Trash2 className="h-3.5 w-3.5" /> Excluir
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => setEditOpen(true)}>
+            <Pencil className="h-3.5 w-3.5" /> Editar
+          </Button>
+          <Button variant="destructive" size="sm" className="gap-2" onClick={handleDelete} disabled={deleteMutation.isPending}>
+            <Trash2 className="h-3.5 w-3.5" /> Excluir
+          </Button>
+        </div>
       </div>
 
       <TagCloud tags={mod.tags} />
@@ -117,6 +136,12 @@ export function VaultDetailPage() {
         <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Código</h2>
         <CodeBlock code={mod.code} language={mod.language} />
       </div>
+
+      <EditModuleSheet
+        module={mod as any}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
     </div>
   );
 }
