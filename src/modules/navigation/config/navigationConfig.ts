@@ -4,7 +4,7 @@ import {
   FolderOpen,
   Code2,
   Bug,
-  Users,
+  
   Settings,
   KeyRound,
   type LucideIcon,
@@ -56,7 +56,6 @@ export const navigationConfig: NavigationGroup[] = [
     defaultOpen: true,
     items: [
       { id: "bugs", label: "Diário de Bugs", icon: Bug, path: "/bugs" },
-      { id: "community", label: "Comunidade", icon: Users, path: "/community" },
     ],
   },
   {

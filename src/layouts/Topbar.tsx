@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/modules/auth/providers/AuthProvider";
 
 interface TopbarProps {
   onOpenSearch?: () => void;
@@ -20,9 +20,10 @@ interface TopbarProps {
 
 export function Topbar({ onOpenSearch }: TopbarProps) {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     navigate("/login");
   };
 

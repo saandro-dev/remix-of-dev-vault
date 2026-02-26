@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
+import { useProfile, useUpdateProfile } from "@/modules/settings/hooks/useProfile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,31 +9,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Save, Upload } from "lucide-react";
 
 export function SettingsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const { data: profile, isLoading } = useProfile();
+  const updateMutation = useUpdateProfile();
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-
-  const { data: profile, isLoading } = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user!.id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
 
   useEffect(() => {
     if (profile) {
@@ -43,27 +30,6 @@ export function SettingsPage() {
       setAvatarUrl(profile.avatar_url);
     }
   }, [profile]);
-
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          display_name: displayName,
-          bio: bio || null,
-          avatar_url: avatarUrl,
-        })
-        .eq("id", user!.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
-      toast({ title: "Perfil atualizado!" });
-    },
-    onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
-    },
-  });
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -86,11 +52,21 @@ export function SettingsPage() {
 
       setAvatarUrl(urlData.publicUrl);
       toast({ title: "Avatar enviado!" });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Erro no upload", description: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro desconhecido";
+      toast({ variant: "destructive", title: "Erro no upload", description: message });
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateMutation.mutate({
+      display_name: displayName,
+      bio: bio || null,
+      avatar_url: avatarUrl,
+    });
   };
 
   const initials = displayName
@@ -151,13 +127,7 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <form
-                className="space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  updateMutation.mutate();
-                }}
-              >
+              <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <Label>Nome de Exibição</Label>
                   <Input
