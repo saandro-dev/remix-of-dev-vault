@@ -1,47 +1,41 @@
 
 
-# Migracao: Criar Novos Secrets e Atualizar Edge Functions
+# Diagnostico: Dois Problemas Distintos
 
-## Passo 1 — Voce (Manual no Dashboard)
+## Problema 1 — Causa Raiz do Login
+O arquivo `src/integrations/supabase/client.ts` (linha 6) tem a **chave JWT legada hardcoded**:
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+O Supabase desativou as chaves legadas, por isso o erro "Chaves de API legadas estao desativadas". O frontend esta tentando autenticar com uma chave morta.
 
-Em **Settings > Edge Functions > Secrets**, criar:
+Este arquivo e auto-gerado pelo Lovable e nao usa a variavel de ambiente `VITE_SUPABASE_PUBLISHABLE_KEY` do `.env`. Precisa ser atualizado.
 
-| Novo Secret | Valor |
-|---|---|
-| `DEVVAULT_PUBLISHABLE_KEY` | Valor da nova chave publicavel (`sb_publishable_...`) |
-| `DEVVAULT_SECRET_KEY` | Valor da nova chave secreta (`sb_secret_...`) |
+## Problema 2 — Crash "removeChild"
+Erro secundario. O Supabase retorna erro de autenticacao, o React tenta renderizar o toast de erro, e o error boundary do React colide com o DOM causando o `removeChild`. Resolver o Problema 1 elimina este crash.
 
-Os legados (`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) ficam la pois nao podem ser deletados, mas nenhum codigo vai referencia-los mais.
+Como medida defensiva, adicionar `dedupe` no `vite.config.ts` para prevenir instancias duplicadas do React.
 
-## Passo 2 — Codigo (7 arquivos)
+## Plano de Execucao
 
-Substituicoes em cada arquivo:
+### Passo 1 — Atualizar `client.ts` para usar variavel de ambiente
+Modificar `src/integrations/supabase/client.ts` para ler `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` do `import.meta.env` em vez de valores hardcoded. Isso torna o cliente resiliente a mudancas de chave sem precisar reconectar.
 
-| Arquivo | De | Para |
-|---|---|---|
-| `supabase/functions/create-api-key/index.ts` | `SUPABASE_PUBLISHABLE_KEY` | `DEVVAULT_PUBLISHABLE_KEY` |
-| | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
-| `supabase/functions/revoke-api-key/index.ts` | `SUPABASE_PUBLISHABLE_KEY` | `DEVVAULT_PUBLISHABLE_KEY` |
-| | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
-| `supabase/functions/global-search/index.ts` | `SUPABASE_PUBLISHABLE_KEY` | `DEVVAULT_PUBLISHABLE_KEY` |
-| | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
-| `supabase/functions/vault-ingest/index.ts` | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
-| `supabase/functions/_shared/api-key-guard.ts` | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
-| `supabase/functions/_shared/api-audit-logger.ts` | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
-| `supabase/functions/_shared/rate-limit-guard.ts` | `SUPABASE_SERVICE_ROLE_KEY` | `DEVVAULT_SECRET_KEY` |
+### Passo 2 — Atualizar `.env` com a nova chave
+Substituir o valor de `VITE_SUPABASE_PUBLISHABLE_KEY` no `.env` pelo valor da nova chave publicavel (`sb_publishable_...`).
 
-## Resultado Final
+**Voce precisara fornecer o valor da nova publishable key** para que eu atualize o `.env`.
 
-| Secret | Status |
-|---|---|
-| `SUPABASE_URL` | Auto-injetado, manter (usado como esta) |
-| `SUPABASE_DB_URL` | Auto-injetado, manter |
-| `DEVVAULT_PUBLISHABLE_KEY` | **NOVO** — chave publica nova |
-| `DEVVAULT_SECRET_KEY` | **NOVO** — chave secreta nova |
-| `LOVABLE_API_KEY` | Interno Lovable, manter |
-| `SUPABASE_ANON_KEY` | Travado, ignorado pelo codigo |
-| `SUPABASE_SERVICE_ROLE_KEY` | Travado, ignorado pelo codigo |
-| `SUPABASE_PUBLISHABLE_KEY` | Sera substituido por `DEVVAULT_PUBLISHABLE_KEY` |
+### Passo 3 — Adicionar `dedupe` no `vite.config.ts`
+Adicionar `dedupe: ["react", "react-dom", "react/jsx-runtime"]` para prevenir instancias duplicadas do React.
 
-Zero dependencia de artefatos legados. Nomenclatura propria do DevVault.
+### Arvore de Arquivos Afetados
+
+```text
+src/
+  integrations/supabase/
+    client.ts          ← ler de import.meta.env
+.env                   ← novo valor da publishable key
+vite.config.ts         ← adicionar dedupe
+```
 
