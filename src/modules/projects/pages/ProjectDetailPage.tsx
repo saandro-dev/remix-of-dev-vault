@@ -1,21 +1,14 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { KeyMask } from "@/components/KeyMask";
-import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Loader2, Trash2, ArrowLeft, Key } from "lucide-react";
-import { Link } from "react-router-dom";
-
-type Environment = "dev" | "staging" | "prod";
+import { Plus, Loader2, ArrowLeft, Folder, Trash2 } from "lucide-react";
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -23,28 +16,31 @@ export function ProjectDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState("");
-  const [keyValue, setKeyValue] = useState("");
-  const [environment, setEnvironment] = useState<Environment>("dev");
+  const [folderName, setFolderName] = useState("");
+  const [folderColor, setFolderColor] = useState("#3B82F6");
 
   const { data: project } = useQuery({
     queryKey: ["project", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("*").eq("id", projectId!).single();
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("id", projectId!)
+        .single();
       if (error) throw error;
       return data;
     },
     enabled: !!projectId && !!user,
   });
 
-  const { data: apiKeys, isLoading } = useQuery({
-    queryKey: ["api_keys", projectId],
+  const { data: folders, isLoading } = useQuery({
+    queryKey: ["key_folders", projectId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("api_keys")
+        .from("key_folders")
         .select("*")
         .eq("project_id", projectId!)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -53,21 +49,19 @@ export function ProjectDetailPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("api_keys").insert({
+      const { error } = await supabase.from("key_folders").insert({
         project_id: projectId!,
         user_id: user!.id,
-        label,
-        key_value: keyValue,
-        environment,
+        name: folderName,
+        color: folderColor,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["api_keys", projectId] });
-      toast({ title: "API Key adicionada!" });
-      setLabel("");
-      setKeyValue("");
-      setEnvironment("dev");
+      queryClient.invalidateQueries({ queryKey: ["key_folders", projectId] });
+      toast({ title: "Pasta criada!" });
+      setFolderName("");
+      setFolderColor("#3B82F6");
       setOpen(false);
     },
     onError: (err: Error) => {
@@ -77,14 +71,16 @@ export function ProjectDetailPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("api_keys").delete().eq("id", id);
+      const { error } = await supabase.from("key_folders").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["api_keys", projectId] });
-      toast({ title: "API Key removida." });
+      queryClient.invalidateQueries({ queryKey: ["key_folders", projectId] });
+      toast({ title: "Pasta removida." });
     },
   });
+
+  const PRESET_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"];
 
   return (
     <div className="space-y-6">
@@ -104,40 +100,54 @@ export function ProjectDetailPage() {
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <Key className="h-4 w-4" /> API Keys
+          <Folder className="h-4 w-4" /> Pastas
         </h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-2">
-              <Plus className="h-4 w-4" /> Nova Key
+              <Plus className="h-4 w-4" /> Nova Pasta
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Adicionar API Key</DialogTitle>
+              <DialogTitle>Criar Pasta</DialogTitle>
             </DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); createMutation.mutate(); }}>
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                createMutation.mutate();
+              }}
+            >
               <div className="space-y-2">
-                <Label>Label</Label>
-                <Input value={label} onChange={(e) => setLabel(e.target.value)} required placeholder="Ex: Stripe Secret Key" />
+                <Label>Nome</Label>
+                <Input
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                  required
+                  placeholder="Ex: Keys do Supabase"
+                />
               </div>
               <div className="space-y-2">
-                <Label>Valor da Key</Label>
-                <Input value={keyValue} onChange={(e) => setKeyValue(e.target.value)} required placeholder="sk_live_..." type="password" />
-              </div>
-              <div className="space-y-2">
-                <Label>Ambiente</Label>
-                <Select value={environment} onValueChange={(v) => setEnvironment(v as Environment)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="dev">Dev</SelectItem>
-                    <SelectItem value="staging">Staging</SelectItem>
-                    <SelectItem value="prod">Prod</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Cor</Label>
+                <div className="flex gap-2">
+                  {PRESET_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setFolderColor(c)}
+                      className="h-8 w-8 rounded-full border-2 transition-transform"
+                      style={{
+                        backgroundColor: c,
+                        borderColor: folderColor === c ? "hsl(var(--foreground))" : "transparent",
+                        transform: folderColor === c ? "scale(1.15)" : "scale(1)",
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Adicionar"}
+                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar"}
               </Button>
             </form>
           </DialogContent>
@@ -148,36 +158,42 @@ export function ProjectDetailPage() {
         <div className="flex justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : !apiKeys?.length ? (
+      ) : !folders?.length ? (
         <div className="text-center py-8 text-muted-foreground">
-          Nenhuma API Key cadastrada neste projeto.
+          Nenhuma pasta criada. Crie uma pasta para organizar suas API Keys.
         </div>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Label</TableHead>
-                <TableHead>Key</TableHead>
-                <TableHead>Ambiente</TableHead>
-                <TableHead className="w-12" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {apiKeys.map((key) => (
-                <TableRow key={key.id}>
-                  <TableCell className="font-medium">{key.label}</TableCell>
-                  <TableCell><KeyMask value={key.key_value} /></TableCell>
-                  <TableCell><StatusBadge variant={key.environment as "dev" | "staging" | "prod"} /></TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(key.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {folders.map((folder) => (
+            <div
+              key={folder.id}
+              className="group relative rounded-lg border border-border bg-card p-4 hover:shadow-md transition-shadow"
+            >
+              <Link
+                to={`/projects/${projectId}/folders/${folder.id}`}
+                className="flex items-center gap-3"
+              >
+                <div
+                  className="flex h-10 w-10 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: folder.color + "20" }}
+                >
+                  <Folder className="h-5 w-5" style={{ color: folder.color }} />
+                </div>
+                <span className="font-medium text-foreground">{folder.name}</span>
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteMutation.mutate(folder.id);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
     </div>
