@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.list-devvault-keys]
 verify_jwt = false
+
+[functions.profiles-crud]
+verify_jwt = false
