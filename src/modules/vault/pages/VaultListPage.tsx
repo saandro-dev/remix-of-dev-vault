@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
@@ -27,7 +27,6 @@ const categoryLabels: Record<string, string> = {
 const categoryOptions = Object.entries(categoryLabels).map(([value, label]) => ({ value, label }));
 
 export function VaultListPage() {
-  const { category } = useParams<{ category: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -36,9 +35,7 @@ export function VaultListPage() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [moduleCategory, setModuleCategory] = useState<VaultCategory>(
-    (category as VaultCategory) || "frontend"
-  );
+  const [moduleCategory, setModuleCategory] = useState<VaultCategory>("frontend");
   const [language, setLanguage] = useState("typescript");
   const [code, setCode] = useState("");
   const [contextMarkdown, setContextMarkdown] = useState("");
@@ -46,20 +43,16 @@ export function VaultListPage() {
   const [tagsInput, setTagsInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const { data: modules, isLoading } = useQuery({
-    queryKey: ["vault_modules", category],
+    queryKey: ["vault_modules"],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("vault_modules")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (category && category in categoryLabels) {
-        query = query.eq("category", category as "frontend" | "backend" | "devops" | "security");
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -111,7 +104,9 @@ export function VaultListPage() {
       m.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesTags =
       activeTags.length === 0 || activeTags.some((t) => m.tags.includes(t));
-    return matchesSearch && matchesTags;
+    const matchesCategory =
+      !selectedCategory || m.category === selectedCategory;
+    return matchesSearch && matchesTags && matchesCategory;
   });
 
   const handleTagClick = (tag: string) => {
@@ -120,7 +115,7 @@ export function VaultListPage() {
     );
   };
 
-  const label = category ? categoryLabels[category] ?? category : "Todos";
+  const label = selectedCategory ? categoryLabels[selectedCategory] ?? "Todos" : "Todos";
 
   return (
     <div className="space-y-6">
@@ -192,6 +187,11 @@ export function VaultListPage() {
       </div>
 
       <div className="space-y-3">
+        <FilterPills
+          options={categoryOptions}
+          selected={selectedCategory}
+          onSelect={setSelectedCategory}
+        />
         <Input
           placeholder="Buscar módulos..."
           value={searchQuery}
@@ -222,7 +222,7 @@ export function VaultListPage() {
               codePreview={mod.code}
               tags={mod.tags}
               createdAt={mod.created_at}
-              onClick={() => navigate(`/vault/${mod.category}/${mod.id}`)}
+              onClick={() => navigate(`/vault/${mod.id}`)}
             />
           ))}
         </div>

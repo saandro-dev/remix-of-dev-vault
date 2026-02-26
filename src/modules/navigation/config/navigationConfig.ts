@@ -48,10 +48,7 @@ export const navigationConfig: NavigationGroup[] = [
     label: "Cofre Global",
     defaultOpen: true,
     items: [
-      { id: "vault-frontend", label: "Frontend", icon: MonitorSmartphone, path: "/vault/frontend" },
-      { id: "vault-backend", label: "Backend", icon: Server, path: "/vault/backend" },
-      { id: "vault-devops", label: "DevOps & Infra", icon: Code2, path: "/vault/devops" },
-      { id: "vault-security", label: "Segurança", icon: Shield, path: "/vault/security" },
+      { id: "vault", label: "Cofre Global", icon: Code2, path: "/vault" },
     ],
   },
   {
