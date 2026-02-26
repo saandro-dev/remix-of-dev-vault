@@ -18,7 +18,7 @@ export async function checkRateLimit(
   action: string,
 ): Promise<RateLimitResult> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const serviceKey = Deno.env.get("DEVVAULT_SECRET_KEY")!;
   const serviceClient = createClient(supabaseUrl, serviceKey);
 
   const { data: existing } = await serviceClient
