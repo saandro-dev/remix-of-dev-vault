@@ -86,7 +86,6 @@ serve(async (req) => {
   const startTime = Date.now();
   const clientIp = getClientIp(req);
 
-  // Rate limit check
   const rateResult = await checkRateLimit(clientIp, "vault-ingest");
   if (rateResult.blocked) {
     return createErrorResponse(
@@ -96,7 +95,6 @@ serve(async (req) => {
     );
   }
 
-  // API key auth
   const auth = await requireApiKeyAuth(req);
   if (!auth) {
     logApiCall({
