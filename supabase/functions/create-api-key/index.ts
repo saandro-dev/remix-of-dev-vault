@@ -31,7 +31,7 @@ serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const publishableKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const publishableKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   // Verify the user via their JWT
@@ -40,12 +40,12 @@ serve(async (req) => {
   });
 
   const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-  if (claimsError || !claimsData?.claims) {
+  const { data: { user }, error: authError } = await userClient.auth.getUser(token);
+  if (authError || !user) {
     return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
   }
 
-  const userId = claimsData.claims.sub as string;
+  const userId = user.id;
 
   try {
     const { key_name } = await req.json();
