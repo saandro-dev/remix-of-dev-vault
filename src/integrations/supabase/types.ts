@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           environment: Database["public"]["Enums"]["project_environment"]
+          folder_id: string | null
           id: string
           key_value: string
           label: string
@@ -27,6 +28,7 @@ export type Database = {
         Insert: {
           created_at?: string
           environment?: Database["public"]["Enums"]["project_environment"]
+          folder_id?: string | null
           id?: string
           key_value: string
           label: string
@@ -36,6 +38,7 @@ export type Database = {
         Update: {
           created_at?: string
           environment?: Database["public"]["Enums"]["project_environment"]
+          folder_id?: string | null
           id?: string
           key_value?: string
           label?: string
@@ -43,6 +46,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "api_keys_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "key_folders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "api_keys_project_id_fkey"
             columns: ["project_id"]
@@ -137,6 +147,44 @@ export type Database = {
             columns: ["vault_module_id"]
             isOneToOne: false
             referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      key_folders: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          project_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          project_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "key_folders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]

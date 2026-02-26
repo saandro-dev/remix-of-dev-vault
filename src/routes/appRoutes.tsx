@@ -6,6 +6,7 @@ import { VaultListPage } from "@/modules/vault/pages/VaultListPage";
 import { VaultDetailPage } from "@/modules/vault/pages/VaultDetailPage";
 import { ProjectsListPage } from "@/modules/projects/pages/ProjectsListPage";
 import { ProjectDetailPage } from "@/modules/projects/pages/ProjectDetailPage";
+import { FolderDetailPage } from "@/modules/projects/pages/FolderDetailPage";
 import { BugDiaryPage } from "@/modules/bugs/pages/BugDiaryPage";
 import { CommunityPage } from "@/modules/community/pages/CommunityPage";
 import { SearchPage } from "@/modules/search/pages/SearchPage";
@@ -33,6 +34,7 @@ export const appRoutes: RouteObject[] = [
       { path: "search", element: <SearchPage /> },
       { path: "projects", element: <ProjectsListPage /> },
       { path: "projects/:projectId", element: <ProjectDetailPage /> },
+      { path: "projects/:projectId/folders/:folderId", element: <FolderDetailPage /> },
       { path: "vault/:category", element: <VaultListPage /> },
       { path: "vault/:category/:moduleId", element: <VaultDetailPage /> },
       { path: "bugs", element: <BugDiaryPage /> },
