@@ -1,8 +1,5 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,97 +8,51 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { KeyMask } from "@/components/KeyMask";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useToast } from "@/hooks/use-toast";
+import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { Plus, Loader2, Trash2, ArrowLeft, Key } from "lucide-react";
-
-type Environment = "dev" | "staging" | "prod";
+import { useProjectApiKeys, useCreateProjectApiKey, useDeleteProjectApiKey } from "@/modules/projects/hooks/useProjectApiKeys";
+import { invokeEdgeFunction } from "@/lib/edge-function-client";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/modules/auth/providers/AuthProvider";
+import type { ProjectEnvironment, KeyFolder } from "@/modules/projects/types";
 
 export function FolderDetailPage() {
   const { projectId, folderId } = useParams<{ projectId: string; folderId: string }>();
   const { user } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState("");
-  const [keyValue, setKeyValue] = useState("");
-  const [environment, setEnvironment] = useState<Environment>("dev");
+  const { confirm, ConfirmDialog } = useConfirmDelete();
 
   const { data: folder } = useQuery({
     queryKey: ["key_folder", folderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("key_folders")
-        .select("*")
-        .eq("id", folderId!)
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => invokeEdgeFunction<KeyFolder>("folders-crud", { action: "get", id: folderId }),
     enabled: !!folderId && !!user,
   });
 
-  const { data: apiKeys, isLoading } = useQuery({
-    queryKey: ["api_keys", folderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("api_keys")
-        .select("*")
-        .eq("folder_id", folderId!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!folderId && !!user,
-  });
+  const { data: apiKeys, isLoading } = useProjectApiKeys(folderId);
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("api_keys").insert({
-        project_id: projectId!,
-        folder_id: folderId!,
-        user_id: user!.id,
-        label,
-        key_value: keyValue,
-        environment,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["api_keys", folderId] });
-      toast({ title: "API Key adicionada!" });
-      setLabel("");
-      setKeyValue("");
-      setEnvironment("dev");
-      setOpen(false);
-    },
-    onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
-    },
-  });
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [keyValue, setKeyValue] = useState("");
+  const [environment, setEnvironment] = useState<ProjectEnvironment>("dev");
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("api_keys").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["api_keys", folderId] });
-      toast({ title: "API Key removida." });
-    },
+  const createMutation = useCreateProjectApiKey(folderId, () => {
+    setLabel(""); setKeyValue(""); setEnvironment("dev"); setOpen(false);
   });
+  const deleteMutation = useDeleteProjectApiKey(folderId);
+
+  const handleDeleteKey = async (key: { id: string; label: string }) => {
+    const confirmed = await confirm({ resourceType: "API Key", resourceName: key.label });
+    if (confirmed) deleteMutation.mutate(key.id);
+  };
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog />
       <div className="flex items-center gap-3">
         <Link to={`/projects/${projectId}`}>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            {folder?.name ?? "Pasta"}
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{folder?.name ?? "Pasta"}</h1>
           <p className="text-muted-foreground text-sm">API Keys desta pasta</p>
         </div>
       </div>
@@ -112,15 +63,18 @@ export function FolderDetailPage() {
         </h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-2">
-              <Plus className="h-4 w-4" /> Nova Key
-            </Button>
+            <Button size="sm" className="gap-2"><Plus className="h-4 w-4" /> Nova Key</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adicionar API Key</DialogTitle>
-            </DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); createMutation.mutate(); }}>
+            <DialogHeader><DialogTitle>Adicionar API Key</DialogTitle></DialogHeader>
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!projectId || !folderId) return;
+                createMutation.mutate({ project_id: projectId, folder_id: folderId, label, key_value: keyValue, environment });
+              }}
+            >
               <div className="space-y-2">
                 <Label>Label</Label>
                 <Input value={label} onChange={(e) => setLabel(e.target.value)} required placeholder="Ex: Stripe Secret Key" />
@@ -131,7 +85,7 @@ export function FolderDetailPage() {
               </div>
               <div className="space-y-2">
                 <Label>Ambiente</Label>
-                <Select value={environment} onValueChange={(v) => setEnvironment(v as Environment)}>
+                <Select value={environment} onValueChange={(v) => setEnvironment(v as ProjectEnvironment)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="dev">Dev</SelectItem>
@@ -149,13 +103,9 @@ export function FolderDetailPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : !apiKeys?.length ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Nenhuma API Key nesta pasta.
-        </div>
+        <div className="text-center py-8 text-muted-foreground">Nenhuma API Key nesta pasta.</div>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
           <Table>
@@ -172,9 +122,9 @@ export function FolderDetailPage() {
                 <TableRow key={key.id}>
                   <TableCell className="font-medium">{key.label}</TableCell>
                   <TableCell><KeyMask value={key.key_value} /></TableCell>
-                  <TableCell><StatusBadge variant={key.environment as Environment} /></TableCell>
+                  <TableCell><StatusBadge variant={key.environment} /></TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(key.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteKey(key)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>

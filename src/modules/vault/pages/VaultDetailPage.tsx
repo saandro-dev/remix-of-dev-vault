@@ -1,59 +1,33 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { CodeBlock } from "@/components/CodeBlock";
 import { TagCloud } from "@/components/TagCloud";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { EditModuleSheet } from "@/modules/vault/components/EditModuleSheet";
+import { useVaultModule, useDeleteVaultModule } from "@/modules/vault/hooks/useVaultModule";
 import { ArrowLeft, Trash2, Copy, Check, Loader2, Pencil } from "lucide-react";
 
 export function VaultDetailPage() {
   const { moduleId } = useParams<{ moduleId: string }>();
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [depCopied, setDepCopied] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const { confirm, ConfirmDialog } = useConfirmDelete();
 
-  const { data: mod, isLoading } = useQuery({
-    queryKey: ["vault_module", moduleId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vault_modules")
-        .select("*")
-        .eq("id", moduleId!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!moduleId && !!user,
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("vault_modules").delete().eq("id", moduleId!);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault_modules"] });
-      toast({ title: "Módulo excluído." });
-      navigate(-1);
-    },
-  });
+  const { data: mod, isLoading } = useVaultModule(moduleId);
+  const deleteMutation = useDeleteVaultModule();
 
   const handleDelete = async () => {
+    if (!mod) return;
     const confirmed = await confirm({
       resourceType: "módulo",
-      resourceName: mod?.title ?? "",
+      resourceName: mod.title,
       requireTypeToConfirm: true,
     });
-    if (confirmed) deleteMutation.mutate();
+    if (confirmed) {
+      deleteMutation.mutate(mod.id, { onSuccess: () => navigate(-1) });
+    }
   };
 
   const copyDeps = async () => {
@@ -137,11 +111,7 @@ export function VaultDetailPage() {
         <CodeBlock code={mod.code} language={mod.language} />
       </div>
 
-      <EditModuleSheet
-        module={mod as any}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
+      <EditModuleSheet module={mod} open={editOpen} onOpenChange={setEditOpen} />
     </div>
   );
 }

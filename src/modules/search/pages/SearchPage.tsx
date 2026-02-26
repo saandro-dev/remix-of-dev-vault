@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, Package, FolderOpen, Bug } from "lucide-react";
 
 interface SearchResult {
@@ -15,11 +16,12 @@ interface SearchResult {
 const typeConfig = {
   module: { label: "Módulos", icon: Package, path: (id: string) => `/vault/${id}` },
   project: { label: "Projetos", icon: FolderOpen, path: (id: string) => `/projects/${id}` },
-  bug: { label: "Bugs", icon: Bug, path: (id: string) => `/bugs` },
+  bug: { label: "Bugs", icon: Bug, path: () => `/bugs` },
 };
 
 export function SearchPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,14 +40,16 @@ export function SearchPage() {
       const { data, error } = await supabase.functions.invoke("global-search", {
         body: { query: q.trim() },
       });
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       setResults(data?.results ?? []);
-    } catch {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro desconhecido na busca";
+      toast({ variant: "destructive", title: "Erro na busca", description: message });
       setResults([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     const timer = setTimeout(() => search(query), 350);
@@ -67,13 +71,7 @@ export function SearchPage() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Digite para buscar..."
-          className="pl-10"
-          autoFocus
-        />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Digite para buscar..." className="pl-10" autoFocus />
       </div>
 
       {loading && (
@@ -85,7 +83,7 @@ export function SearchPage() {
       {!loading && searched && results.length === 0 && (
         <div className="flex flex-col items-center py-12 text-center">
           <Search className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">Nenhum resultado para "{query}"</p>
+          <p className="text-muted-foreground">Nenhum resultado para &quot;{query}&quot;</p>
         </div>
       )}
 
@@ -99,11 +97,7 @@ export function SearchPage() {
             </h2>
             <div className="space-y-1">
               {items.map((item) => (
-                <Card
-                  key={item.id}
-                  className="cursor-pointer hover:border-primary/40 transition-colors"
-                  onClick={() => navigate(config.path(item.id))}
-                >
+                <Card key={item.id} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate(config.path(item.id))}>
                   <CardContent className="py-3 px-4 flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">{item.title}</span>
                     <span className="text-xs text-muted-foreground">{item.meta}</span>
