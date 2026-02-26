@@ -1,30 +1,17 @@
 
 
-# Consolidar Cofre Global em Uma Unica Pagina com Filtros
+# Fix: "Módulo não encontrado" na VaultDetailPage
 
-## Mudancas
+## Diagnóstico
 
-### 1. Sidebar (`navigationConfig.ts`)
-Substituir os 4 itens do grupo "Cofre Global" (Frontend, Backend, DevOps, Seguranca) por um unico item:
-- `{ id: "vault", label: "Cofre Global", icon: Code2, path: "/vault" }`
+A causa raiz é o uso de `.single()` na query do Supabase em `VaultDetailPage.tsx` (linha 27). Quando o `moduleId` da URL não corresponde a nenhum registro (seja UUID inválido, módulo deletado, ou URL legada das rotas antigas com categoria), `.single()` lança um erro que é capturado pelo React Query, resultando em `mod = undefined` e exibindo "Módulo não encontrado" sem contexto útil.
 
-### 2. Rota (`appRoutes.tsx`)
-- Alterar `vault/:category` para simplesmente `vault`
-- Manter `vault/:moduleId` para detalhe do modulo
+Além disso, conforme as diretrizes do projeto, `.single()` deve ser substituído por `.maybeSingle()` quando há risco de zero resultados.
 
-### 3. VaultListPage
-- Remover dependencia de `useParams` para category
-- Buscar TODOS os modulos sempre (sem filtro por rota)
-- Adicionar `FilterPills` de categoria no topo (Todos / Frontend / Backend / DevOps / Seguranca) como filtro client-side
-- Adicionar estado `selectedCategory` que filtra junto com search e tags
-- Ao navegar para detalhe: `/vault/${mod.id}` (sem category no path)
+## Mudanças
 
-### 4. VaultDetailPage
-- Ajustar rota de volta para `/vault` em vez de `/vault/:category`
-
-### Arquivos afetados
-1. `src/modules/navigation/config/navigationConfig.ts` — 4 items → 1 item
-2. `src/routes/appRoutes.tsx` — rota `vault/:category` → `vault`, `vault/:category/:moduleId` → `vault/:moduleId`
-3. `src/modules/vault/pages/VaultListPage.tsx` — adicionar FilterPills de categoria, remover useParams
-4. `src/modules/vault/pages/VaultDetailPage.tsx` — ajustar link de volta
+### `src/modules/vault/pages/VaultDetailPage.tsx`
+1. Substituir `.single()` por `.maybeSingle()` na query (linha 27)
+2. Melhorar o estado "não encontrado" com um botão de volta para `/vault` em vez de apenas texto solto
+3. Tratar o caso de `error` separadamente do caso de "módulo não existe" para dar feedback adequado
 
