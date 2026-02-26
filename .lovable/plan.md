@@ -1,41 +1,44 @@
 
 
-# Diagnostico: Dois Problemas Distintos
+# Diagnostico: Edge Function `create-api-key` falha na verificacao de JWT
 
-## Problema 1 — Causa Raiz do Login
-O arquivo `src/integrations/supabase/client.ts` (linha 6) tem a **chave JWT legada hardcoded**:
-```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-O Supabase desativou as chaves legadas, por isso o erro "Chaves de API legadas estao desativadas". O frontend esta tentando autenticar com uma chave morta.
+## Investigacao
 
-Este arquivo e auto-gerado pelo Lovable e nao usa a variavel de ambiente `VITE_SUPABASE_PUBLISHABLE_KEY` do `.env`. Precisa ser atualizado.
+A edge function responde corretamente (retorna 401 sem auth header, como esperado). O problema ocorre quando o frontend envia o JWT do usuario — a verificacao via `getUser(token)` falha.
 
-## Problema 2 — Crash "removeChild"
-Erro secundario. O Supabase retorna erro de autenticacao, o React tenta renderizar o toast de erro, e o error boundary do React colide com o DOM causando o `removeChild`. Resolver o Problema 1 elimina este crash.
+## Causa Raiz
 
-Como medida defensiva, adicionar `dedupe` no `vite.config.ts` para prevenir instancias duplicadas do React.
+A edge function usa `userClient.auth.getUser(token)` para verificar o JWT. Este metodo faz uma chamada HTTP ao Supabase Auth API, enviando o `apikey` header do cliente. Com o novo sistema de signing-keys e o formato `sb_publishable_...`, o `getUser()` pode falhar porque a versao do supabase-js carregada via `esm.sh/@supabase/supabase-js@2` pode nao suportar o novo formato de chave corretamente.
+
+A documentacao da plataforma e explicita: **"Supabase's signing-keys system is used. Validate JWTs in code using `getClaims()`."**
+
+`getClaims(jwt)` valida o JWT localmente sem depender do apikey header, eliminando o problema.
 
 ## Plano de Execucao
 
-### Passo 1 — Atualizar `client.ts` para usar variavel de ambiente
-Modificar `src/integrations/supabase/client.ts` para ler `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` do `import.meta.env` em vez de valores hardcoded. Isso torna o cliente resiliente a mudancas de chave sem precisar reconectar.
+### Passo 1 — Atualizar `create-api-key/index.ts`
 
-### Passo 2 — Atualizar `.env` com a nova chave
-Substituir o valor de `VITE_SUPABASE_PUBLISHABLE_KEY` no `.env` pelo valor da nova chave publicavel (`sb_publishable_...`).
+Substituir `getUser(token)` por `getClaims(token)`. Extrair `userId` de `data.claims.sub`. Manter o `serviceClient` com `DEVVAULT_SECRET_KEY` para o RPC (esse funciona pois e service role, nao depende de publishable key para auth).
 
-**Voce precisara fornecer o valor da nova publishable key** para que eu atualize o `.env`.
+### Passo 2 — Atualizar `revoke-api-key/index.ts`
 
-### Passo 3 — Adicionar `dedupe` no `vite.config.ts`
-Adicionar `dedupe: ["react", "react-dom", "react/jsx-runtime"]` para prevenir instancias duplicadas do React.
+Mesma substituicao: `getUser(token)` → `getClaims(token)`.
 
-### Arvore de Arquivos Afetados
+### Passo 3 — Atualizar `global-search/index.ts` e `vault-ingest/index.ts`
+
+Verificar se usam `getUser()` e substituir por `getClaims()` onde aplicavel.
+
+### Passo 4 — Adicionar logging temporario
+
+Adicionar `console.log` para verificar se os secrets estao presentes (sem logar valores) e capturar erros especificos. Isso permite diagnosticar se ha problemas residuais.
+
+### Arquivos Afetados
 
 ```text
-src/
-  integrations/supabase/
-    client.ts          ← ler de import.meta.env
-.env                   ← novo valor da publishable key
-vite.config.ts         ← adicionar dedupe
+supabase/functions/
+  create-api-key/index.ts    ← getClaims + logging
+  revoke-api-key/index.ts    ← getClaims + logging
+  global-search/index.ts     ← verificar e atualizar
+  vault-ingest/index.ts      ← verificar e atualizar
 ```
 
