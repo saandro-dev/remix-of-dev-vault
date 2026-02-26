@@ -11,3 +11,24 @@ verify_jwt = false
 
 [functions.revoke-api-key]
 verify_jwt = false
+
+[functions.vault-crud]
+verify_jwt = false
+
+[functions.projects-crud]
+verify_jwt = false
+
+[functions.folders-crud]
+verify_jwt = false
+
+[functions.project-api-keys-crud]
+verify_jwt = false
+
+[functions.bugs-crud]
+verify_jwt = false
+
+[functions.dashboard-stats]
+verify_jwt = false
+
+[functions.list-devvault-keys]
+verify_jwt = false

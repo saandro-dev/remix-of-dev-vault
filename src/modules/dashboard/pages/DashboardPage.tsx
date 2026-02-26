@@ -1,47 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/modules/auth/providers/AuthProvider";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { FolderOpen, Package, Key, Bug, ArrowRight, Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { FolderOpen, Package, Key, Bug, ArrowRight, Loader2 } from "lucide-react";
+import { useDashboardStats } from "@/modules/dashboard/hooks/useDashboardStats";
 
 export function DashboardPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const { data, isLoading } = useDashboardStats();
 
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: async () => {
-      const [projects, modules, keys, bugs] = await Promise.all([
-        supabase.from("projects").select("id", { count: "exact", head: true }),
-        supabase.from("vault_modules").select("id", { count: "exact", head: true }),
-        supabase.from("api_keys").select("id", { count: "exact", head: true }),
-        supabase.from("bugs").select("id", { count: "exact", head: true }).eq("status", "open"),
-      ]);
-      return {
-        projects: projects.count ?? 0,
-        modules: modules.count ?? 0,
-        keys: keys.count ?? 0,
-        openBugs: bugs.count ?? 0,
-      };
-    },
-    enabled: !!user,
-  });
-
-  const { data: recentProjects } = useQuery({
-    queryKey: ["recent-projects"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("updated_at", { ascending: false })
-        .limit(5);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
+  const stats = data?.stats;
+  const recentProjects = data?.recentProjects;
 
   const statCards = [
     { label: "Projetos", value: stats?.projects, icon: FolderOpen, path: "/projects", color: "text-primary" },
@@ -71,13 +39,11 @@ export function DashboardPage() {
                 onClick={() => navigate(stat.path)}
               >
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {stat.label}
-                  </CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
                   <stat.icon className={`h-4 w-4 ${stat.color}`} />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-foreground">{stat.value}</div>
+                  <div className="text-3xl font-bold text-foreground">{stat.value ?? 0}</div>
                 </CardContent>
               </Card>
             ))}

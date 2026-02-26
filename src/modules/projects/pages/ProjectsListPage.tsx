@@ -1,86 +1,36 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/modules/auth/providers/AuthProvider";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
+import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { Plus, FolderOpen, Loader2, Trash2, Pencil } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useProjects, useUpsertProject, useDeleteProject } from "@/modules/projects/hooks/useProjects";
+import type { Project } from "@/modules/projects/types";
 
 export function ProjectsListPage() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { data: projects, isLoading } = useProjects();
+  const { confirm, ConfirmDialog } = useConfirmDelete();
+
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#3B82F6");
 
-  const { data: projects, isLoading } = useQuery({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const upsertMutation = useMutation({
-    mutationFn: async () => {
-      if (editingId) {
-        const { error } = await supabase
-          .from("projects")
-          .update({ name, description, color })
-          .eq("id", editingId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("projects")
-          .insert({ name, description, color, user_id: user!.id });
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast({ title: editingId ? "Projeto atualizado!" : "Projeto criado!" });
-      resetForm();
-    },
-    onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("projects").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast({ title: "Projeto excluído." });
-    },
-  });
-
   const resetForm = () => {
-    setName("");
-    setDescription("");
-    setColor("#3B82F6");
-    setEditingId(null);
-    setOpen(false);
+    setName(""); setDescription(""); setColor("#3B82F6");
+    setEditingId(null); setOpen(false);
   };
 
-  const startEdit = (project: NonNullable<typeof projects>[number]) => {
+  const upsertMutation = useUpsertProject(resetForm);
+  const deleteMutation = useDeleteProject();
+
+  const startEdit = (project: Project) => {
     setEditingId(project.id);
     setName(project.name);
     setDescription(project.description ?? "");
@@ -88,8 +38,17 @@ export function ProjectsListPage() {
     setOpen(true);
   };
 
+  const handleDelete = async (project: Project) => {
+    const confirmed = await confirm({
+      resourceType: "projeto",
+      resourceName: project.name,
+    });
+    if (confirmed) deleteMutation.mutate(project.id);
+  };
+
   return (
     <div className="space-y-6">
+      <ConfirmDialog />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Seus Projetos</h1>
@@ -97,9 +56,7 @@ export function ProjectsListPage() {
         </div>
         <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); setOpen(v); }}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" /> Novo Projeto
-            </Button>
+            <Button className="gap-2"><Plus className="h-4 w-4" /> Novo Projeto</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -107,7 +64,10 @@ export function ProjectsListPage() {
             </DialogHeader>
             <form
               className="space-y-4"
-              onSubmit={(e) => { e.preventDefault(); upsertMutation.mutate(); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                upsertMutation.mutate({ id: editingId ?? undefined, name, description, color });
+              }}
             >
               <div className="space-y-2">
                 <Label>Nome</Label>
@@ -133,9 +93,7 @@ export function ProjectsListPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : !projects?.length ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -159,7 +117,7 @@ export function ProjectsListPage() {
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); startEdit(project); }}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(project.id); }}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(project); }}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
