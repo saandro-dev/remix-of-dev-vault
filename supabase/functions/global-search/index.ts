@@ -22,11 +22,11 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseKey = Deno.env.get("DEVVAULT_SECRET_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verify user from JWT
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!);
+    const anonClient = createClient(supabaseUrl, Deno.env.get("DEVVAULT_PUBLISHABLE_KEY")!);
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await anonClient.auth.getUser(token);
     if (authError || !user) {
