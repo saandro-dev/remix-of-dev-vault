@@ -66,7 +66,7 @@ export function VaultDetailPage() {
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link to={`/vault/${mod.category}`}>
+          <Link to="/vault">
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
             </Button>
