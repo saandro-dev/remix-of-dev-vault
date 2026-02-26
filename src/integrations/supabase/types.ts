@@ -14,16 +14,306 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      api_keys: {
+        Row: {
+          created_at: string
+          environment: Database["public"]["Enums"]["project_environment"]
+          id: string
+          key_value: string
+          label: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          environment?: Database["public"]["Enums"]["project_environment"]
+          id?: string
+          key_value: string
+          label: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          environment?: Database["public"]["Enums"]["project_environment"]
+          id?: string
+          key_value?: string
+          label?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bugs: {
+        Row: {
+          cause_code: string | null
+          created_at: string
+          id: string
+          project_id: string | null
+          solution: string | null
+          status: Database["public"]["Enums"]["bug_status"]
+          symptom: string
+          tags: string[]
+          title: string
+          updated_at: string
+          user_id: string
+          vault_module_id: string | null
+        }
+        Insert: {
+          cause_code?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string | null
+          solution?: string | null
+          status?: Database["public"]["Enums"]["bug_status"]
+          symptom: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+          user_id: string
+          vault_module_id?: string | null
+        }
+        Update: {
+          cause_code?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string | null
+          solution?: string | null
+          status?: Database["public"]["Enums"]["bug_status"]
+          symptom?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          user_id?: string
+          vault_module_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bugs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bugs_vault_module_id_fkey"
+            columns: ["vault_module_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      favorites: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+          vault_module_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+          vault_module_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+          vault_module_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favorites_vault_module_id_fkey"
+            columns: ["vault_module_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          display_name: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          icon: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      shared_snippets: {
+        Row: {
+          id: string
+          shared_at: string
+          user_id: string
+          vault_module_id: string
+        }
+        Insert: {
+          id?: string
+          shared_at?: string
+          user_id: string
+          vault_module_id: string
+        }
+        Update: {
+          id?: string
+          shared_at?: string
+          user_id?: string
+          vault_module_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_snippets_vault_module_id_fkey"
+            columns: ["vault_module_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vault_modules: {
+        Row: {
+          category: Database["public"]["Enums"]["vault_category"]
+          code: string
+          context_markdown: string | null
+          created_at: string
+          dependencies: string | null
+          description: string | null
+          id: string
+          is_public: boolean
+          language: string
+          tags: string[]
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["vault_category"]
+          code?: string
+          context_markdown?: string | null
+          created_at?: string
+          dependencies?: string | null
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          language?: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["vault_category"]
+          code?: string
+          context_markdown?: string | null
+          created_at?: string
+          dependencies?: string | null
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          language?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
+      bug_status: "open" | "resolved"
+      project_environment: "dev" | "staging" | "prod"
+      vault_category: "frontend" | "backend" | "devops" | "security"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +440,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+      bug_status: ["open", "resolved"],
+      project_environment: ["dev", "staging", "prod"],
+      vault_category: ["frontend", "backend", "devops", "security"],
+    },
   },
 } as const
