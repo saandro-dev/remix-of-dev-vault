@@ -1,13 +1,1 @@
 project_id = "bskfnthwewhpfrldbhqx"
-
-[functions.global-search]
-verify_jwt = false
-
-[functions.vault-ingest]
-verify_jwt = false
-
-[functions.create-api-key]
-verify_jwt = false
-
-[functions.revoke-api-key]
-verify_jwt = false
