@@ -1,64 +1,55 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import {
+  handleCors,
+  createSuccessResponse,
+  createErrorResponse,
+  ERROR_CODES,
+} from "../_shared/api-helpers.ts";
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Missing authorization", 401);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("DEVVAULT_SECRET_KEY")!;
+
+  const serviceClient = createClient(supabaseUrl, serviceKey);
+
+  const token = authHeader.replace("Bearer ", "");
+  const { data: { user }, error: authError } = await serviceClient.auth.getUser(token);
+
+  if (authError || !user) {
+    return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("DEVVAULT_SECRET_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Verify user from JWT
-    const anonClient = createClient(supabaseUrl, Deno.env.get("DEVVAULT_PUBLISHABLE_KEY")!);
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const { query } = await req.json();
     if (!query || typeof query !== "string" || query.trim().length < 2) {
-      return new Response(JSON.stringify({ results: [] }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return createSuccessResponse({ results: [] });
     }
 
     const searchTerm = `%${query.trim()}%`;
 
     const [modulesRes, projectsRes, bugsRes] = await Promise.all([
-      supabase
+      serviceClient
         .from("vault_modules")
         .select("id, title, category")
         .eq("user_id", user.id)
         .ilike("title", searchTerm)
         .limit(10),
-      supabase
+      serviceClient
         .from("projects")
         .select("id, name, color")
         .eq("user_id", user.id)
         .ilike("name", searchTerm)
         .limit(10),
-      supabase
+      serviceClient
         .from("bugs")
         .select("id, title, status")
         .eq("user_id", user.id)
@@ -87,13 +78,9 @@ serve(async (req) => {
       })),
     ];
 
-    return new Response(JSON.stringify({ results }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return createSuccessResponse({ results });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[global-search] Error:", err.message);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
   }
 });

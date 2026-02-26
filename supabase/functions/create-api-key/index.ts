@@ -24,24 +24,26 @@ serve(async (req) => {
     return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
   }
 
-  // JWT auth — user must be logged in
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Missing authorization", 401);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const publishableKey = Deno.env.get("DEVVAULT_PUBLISHABLE_KEY")!;
   const serviceKey = Deno.env.get("DEVVAULT_SECRET_KEY")!;
 
-  // Verify the user via their JWT
-  const userClient = createClient(supabaseUrl, publishableKey, {
-    global: { headers: { Authorization: authHeader } },
+  console.log("[create-api-key] ENV check:", {
+    hasUrl: !!supabaseUrl,
+    hasServiceKey: !!serviceKey,
   });
 
+  const serviceClient = createClient(supabaseUrl, serviceKey);
+
   const token = authHeader.replace("Bearer ", "");
-  const { data: { user }, error: authError } = await userClient.auth.getUser(token);
+  const { data: { user }, error: authError } = await serviceClient.auth.getUser(token);
+
   if (authError || !user) {
+    console.error("[create-api-key] Auth failed:", authError?.message ?? "no user");
     return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
   }
 
@@ -59,8 +61,6 @@ serve(async (req) => {
 
     const rawKey = generateApiKey();
 
-    // Call Vault-backed function to create the key
-    const serviceClient = createClient(supabaseUrl, serviceKey);
     const { data: keyId, error } = await serviceClient.rpc(
       "create_devvault_api_key",
       {
@@ -75,11 +75,12 @@ serve(async (req) => {
     return createSuccessResponse({
       id: keyId,
       key_name,
-      key: rawKey, // Returned ONLY once — never stored in plaintext
+      key: rawKey,
       prefix: rawKey.substring(0, 8),
       warning: "Save this key now. It will never be shown again.",
     }, 201);
   } catch (err) {
+    console.error("[create-api-key] Error:", err.message);
     return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
   }
 });

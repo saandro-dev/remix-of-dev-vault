@@ -21,16 +21,15 @@ serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const publishableKey = Deno.env.get("DEVVAULT_PUBLISHABLE_KEY")!;
   const serviceKey = Deno.env.get("DEVVAULT_SECRET_KEY")!;
 
-  const userClient = createClient(supabaseUrl, publishableKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
+  const serviceClient = createClient(supabaseUrl, serviceKey);
 
   const token = authHeader.replace("Bearer ", "");
-  const { data: { user }, error: authError } = await userClient.auth.getUser(token);
+  const { data: { user }, error: authError } = await serviceClient.auth.getUser(token);
+
   if (authError || !user) {
+    console.error("[revoke-api-key] Auth failed:", authError?.message ?? "no user");
     return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
   }
 
@@ -42,7 +41,6 @@ serve(async (req) => {
       return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "key_id is required", 422);
     }
 
-    const serviceClient = createClient(supabaseUrl, serviceKey);
     const { data: revoked, error } = await serviceClient.rpc(
       "revoke_devvault_api_key",
       {
@@ -59,6 +57,7 @@ serve(async (req) => {
 
     return createSuccessResponse({ revoked: true });
   } catch (err) {
+    console.error("[revoke-api-key] Error:", err.message);
     return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
   }
 });
