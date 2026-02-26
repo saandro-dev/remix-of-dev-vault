@@ -24,7 +24,7 @@ export function VaultDetailPage() {
         .from("vault_modules")
         .select("*")
         .eq("id", moduleId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -59,7 +59,16 @@ export function VaultDetailPage() {
   }
 
   if (!mod) {
-    return <p className="text-muted-foreground">Módulo não encontrado.</p>;
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-4">
+        <p className="text-muted-foreground">Módulo não encontrado ou URL inválida.</p>
+        <Link to="/vault">
+          <Button variant="outline" className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Voltar ao Cofre
+          </Button>
+        </Link>
+      </div>
+    );
   }
 
   return (
