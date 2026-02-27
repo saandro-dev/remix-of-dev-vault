@@ -3,6 +3,12 @@ import { handleCorsV2, createSuccessResponse, createErrorResponse, ERROR_CODES }
 import { authenticateRequest, isResponse } from "../_shared/auth.ts";
 import { withSentry } from "../_shared/sentry.ts";
 import { log } from "../_shared/logger.ts";
+import {
+  enrichModuleDependencies,
+  handleAddDependency,
+  handleRemoveDependency,
+  handleListDependencies,
+} from "../_shared/dependency-helpers.ts";
 
 serve(withSentry("vault-crud", async (req: Request) => {
   const corsResponse = handleCorsV2(req);
@@ -25,7 +31,6 @@ serve(withSentry("vault-crud", async (req: Request) => {
 
       case "list": {
         const { scope = "owned", domain, module_type, query, limit = 50, offset = 0 } = body;
-
         const { data, error } = await client.rpc("get_visible_modules", {
           p_user_id: user.id,
           p_scope: scope,
@@ -65,36 +70,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
           }
         }
 
-        // Enrich with module dependencies (HATEOAS)
-        const { data: deps } = await client
-          .from("vault_module_dependencies")
-          .select("id, depends_on_id, dependency_type, created_at")
-          .eq("module_id", id);
-
-        const depModuleIds = (deps ?? []).map((d: Record<string, unknown>) => d.depends_on_id as string);
-        let depModules: Record<string, { title: string; slug: string | null }> = {};
-        if (depModuleIds.length > 0) {
-          const { data: mods } = await client
-            .from("vault_modules")
-            .select("id, title, slug")
-            .in("id", depModuleIds);
-          for (const m of mods ?? []) {
-            depModules[(m as Record<string, unknown>).id as string] = {
-              title: (m as Record<string, unknown>).title as string,
-              slug: (m as Record<string, unknown>).slug as string | null,
-            };
-          }
-        }
-
-        const module_dependencies = (deps ?? []).map((d: Record<string, unknown>) => ({
-          id: d.id,
-          depends_on_id: d.depends_on_id,
-          dependency_type: d.dependency_type,
-          title: depModules[d.depends_on_id as string]?.title ?? "Unknown",
-          slug: depModules[d.depends_on_id as string]?.slug ?? null,
-          fetch_url: `/rest/v1/rpc/get_vault_module?p_id=${d.depends_on_id}`,
-        }));
-
+        const module_dependencies = await enrichModuleDependencies(client, id);
         return createSuccessResponse(req, { ...data, module_dependencies });
       }
 
@@ -110,8 +86,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
         const { data, error } = await client
           .from("vault_modules")
           .insert({
-            user_id: user.id,
-            title,
+            user_id: user.id, title,
             description: description || null,
             domain: domain || "backend",
             module_type: module_type || "code_snippet",
@@ -209,14 +184,11 @@ serve(withSentry("vault-crud", async (req: Request) => {
         return createSuccessResponse(req, { phases, total: data?.length ?? 0 });
       }
 
-      // -- Share a module with another user by email --
       case "share": {
         const { module_id, email } = body;
         if (!module_id || !email) {
           return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id or email", 422);
         }
-
-        // Verify ownership
         const { data: mod, error: modErr } = await client
           .from("vault_modules")
           .select("id, user_id, visibility")
@@ -226,56 +198,33 @@ serve(withSentry("vault-crud", async (req: Request) => {
         if (modErr) throw modErr;
         if (!mod) return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Module not found or not owned", 404);
 
-        // Find target user by email via profiles + auth
         const { data: targetProfile, error: profileErr } = await client
           .from("profiles")
           .select("id")
-          .eq("id", (
-            await client.rpc("get_user_id_by_email", { p_email: email })
-          ).data)
+          .eq("id", (await client.rpc("get_user_id_by_email", { p_email: email })).data)
           .maybeSingle();
-
-        // Fallback: use service client to look up user
-        // Since we can't query auth.users, we need a helper RPC
-        // For now, return validation error if user not found
         if (profileErr || !targetProfile) {
           return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "User not found with that email", 404);
         }
-
         if (targetProfile.id === user.id) {
           return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Cannot share with yourself", 422);
         }
-
-        // Update visibility to shared if currently private
         if (mod.visibility === "private") {
-          await client
-            .from("vault_modules")
-            .update({ visibility: "shared" })
-            .eq("id", module_id)
-            .eq("user_id", user.id);
+          await client.from("vault_modules").update({ visibility: "shared" }).eq("id", module_id).eq("user_id", user.id);
         }
-
-        // Insert share record
         const { error: shareErr } = await client
           .from("vault_module_shares")
-          .upsert({
-            module_id,
-            shared_with_user_id: targetProfile.id,
-            shared_by_user_id: user.id,
-          }, { onConflict: "module_id,shared_with_user_id" });
+          .upsert({ module_id, shared_with_user_id: targetProfile.id, shared_by_user_id: user.id }, { onConflict: "module_id,shared_with_user_id" });
         if (shareErr) throw shareErr;
-
         log("info", "vault-crud", `shared module=${module_id} with=${targetProfile.id}`);
         return createSuccessResponse(req, { shared: true });
       }
 
-      // -- Remove a share --
       case "unshare": {
         const { module_id, user_id: target_user_id } = body;
         if (!module_id || !target_user_id) {
           return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id or user_id", 422);
         }
-
         const { error } = await client
           .from("vault_module_shares")
           .delete()
@@ -283,107 +232,31 @@ serve(withSentry("vault-crud", async (req: Request) => {
           .eq("shared_by_user_id", user.id)
           .eq("shared_with_user_id", target_user_id);
         if (error) throw error;
-
         return createSuccessResponse(req, { unshared: true });
       }
 
-      // -- List shares for a module --
       case "list_shares": {
         const { module_id } = body;
         if (!module_id) {
           return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id", 422);
         }
-
         const { data, error } = await client
           .from("vault_module_shares")
           .select("shared_with_user_id, created_at")
           .eq("module_id", module_id)
           .eq("shared_by_user_id", user.id);
         if (error) throw error;
-
         return createSuccessResponse(req, { shares: data ?? [] });
       }
 
-      // -- Add a dependency between modules --
-      case "add_dependency": {
-        const { module_id, depends_on_id, dependency_type = "required" } = body;
-        if (!module_id || !depends_on_id) {
-          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id or depends_on_id", 422);
-        }
+      case "add_dependency":
+        return handleAddDependency(req, client, user.id, body);
 
-        // Ownership validated by RLS INSERT policy
-        const { data, error } = await client
-          .from("vault_module_dependencies")
-          .insert({
-            module_id,
-            depends_on_id,
-            dependency_type,
-          })
-          .select()
-          .single();
-        if (error) throw error;
+      case "remove_dependency":
+        return handleRemoveDependency(req, client, body);
 
-        log("info", "vault-crud", `added dependency module=${module_id} depends_on=${depends_on_id}`);
-        return createSuccessResponse(req, data, 201);
-      }
-
-      // -- Remove a dependency --
-      case "remove_dependency": {
-        const { module_id, depends_on_id } = body;
-        if (!module_id || !depends_on_id) {
-          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id or depends_on_id", 422);
-        }
-
-        // Ownership validated by RLS DELETE policy
-        const { error } = await client
-          .from("vault_module_dependencies")
-          .delete()
-          .eq("module_id", module_id)
-          .eq("depends_on_id", depends_on_id);
-        if (error) throw error;
-
-        return createSuccessResponse(req, { removed: true });
-      }
-
-      // -- List dependencies for a module --
-      case "list_dependencies": {
-        const { module_id } = body;
-        if (!module_id) {
-          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id", 422);
-        }
-
-        const { data: deps, error } = await client
-          .from("vault_module_dependencies")
-          .select("id, depends_on_id, dependency_type, created_at")
-          .eq("module_id", module_id);
-        if (error) throw error;
-
-        const depIds = (deps ?? []).map((d: Record<string, unknown>) => d.depends_on_id as string);
-        let depMods: Record<string, { title: string; slug: string | null }> = {};
-        if (depIds.length > 0) {
-          const { data: mods } = await client
-            .from("vault_modules")
-            .select("id, title, slug")
-            .in("id", depIds);
-          for (const m of mods ?? []) {
-            depMods[(m as Record<string, unknown>).id as string] = {
-              title: (m as Record<string, unknown>).title as string,
-              slug: (m as Record<string, unknown>).slug as string | null,
-            };
-          }
-        }
-
-        const dependencies = (deps ?? []).map((d: Record<string, unknown>) => ({
-          id: d.id,
-          depends_on_id: d.depends_on_id,
-          dependency_type: d.dependency_type,
-          title: depMods[d.depends_on_id as string]?.title ?? "Unknown",
-          slug: depMods[d.depends_on_id as string]?.slug ?? null,
-          fetch_url: `/rest/v1/rpc/get_vault_module?p_id=${d.depends_on_id}`,
-        }));
-
-        return createSuccessResponse(req, { dependencies });
-      }
+      case "list_dependencies":
+        return handleListDependencies(req, client, body);
 
       default:
         return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, `Unknown action: ${action}`, 422);

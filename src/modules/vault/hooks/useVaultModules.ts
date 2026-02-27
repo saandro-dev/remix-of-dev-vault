@@ -86,17 +86,17 @@ export interface CreateModuleInput {
   visibility?: VisibilityLevel;
 }
 
-export function useCreateVaultModule(onSuccess?: () => void) {
+export function useCreateVaultModule(onSuccess?: (createdModule: VaultModule) => void) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateModuleInput) =>
       invokeEdgeFunction<VaultModule>("vault-crud", { action: "create", ...input }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["vault_modules"] });
       queryClient.invalidateQueries({ queryKey: ["vault_playbook"] });
       toast({ title: i18n.t("toast.moduleCreated") });
-      onSuccess?.();
+      onSuccess?.(data);
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: i18n.t("toast.createError"), description: err.message });
