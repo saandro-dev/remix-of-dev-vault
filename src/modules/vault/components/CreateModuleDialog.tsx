@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Lock, Users, Globe } from "lucide-react";
 import { useCreateVaultModule } from "../hooks/useVaultModules";
-import type { VaultDomain, VaultModuleType, VaultValidationStatus } from "../types";
+import type { VaultDomain, VaultModuleType, VaultValidationStatus, VisibilityLevel } from "../types";
 
 interface Props {
   open: boolean;
@@ -40,7 +41,7 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
     saas_phase: "",
     phase_title: "",
     validation_status: "draft" as VaultValidationStatus,
-    is_public: false,
+    visibility: "private" as VisibilityLevel,
   });
 
   const set = (field: string, value: unknown) =>
@@ -63,7 +64,7 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
       saas_phase: form.saas_phase ? parseInt(form.saas_phase) : undefined,
       phase_title: form.phase_title || undefined,
       validation_status: form.validation_status,
-      is_public: form.is_public,
+      visibility: form.visibility,
     });
   };
 
@@ -177,12 +178,36 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
                 </Select>
               </div>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <div>
-                <p className="text-sm font-medium">{t("createModule.publicModule")}</p>
-                <p className="text-xs text-muted-foreground">{t("createModule.publicHint")}</p>
-              </div>
-              <Switch checked={form.is_public} onCheckedChange={(v) => set("is_public", v)} />
+
+            {/* Visibility selector */}
+            <div className="space-y-3 p-4 rounded-lg border border-border">
+              <Label className="text-sm font-medium">{t("createModule.visibility")}</Label>
+              <RadioGroup value={form.visibility} onValueChange={(v) => set("visibility", v)} className="space-y-2">
+                <label className="flex items-center gap-3 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="private" id="vis-private" />
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">{t("visibility.private")}</p>
+                    <p className="text-xs text-muted-foreground">{t("visibility.privateHint")}</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="shared" id="vis-shared" />
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">{t("visibility.shared")}</p>
+                    <p className="text-xs text-muted-foreground">{t("visibility.sharedHint")}</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-2 rounded-md hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="global" id="vis-global" />
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">{t("visibility.global")}</p>
+                    <p className="text-xs text-muted-foreground">{t("visibility.globalHint")}</p>
+                  </div>
+                </label>
+              </RadioGroup>
             </div>
           </TabsContent>
         </Tabs>
