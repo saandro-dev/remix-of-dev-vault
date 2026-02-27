@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { handleCorsV2 } from "../_shared/cors-v2.ts";
 import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
-import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import { authenticateRequest, isResponse } from "../_shared/auth.ts";
 import { withSentry } from "../_shared/sentry.ts";
 import { log } from "../_shared/logger.ts";
@@ -16,9 +15,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
 
   const auth = await authenticateRequest(req);
   if (isResponse(auth)) return auth;
-  const { user } = auth;
-
-  const client = getSupabaseClient("general");
+  const { user, client } = auth;
 
   try {
     const body = await req.json();
