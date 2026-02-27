@@ -1,12 +1,13 @@
 /**
- * devvault-mcp/index.ts — Universal MCP Server for AI Agents.
+ * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v2).
  *
  * Exposes the DevVault Knowledge Graph as MCP tools via Streamable HTTP.
  * Authentication: X-DevVault-Key header validated against Supabase Vault.
  * Transport: Streamable HTTP (mcp-lite default).
  *
- * Tools: devvault_bootstrap, devvault_search, devvault_get,
- *        devvault_list, devvault_domains, devvault_ingest.
+ * Tools (8): devvault_bootstrap, devvault_search, devvault_get,
+ *            devvault_list, devvault_domains, devvault_ingest,
+ *            devvault_update, devvault_get_group.
  */
 
 import { Hono } from "hono";
@@ -14,7 +15,7 @@ import { McpServer, StreamableHttpTransport } from "mcp-lite";
 import { validateApiKey } from "../_shared/api-key-guard.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import { checkRateLimit } from "../_shared/rate-limit-guard.ts";
-import { enrichModuleDependencies } from "../_shared/dependency-helpers.ts";
+import { enrichModuleDependencies, batchInsertDependencies } from "../_shared/dependency-helpers.ts";
 import { createLogger } from "../_shared/logger.ts";
 
 const logger = createLogger("devvault-mcp");
@@ -26,7 +27,7 @@ const MCP_RATE_LIMIT = {
 };
 
 // ---------------------------------------------------------------------------
-// Auth middleware: extract & validate X-DevVault-Key before MCP processing
+// Auth middleware
 // ---------------------------------------------------------------------------
 
 interface AuthContext {
@@ -62,16 +63,26 @@ async function authenticateRequest(req: Request): Promise<AuthContext | Response
     return new Response(
       JSON.stringify({
         jsonrpc: "2.0",
-        error: {
-          code: -32002,
-          message: `Rate limited. Retry after ${rateCheck.retryAfterSeconds}s`,
-        },
+        error: { code: -32002, message: `Rate limited. Retry after ${rateCheck.retryAfterSeconds}s` },
       }),
       { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(rateCheck.retryAfterSeconds) } },
     );
   }
 
   return { userId: result.userId, keyId: result.keyId };
+}
+
+// ---------------------------------------------------------------------------
+// Completeness helper (calls DB function)
+// ---------------------------------------------------------------------------
+
+async function getCompleteness(client: ReturnType<typeof getSupabaseClient>, moduleId: string) {
+  const { data, error } = await client.rpc("vault_module_completeness", { p_id: moduleId });
+  if (error || !data || (data as unknown[]).length === 0) {
+    return { score: 0, missing_fields: ["error_fetching_completeness"] };
+  }
+  const row = (data as Record<string, unknown>[])[0];
+  return { score: row.score as number, missing_fields: row.missing_fields as string[] };
 }
 
 // ---------------------------------------------------------------------------
@@ -83,7 +94,7 @@ function createMcpServer(auth: AuthContext): McpServer {
 
   const server = new McpServer({
     name: "devvault",
-    version: "1.0.0",
+    version: "2.0.0",
   });
 
   // ── devvault_bootstrap ──────────────────────────────────────────────────
@@ -106,9 +117,9 @@ function createMcpServer(auth: AuthContext): McpServer {
   // ── devvault_search ─────────────────────────────────────────────────────
   server.tool("devvault_search", {
     description:
-      "Search the Knowledge Graph by intent. Returns modules matching your query " +
-      "with relevance scoring. Use filters to narrow by domain or type. " +
-      "For listing without text search, use devvault_list instead.",
+      "Search the Knowledge Graph by intent/text. Returns modules matching your query " +
+      "with relevance scoring. Supports full-text search in both PT and EN. " +
+      "For structured browsing without text search, use devvault_list instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -162,10 +173,10 @@ function createMcpServer(auth: AuthContext): McpServer {
   // ── devvault_get ────────────────────────────────────────────────────────
   server.tool("devvault_get", {
     description:
-      "Fetch a specific module by ID or slug. Returns full code, context, and a " +
-      "dependencies array. CRITICAL: If any dependency has dependency_type='required', " +
-      "you MUST call devvault_get for each required dependency BEFORE implementing " +
-      "this module. This ensures all foundational code is in place.",
+      "Fetch a specific module by ID or slug. Returns full code, context, dependencies, " +
+      "completeness score, and group metadata. CRITICAL: If any dependency has " +
+      "dependency_type='required', you MUST call devvault_get for each required " +
+      "dependency BEFORE implementing this module.",
     inputSchema: {
       type: "object",
       properties: {
@@ -203,12 +214,38 @@ function createMcpServer(auth: AuthContext): McpServer {
         (d: Record<string, unknown>) => d.dependency_type === "required",
       );
 
+      // Completeness score
+      const completeness = await getCompleteness(client, moduleId);
+
+      // Group metadata
+      const moduleRaw = await client
+        .from("vault_modules")
+        .select("module_group, implementation_order")
+        .eq("id", moduleId)
+        .single();
+
+      let groupMeta: Record<string, unknown> | null = null;
+      if (moduleRaw.data?.module_group) {
+        const { count } = await client
+          .from("vault_modules")
+          .select("id", { count: "exact", head: true })
+          .eq("module_group", moduleRaw.data.module_group);
+
+        groupMeta = {
+          name: moduleRaw.data.module_group,
+          position: moduleRaw.data.implementation_order,
+          total: count ?? 0,
+        };
+      }
+
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
             ...module,
             dependencies,
+            _completeness: completeness,
+            _group: groupMeta,
             _instructions: hasRequired
               ? "⚠️ This module has REQUIRED dependencies. You MUST fetch and implement each required dependency (via devvault_get) BEFORE implementing this module."
               : "This module has no required dependencies. You can implement it directly.",
@@ -221,11 +258,12 @@ function createMcpServer(auth: AuthContext): McpServer {
   // ── devvault_list ───────────────────────────────────────────────────────
   server.tool("devvault_list", {
     description:
-      "List modules with optional filters. No text search — use devvault_search " +
-      "for that. Good for browsing a specific domain or type.",
+      "List modules with optional filters including text search, tags, and group. " +
+      "For semantic/intent-based search with relevance scoring, prefer devvault_search.",
     inputSchema: {
       type: "object",
       properties: {
+        query: { type: "string", description: "Text search filter (searches title, description, tags)" },
         domain: {
           type: "string",
           enum: ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"],
@@ -234,6 +272,12 @@ function createMcpServer(auth: AuthContext): McpServer {
           type: "string",
           enum: ["code_snippet", "full_module", "sql_migration", "architecture_doc", "playbook_phase", "pattern_guide"],
         },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Filter by tags (AND match)",
+        },
+        group: { type: "string", description: "Filter by module_group name (e.g. 'whatsapp-integration')" },
         limit: { type: "number", description: "Max results (default 20, max 50)" },
         offset: { type: "number", description: "Pagination offset (default 0)" },
       },
@@ -247,21 +291,36 @@ function createMcpServer(auth: AuthContext): McpServer {
         p_limit: limit,
         p_offset: offset,
       };
+      if (params.query) rpcParams.p_query = params.query;
       if (params.domain) rpcParams.p_domain = params.domain;
       if (params.module_type) rpcParams.p_module_type = params.module_type;
+      if (params.tags) rpcParams.p_tags = params.tags;
 
       const { data, error } = await client.rpc("query_vault_modules", rpcParams);
       if (error) {
         logger.error("list failed", { error: error.message });
         return { content: [{ type: "text", text: `Error: ${error.message}` }] };
       }
+
+      // If group filter, apply post-filter (column not in RPC)
+      let modules = data as Record<string, unknown>[];
+      if (params.group) {
+        const groupName = params.group as string;
+        const { data: groupModules } = await client
+          .from("vault_modules")
+          .select("id")
+          .eq("module_group", groupName);
+        const groupIds = new Set((groupModules ?? []).map((m: Record<string, unknown>) => m.id as string));
+        modules = modules.filter((m) => groupIds.has(m.id as string));
+      }
+
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
-            total_results: (data as unknown[])?.length ?? 0,
+            total_results: modules.length,
             offset,
-            modules: data,
+            modules,
           }, null, 2),
         }],
       };
@@ -287,15 +346,17 @@ function createMcpServer(auth: AuthContext): McpServer {
   // ── devvault_ingest ─────────────────────────────────────────────────────
   server.tool("devvault_ingest", {
     description:
-      "Save a new knowledge module to the vault. Use after successfully implementing " +
-      "a pattern worth preserving. The module will be created with visibility='global' " +
-      "and validation_status='draft' by default.",
+      "Save a new knowledge module to the vault. Slug is auto-generated from title if " +
+      "not provided. You can attach dependencies and assign a module_group. " +
+      "STRONGLY ENCOURAGED: always provide why_it_matters and code_example for maximum " +
+      "agent utility. Missing these fields will trigger a warning in the response.",
     inputSchema: {
       type: "object",
       properties: {
-        title: { type: "string", description: "Module title (required)" },
+        title: { type: "string", description: "Module title (required, English preferred)" },
         code: { type: "string", description: "The code content (required)" },
-        description: { type: "string", description: "Brief description" },
+        description: { type: "string", description: "Brief description (English preferred)" },
+        slug: { type: "string", description: "Custom slug (auto-generated from title if omitted)" },
         domain: {
           type: "string",
           enum: ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"],
@@ -305,15 +366,34 @@ function createMcpServer(auth: AuthContext): McpServer {
           enum: ["code_snippet", "full_module", "sql_migration", "architecture_doc", "playbook_phase", "pattern_guide"],
         },
         language: { type: "string", description: "Programming language (default: typescript)" },
-        tags: { type: "array", items: { type: "string" }, description: "Tags for categorization" },
-        why_it_matters: { type: "string", description: "Why this knowledge is valuable" },
+        tags: { type: "array", items: { type: "string" }, description: "Tags for categorization (English)" },
+        why_it_matters: { type: "string", description: "Why this knowledge is valuable (strongly encouraged)" },
         context_markdown: { type: "string", description: "Extended context in Markdown" },
-        code_example: { type: "string", description: "Usage example" },
+        code_example: { type: "string", description: "Usage example showing how to use this module (strongly encouraged)" },
         source_project: { type: "string", description: "Source project name" },
+        module_group: { type: "string", description: "Group name for related modules (e.g. 'whatsapp-integration')" },
+        implementation_order: { type: "number", description: "Order within group (1-based)" },
+        dependencies: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              depends_on_id: { type: "string", description: "UUID of the dependency module" },
+              dependency_type: { type: "string", enum: ["required", "recommended"], description: "Default: required" },
+            },
+            required: ["depends_on_id"],
+          },
+          description: "Array of module dependencies to link",
+        },
       },
       required: ["title", "code"],
     },
     handler: async (params: Record<string, unknown>) => {
+      const warnings: string[] = [];
+
+      if (!params.why_it_matters) warnings.push("why_it_matters is empty — agents benefit greatly from knowing WHY this module exists.");
+      if (!params.code_example) warnings.push("code_example is empty — agents need usage examples to implement correctly.");
+
       const insertData: Record<string, unknown> = {
         title: params.title,
         code: params.code,
@@ -324,6 +404,7 @@ function createMcpServer(auth: AuthContext): McpServer {
         tags: params.tags ?? [],
       };
 
+      if (params.slug) insertData.slug = params.slug;
       if (params.description) insertData.description = params.description;
       if (params.domain) insertData.domain = params.domain;
       if (params.module_type) insertData.module_type = params.module_type;
@@ -331,6 +412,8 @@ function createMcpServer(auth: AuthContext): McpServer {
       if (params.context_markdown) insertData.context_markdown = params.context_markdown;
       if (params.code_example) insertData.code_example = params.code_example;
       if (params.source_project) insertData.source_project = params.source_project;
+      if (params.module_group) insertData.module_group = params.module_group;
+      if (params.implementation_order != null) insertData.implementation_order = params.implementation_order;
 
       const { data, error } = await client
         .from("vault_modules")
@@ -343,6 +426,19 @@ function createMcpServer(auth: AuthContext): McpServer {
         return { content: [{ type: "text", text: `Error: ${error.message}` }] };
       }
 
+      // Insert dependencies if provided
+      const deps = params.dependencies as Array<{ depends_on_id: string; dependency_type?: string }> | undefined;
+      if (deps && deps.length > 0) {
+        try {
+          await batchInsertDependencies(client, data.id, deps);
+        } catch (depError) {
+          warnings.push(`Dependencies partially failed: ${(depError as Error).message}`);
+        }
+      }
+
+      // Get completeness score
+      const completeness = await getCompleteness(client, data.id);
+
       logger.info("module ingested via MCP", { moduleId: data.id, userId: auth.userId });
 
       return {
@@ -351,7 +447,159 @@ function createMcpServer(auth: AuthContext): McpServer {
           text: JSON.stringify({
             success: true,
             module: data,
+            _completeness: completeness,
+            _warnings: warnings.length > 0 ? warnings : undefined,
             _hint: "Module created as 'draft'. Use devvault_get to verify it was saved correctly.",
+          }, null, 2),
+        }],
+      };
+    },
+  });
+
+  // ── devvault_update ─────────────────────────────────────────────────────
+  server.tool("devvault_update", {
+    description:
+      "Update an existing module by ID or slug. Supports partial updates — only the " +
+      "fields you provide will be changed. Use this to fill missing fields like " +
+      "why_it_matters, code_example, fix language, update tags, etc. Returns the " +
+      "updated completeness score.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Module UUID (provide id or slug)" },
+        slug: { type: "string", description: "Module slug (provide id or slug)" },
+        title: { type: "string" },
+        description: { type: "string" },
+        code: { type: "string" },
+        code_example: { type: "string" },
+        why_it_matters: { type: "string" },
+        context_markdown: { type: "string" },
+        tags: { type: "array", items: { type: "string" } },
+        domain: { type: "string", enum: ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"] },
+        module_type: { type: "string", enum: ["code_snippet", "full_module", "sql_migration", "architecture_doc", "playbook_phase", "pattern_guide"] },
+        language: { type: "string" },
+        source_project: { type: "string" },
+        module_group: { type: "string" },
+        implementation_order: { type: "number" },
+        validation_status: { type: "string", enum: ["draft", "validated", "deprecated"] },
+      },
+      required: [],
+    },
+    handler: async (params: Record<string, unknown>) => {
+      if (!params.id && !params.slug) {
+        return { content: [{ type: "text", text: "Error: Provide either 'id' or 'slug'" }] };
+      }
+
+      // Resolve module ID
+      let moduleId = params.id as string | undefined;
+      if (!moduleId && params.slug) {
+        const { data: found } = await client
+          .from("vault_modules")
+          .select("id")
+          .eq("slug", params.slug as string)
+          .single();
+        if (!found) {
+          return { content: [{ type: "text", text: `Module not found with slug: ${params.slug}` }] };
+        }
+        moduleId = found.id;
+      }
+
+      // Build update payload (exclude id/slug from update fields)
+      const updateFields: Record<string, unknown> = {};
+      const allowedFields = [
+        "title", "description", "code", "code_example", "why_it_matters",
+        "context_markdown", "tags", "domain", "module_type", "language",
+        "source_project", "module_group", "implementation_order", "validation_status",
+      ];
+      for (const field of allowedFields) {
+        if (params[field] !== undefined) updateFields[field] = params[field];
+      }
+
+      if (Object.keys(updateFields).length === 0) {
+        return { content: [{ type: "text", text: "Error: No fields to update" }] };
+      }
+
+      const { data, error } = await client
+        .from("vault_modules")
+        .update(updateFields)
+        .eq("id", moduleId!)
+        .select("id, slug, title, updated_at")
+        .single();
+
+      if (error) {
+        logger.error("update failed", { error: error.message });
+        return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+      }
+
+      const completeness = await getCompleteness(client, moduleId!);
+
+      logger.info("module updated via MCP", { moduleId, userId: auth.userId, fields: Object.keys(updateFields) });
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            success: true,
+            module: data,
+            _completeness: completeness,
+            updated_fields: Object.keys(updateFields),
+          }, null, 2),
+        }],
+      };
+    },
+  });
+
+  // ── devvault_get_group ──────────────────────────────────────────────────
+  server.tool("devvault_get_group", {
+    description:
+      "Fetch all modules in a group, ordered by implementation_order, with dependencies " +
+      "pre-resolved. This is the 'give me everything I need to implement X' tool. " +
+      "Example: devvault_get_group({ group: 'whatsapp-integration' }) returns all " +
+      "WhatsApp modules in the correct implementation sequence.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        group: { type: "string", description: "The module_group name (e.g. 'whatsapp-integration')" },
+      },
+      required: ["group"],
+    },
+    handler: async (params: Record<string, unknown>) => {
+      const groupName = params.group as string;
+
+      const { data: modules, error } = await client
+        .from("vault_modules")
+        .select("id, slug, title, description, domain, module_type, language, tags, why_it_matters, code_example, module_group, implementation_order, validation_status")
+        .eq("module_group", groupName)
+        .order("implementation_order", { ascending: true, nullsFirst: false });
+
+      if (error) {
+        logger.error("get_group failed", { error: error.message });
+        return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+      }
+
+      if (!modules || modules.length === 0) {
+        return { content: [{ type: "text", text: `No modules found in group: ${groupName}` }] };
+      }
+
+      // Enrich each module with dependencies
+      const enriched = await Promise.all(
+        (modules as Record<string, unknown>[]).map(async (mod) => {
+          const deps = await enrichModuleDependencies(client, mod.id as string);
+          return { ...mod, dependencies: deps };
+        }),
+      );
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            group: groupName,
+            total_modules: enriched.length,
+            modules: enriched,
+            _instructions:
+              "Implement these modules in order (by implementation_order). " +
+              "For each module, call devvault_get to fetch the full code before implementing. " +
+              "Respect required dependencies — implement them first.",
           }, null, 2),
         }],
       };
@@ -383,7 +631,6 @@ app.all("/*", async (c) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  // Authenticate before MCP processing
   const authResult = await authenticateRequest(c.req.raw);
   if (authResult instanceof Response) {
     return authResult;

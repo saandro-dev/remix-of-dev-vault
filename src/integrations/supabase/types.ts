@@ -491,7 +491,9 @@ export type Database = {
           description: string | null
           domain: Database["public"]["Enums"]["vault_domain"] | null
           id: string
+          implementation_order: number | null
           language: string
+          module_group: string | null
           module_type: Database["public"]["Enums"]["vault_module_type"] | null
           next_steps: Json[] | null
           phase_title: string | null
@@ -522,7 +524,9 @@ export type Database = {
           description?: string | null
           domain?: Database["public"]["Enums"]["vault_domain"] | null
           id?: string
+          implementation_order?: number | null
           language?: string
+          module_group?: string | null
           module_type?: Database["public"]["Enums"]["vault_module_type"] | null
           next_steps?: Json[] | null
           phase_title?: string | null
@@ -553,7 +557,9 @@ export type Database = {
           description?: string | null
           domain?: Database["public"]["Enums"]["vault_domain"] | null
           id?: string
+          implementation_order?: number | null
           language?: string
+          module_group?: string | null
           module_type?: Database["public"]["Enums"]["vault_module_type"] | null
           next_steps?: Json[] | null
           phase_title?: string | null
@@ -750,6 +756,13 @@ export type Database = {
         Returns: {
           key_id: string
           owner_id: string
+        }[]
+      }
+      vault_module_completeness: {
+        Args: { p_id: string }
+        Returns: {
+          missing_fields: string[]
+          score: number
         }[]
       }
     }
