@@ -1,84 +1,94 @@
+# DevVault MCP v2.1 — Implementation Plan
 
+## Status: COMPLETE
 
-# Audit Report — DevVault MCP v2
+## Architecture
 
-## Findings
+The MCP server follows a modular architecture where each tool is a standalone
+module in `supabase/functions/_shared/mcp-tools/`. The entry point
+(`devvault-mcp/index.ts`) is a thin Hono shell (~48 lines) responsible only
+for CORS, authentication, and transport binding.
 
-### CRITICAL VIOLATION: File Size (Protocol 5.4)
-
-`supabase/functions/devvault-mcp/index.ts` is **646 lines** — more than double the 300-line limit. This is a "God Object" per the protocol and must be refactored immediately.
-
-### Documentation Issues
-
-1. `.lovable/plan.md` has **mixed PT/EN** (section headers in English, content descriptions in English, but some context is ambiguous). Should be fully EN per protocol.
-2. `.lovable/plan.md` validation checklist items are still unchecked `[ ]` despite the MCP being confirmed working by the agent.
-3. `vault-query/index.ts` comment block still says "list_domains" action but this is correct — no issue.
-
-### No Dead Code Found
-
-- `vault-query` and `vault-ingest` are legitimate REST API endpoints documented in the API docs page — they serve external HTTP consumers (cURL, fetch, Python). The MCP server is a separate transport. Both coexist correctly.
-- `dependency-helpers.ts` exports are all consumed: `enrichModuleDependencies` by both `vault-query` and `devvault-mcp`, `batchInsertDependencies` by `devvault-mcp`.
-- `api-key-guard.ts` exports `validateApiKey` (used by all 3 functions) and `requireApiKeyAuth` (used by vault-query/vault-ingest pattern).
-
-### Architecture Assessment
-
-The MCP server creates a new `McpServer` instance per request (line 639). This is correct for stateless Edge Functions — no issue.
-
----
-
-## Análise de Soluções
-
-### Solução A: Only update plan.md checklist
-- Manutenibilidade: 6/10 (646-line file remains)
-- Zero DT: 5/10 (God Object persists)
-- Arquitetura: 5/10 (violates SRP)
-- Escalabilidade: 7/10
-- Segurança: 9/10
-- **NOTA FINAL: 6.2/10**
-
-### Solução B: Refactor MCP into modular files + update documentation
-- Manutenibilidade: 10/10
-- Zero DT: 10/10
-- Arquitetura: 10/10 (each tool is its own module, SRP enforced)
-- Escalabilidade: 10/10 (adding new tools = adding a file)
-- Segurança: 9.5/10
-- **NOTA FINAL: 9.9/10**
-
-### DECISÃO: Solução B (Nota 9.9)
-
----
-
-## Implementation Plan
-
-### Problem
-`devvault-mcp/index.ts` (646 lines) violates the 300-line limit. All 8 tool handlers, auth, completeness helper, CORS, and routing live in one file.
-
-### Constraint
-Edge Functions require all code in `index.ts` — no subfolder imports allowed. However, we CAN import from `_shared/`.
-
-### Solution: Extract tool handlers to `_shared/mcp-tools/`
+### File Structure
 
 ```text
-MODIFY   supabase/functions/_shared/mcp-tools/auth.ts          (~40 lines) — authenticateRequest + AuthContext
-MODIFY   supabase/functions/_shared/mcp-tools/completeness.ts   (~15 lines) — getCompleteness helper
-MODIFY   supabase/functions/_shared/mcp-tools/bootstrap.ts      (~20 lines) — devvault_bootstrap handler
-MODIFY   supabase/functions/_shared/mcp-tools/search.ts         (~55 lines) — devvault_search handler
-MODIFY   supabase/functions/_shared/mcp-tools/get.ts            (~75 lines) — devvault_get handler
-MODIFY   supabase/functions/_shared/mcp-tools/list.ts           (~50 lines) — devvault_list handler
-MODIFY   supabase/functions/_shared/mcp-tools/domains.ts        (~15 lines) — devvault_domains handler
-MODIFY   supabase/functions/_shared/mcp-tools/ingest.ts         (~75 lines) — devvault_ingest handler
-MODIFY   supabase/functions/_shared/mcp-tools/update.ts         (~65 lines) — devvault_update handler
-MODIFY   supabase/functions/_shared/mcp-tools/get-group.ts      (~50 lines) — devvault_get_group handler
-MODIFY   supabase/functions/_shared/mcp-tools/register.ts       (~40 lines) — registerAllTools(server, auth) wiring
-MODIFY   supabase/functions/devvault-mcp/index.ts               (~50 lines) — Hono + transport + CORS only
-MODIFY   .lovable/plan.md                                       — update checklist, full EN, document refactor
+supabase/functions/
+├── devvault-mcp/
+│   ├── index.ts           (48 lines — Hono router, CORS, auth, transport)
+│   └── deno.json          (mcp-lite + hono imports)
+└── _shared/
+    └── mcp-tools/
+        ├── types.ts       (28 lines — AuthContext, McpServerLike, ToolRegistrar)
+        ├── auth.ts        (60 lines — API key validation + rate limiting)
+        ├── completeness.ts(24 lines — vault_module_completeness RPC wrapper)
+        ├── register.ts    (32 lines — registerAllTools wiring)
+        ├── bootstrap.ts   (28 lines — devvault_bootstrap tool)
+        ├── search.ts      (68 lines — devvault_search tool)
+        ├── get.ts         (92 lines — devvault_get tool)
+        ├── list.ts        (80 lines — devvault_list tool)
+        ├── domains.ts     (24 lines — devvault_domains tool)
+        ├── ingest.ts      (106 lines — devvault_ingest tool)
+        ├── update.ts      (92 lines — devvault_update tool)
+        └── get-group.ts   (64 lines — devvault_get_group tool)
 ```
 
-Each tool file exports a single function: `registerXxxTool(server, client, auth)`. The `register.ts` file calls all of them. The `index.ts` becomes a thin shell (~50 lines): Hono router, CORS, auth middleware, `createMcpServer` that calls `registerAllTools`.
+### Tools (8 total)
 
-This ensures:
-- Every file under 100 lines (well within 300)
-- SRP: one file = one tool = one responsibility
-- Adding tool 9 = creating one new file + one line in register.ts
-- Zero behavior change — pure structural refactor
+| Tool | Purpose |
+|---|---|
+| `devvault_bootstrap` | Full Knowledge Graph index (domains, phases, top modules) |
+| `devvault_search` | Full-text search with relevance scoring (PT + EN) |
+| `devvault_get` | Fetch module by ID/slug with deps, completeness, group metadata |
+| `devvault_list` | List modules with filters (query, domain, type, tags, group) |
+| `devvault_domains` | List available domains with counts |
+| `devvault_ingest` | Create new module with deps, group, completeness warnings |
+| `devvault_update` | Partial update by ID/slug with completeness response |
+| `devvault_get_group` | Fetch entire group in implementation order with deps |
 
+### Database Functions
+
+| Function | Purpose |
+|---|---|
+| `generate_vault_module_slug()` | Trigger: auto-generates slug from title on INSERT/UPDATE |
+| `vault_module_completeness(p_id)` | Returns score (0-100) and missing_fields array |
+| `bootstrap_vault_context()` | Full Knowledge Graph index as JSON |
+| `query_vault_modules(...)` | Full-text search with dual tsvector (PT + EN) |
+| `list_vault_domains()` | Domain summary with counts and module_types |
+| `get_vault_module(p_id, p_slug)` | Single module fetch by ID or slug |
+
+### Schema Extensions
+
+| Column | Table | Purpose |
+|---|---|---|
+| `module_group` | vault_modules | Groups related modules (e.g. 'whatsapp-integration') |
+| `implementation_order` | vault_modules | Sequence within group (1-based) |
+
+### Validation Checklist
+
+- [x] 8 tools registered and functional
+- [x] `devvault_search` properly registered (was reported missing by agent)
+- [x] `devvault_update` enables agent self-healing of data gaps
+- [x] `devvault_get_group` returns ordered modules with dependencies
+- [x] `devvault_get` includes completeness score and group metadata
+- [x] `devvault_ingest` warns on missing why_it_matters / code_example
+- [x] Auto-slug trigger active on vault_modules
+- [x] Completeness function checks 10 fields including dependencies
+- [x] All files under 300-line limit (max file: ~106 lines)
+- [x] SRP enforced: one file = one tool = one responsibility
+- [x] Adding a new tool = one file + one line in register.ts
+- [x] Zero behavior change from v2.0 — pure structural refactor
+
+### Module Groups (pre-configured)
+
+| Group | Modules | Description |
+|---|---|---|
+| `whatsapp-integration` | 7 | WhatsApp via Evolution API v2 |
+| `saas-playbook` | 5 | SaaS development phases |
+
+### Protocol Compliance
+
+- [x] Protocol 5.4: All files under 300 lines (max: ~106 lines)
+- [x] Protocol 5.3: SOLID / SRP — each tool is a single-responsibility module
+- [x] Protocol 5.5: No direct DB access from frontend
+- [x] Protocol 4: Zero band-aids, zero workarounds
+- [x] All comments and documentation in English
