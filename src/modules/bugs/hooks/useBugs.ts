@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
+import i18n from "@/i18n/config";
 import type { Bug, BugStatus } from "../types";
 
 export function useBugs() {
@@ -37,11 +38,11 @@ export function useCreateBug(onSuccess?: () => void) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bugs"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      toast({ title: "Bug registrado!" });
+      toast({ title: i18n.t("toast.bugRegistered") });
       onSuccess?.();
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }
@@ -71,10 +72,10 @@ export function useDeleteBug() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bugs"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      toast({ title: "Bug removido." });
+      toast({ title: i18n.t("toast.bugDeleted") });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }

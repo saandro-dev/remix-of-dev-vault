@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
+import i18n from "@/i18n/config";
 import type { Project, KeyFolder } from "../types";
 
 export function useProject(projectId: string | undefined) {
@@ -47,11 +48,11 @@ export function useCreateFolder(projectId: string | undefined, onSuccess?: () =>
       invokeEdgeFunction("folders-crud", { action: "create", ...input }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["key_folders", projectId] });
-      toast({ title: "Pasta criada!" });
+      toast({ title: i18n.t("toast.folderCreated") });
       onSuccess?.();
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }
@@ -65,10 +66,10 @@ export function useDeleteFolder(projectId: string | undefined) {
       invokeEdgeFunction("folders-crud", { action: "delete", id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["key_folders", projectId] });
-      toast({ title: "Pasta removida." });
+      toast({ title: i18n.t("toast.folderDeleted") });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }

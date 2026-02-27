@@ -31,7 +31,14 @@
     "fetching": "Fetching...",
     "noValue": "No value",
     "addSecurely": "Add securely",
-    "phase": "Phase"
+    "phase": "Phase",
+    "field": "Field",
+    "type": "Type",
+    "required": "Required",
+    "yes": "Yes",
+    "no": "No",
+    "noResults": "No results for \"{{query}}\"",
+    "typeToSearch": "Type to search..."
   },
 
   "confirmDelete": {
@@ -299,7 +306,20 @@
     "response405": "HTTP method other than POST",
     "response422": "Valid JSON payload but with invalid fields",
     "response429": "Rate limit exceeded (60 req/min). IP blocked for 5 minutes",
-    "response500": "Internal error when inserting into database"
+    "response500": "Internal error when inserting into database",
+    "bodyParams": "Body Parameters (JSON)",
+    "responses": "Responses",
+    "usageExamples": "Usage Examples"
+  },
+
+  "search": {
+    "title": "Global Search",
+    "subtitle": "Find modules, projects and bugs.",
+    "modules": "Modules",
+    "projects": "Projects",
+    "bugs": "Bugs",
+    "searchError": "Search error",
+    "unknownError": "Unknown search error"
   },
 
   "domains": {
@@ -341,6 +361,22 @@
     "updateError": "Error updating",
     "deleteError": "Error",
     "error": "Error",
-    "unknownError": "Unknown error"
+    "unknownError": "Unknown error",
+    "keyCreated": "Key created successfully!",
+    "keyRevoked": "Key revoked!",
+    "projectCreated": "Project created!",
+    "projectUpdated": "Project updated!",
+    "projectDeleted": "Project deleted.",
+    "folderCreated": "Folder created!",
+    "folderDeleted": "Folder removed.",
+    "bugRegistered": "Bug registered!",
+    "bugDeleted": "Bug removed.",
+    "profileUpdated": "Profile updated!",
+    "apiKeyAdded": "API Key added securely!",
+    "apiKeyAddedDesc": "The value was encrypted in Vault.",
+    "apiKeyRemoved": "API Key removed.",
+    "apiKeyRemovedDesc": "The secret was deleted from Vault.",
+    "apiKeyAddError": "Error adding key",
+    "apiKeyRemoveError": "Error removing key"
   }
 }

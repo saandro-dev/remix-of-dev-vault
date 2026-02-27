@@ -1,29 +1,29 @@
 // =============================================================================
-// DevVault — Tipos do Sistema de Conhecimento Vivo
+// DevVault — Knowledge System Types
 // =============================================================================
 
 export type VaultDomain =
-  | "security"       // Criptografia, Vault, RLS, autenticação
-  | "backend"        // Edge Functions, banco de dados, SQL
-  | "frontend"       // Componentes, hooks, UX patterns
-  | "architecture"   // Padrões de arquitetura, decisões de design
-  | "devops"         // Deploy, CI/CD, configuração
-  | "saas_playbook"; // Playbooks de criação de SaaS por fases
+  | "security"
+  | "backend"
+  | "frontend"
+  | "architecture"
+  | "devops"
+  | "saas_playbook";
 
 export type VaultModuleType =
-  | "code_snippet"    // Trecho de código reutilizável
-  | "full_module"     // Módulo completo com código + documentação
-  | "sql_migration"   // Migration SQL pronta para uso
-  | "architecture_doc"// Documento de decisão arquitetural (ADR)
-  | "playbook_phase"  // Uma fase de um playbook de criação de SaaS
-  | "pattern_guide";  // Guia de padrão (ex: "Como usar o Vault")
+  | "code_snippet"
+  | "full_module"
+  | "sql_migration"
+  | "architecture_doc"
+  | "playbook_phase"
+  | "pattern_guide";
 
 export type VaultValidationStatus =
-  | "draft"       // Em elaboração, não validado
-  | "validated"   // Validado em produção
-  | "deprecated"; // Não usar mais, substituído por outro
+  | "draft"
+  | "validated"
+  | "deprecated";
 
-// Mantido para retrocompatibilidade
+// Kept for backward compatibility with vault_category enum
 export type VaultCategory = "frontend" | "backend" | "devops" | "security";
 
 export interface VaultModule {
@@ -31,7 +31,6 @@ export interface VaultModule {
   user_id: string;
   title: string;
   description: string | null;
-  // Novos campos estruturais
   domain: VaultDomain;
   module_type: VaultModuleType;
   validation_status: VaultValidationStatus;
@@ -41,7 +40,6 @@ export interface VaultModule {
   code_example: string | null;
   source_project: string | null;
   related_modules: string[];
-  // Campos existentes
   language: string;
   code: string;
   context_markdown: string | null;
@@ -52,34 +50,10 @@ export interface VaultModule {
   updated_at: string;
 }
 
-// Versão resumida para listagens (sem code e context_markdown)
+// Summary type for listings (excludes heavy fields)
 export type VaultModuleSummary = Omit<VaultModule, "code" | "context_markdown" | "dependencies">;
 
-// Labels amigáveis para exibição
-export const DOMAIN_LABELS: Record<VaultDomain, string> = {
-  security: "Segurança",
-  backend: "Backend",
-  frontend: "Frontend",
-  architecture: "Arquitetura",
-  devops: "DevOps",
-  saas_playbook: "Playbook SaaS",
-};
-
-export const MODULE_TYPE_LABELS: Record<VaultModuleType, string> = {
-  code_snippet: "Snippet",
-  full_module: "Módulo Completo",
-  sql_migration: "Migration SQL",
-  architecture_doc: "Decisão Arquitetural",
-  playbook_phase: "Fase do Playbook",
-  pattern_guide: "Guia de Padrão",
-};
-
-export const VALIDATION_STATUS_LABELS: Record<VaultValidationStatus, string> = {
-  draft: "Rascunho",
-  validated: "Validado",
-  deprecated: "Depreciado",
-};
-
+// Visual style mappings (not labels — labels come from i18n)
 export const DOMAIN_COLORS: Record<VaultDomain, string> = {
   security: "text-red-400 bg-red-400/10 border-red-400/20",
   backend: "text-blue-400 bg-blue-400/10 border-blue-400/20",

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeBlock } from "@/components/CodeBlock";
@@ -19,6 +20,8 @@ interface EndpointCardProps {
 }
 
 export function EndpointCard({ endpoint }: EndpointCardProps) {
+  const { t } = useTranslation();
+
   return (
     <Card id={`endpoint-${endpoint.id}`} className="scroll-mt-20">
       <CardHeader className="space-y-3">
@@ -35,15 +38,13 @@ export function EndpointCard({ endpoint }: EndpointCardProps) {
       </CardHeader>
 
       <CardContent className="space-y-8">
-        {/* Parameters */}
         <section>
-          <h4 className="text-sm font-semibold mb-3 text-foreground">Parâmetros do Body (JSON)</h4>
+          <h4 className="text-sm font-semibold mb-3 text-foreground">{t("apiDocs.bodyParams")}</h4>
           <ParamTable params={endpoint.params} />
         </section>
 
-        {/* Responses */}
         <section>
-          <h4 className="text-sm font-semibold mb-3 text-foreground">Respostas</h4>
+          <h4 className="text-sm font-semibold mb-3 text-foreground">{t("apiDocs.responses")}</h4>
           <div className="space-y-4">
             {endpoint.responses.map((res) => (
               <div key={res.status} className="space-y-2">
@@ -63,9 +64,8 @@ export function EndpointCard({ endpoint }: EndpointCardProps) {
           </div>
         </section>
 
-        {/* Code Examples */}
         <section>
-          <h4 className="text-sm font-semibold mb-3 text-foreground">Exemplos de Uso</h4>
+          <h4 className="text-sm font-semibold mb-3 text-foreground">{t("apiDocs.usageExamples")}</h4>
           <CodeExample examples={endpoint.examples} />
         </section>
       </CardContent>

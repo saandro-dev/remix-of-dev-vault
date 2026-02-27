@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { ApiParam } from "../types";
 import {
   Table,
@@ -14,15 +15,17 @@ interface ParamTableProps {
 }
 
 export function ParamTable({ params }: ParamTableProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="rounded-lg border border-border overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[160px]">Campo</TableHead>
-            <TableHead className="w-[100px]">Tipo</TableHead>
-            <TableHead className="w-[100px]">Obrigatório</TableHead>
-            <TableHead>Descrição</TableHead>
+            <TableHead className="w-[160px]">{t("common.field")}</TableHead>
+            <TableHead className="w-[100px]">{t("common.type")}</TableHead>
+            <TableHead className="w-[100px]">{t("common.required")}</TableHead>
+            <TableHead>{t("common.description")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -36,7 +39,7 @@ export function ParamTable({ params }: ParamTableProps) {
               </TableCell>
               <TableCell>
                 <Badge variant={param.required ? "default" : "secondary"} className="text-xs">
-                  {param.required ? "Sim" : "Não"}
+                  {param.required ? t("common.yes") : t("common.no")}
                 </Badge>
               </TableCell>
               <TableCell className="text-sm">

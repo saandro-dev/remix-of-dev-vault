@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,19 +14,20 @@ interface SearchResult {
   meta: string;
 }
 
-const typeConfig = {
-  module: { label: "Módulos", icon: Package, path: (id: string) => `/vault/${id}` },
-  project: { label: "Projetos", icon: FolderOpen, path: (id: string) => `/projects/${id}` },
-  bug: { label: "Bugs", icon: Bug, path: () => `/bugs` },
-};
-
 export function SearchPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  const typeConfig = {
+    module: { label: t("search.modules"), icon: Package, path: (id: string) => `/vault/${id}` },
+    project: { label: t("search.projects"), icon: FolderOpen, path: (id: string) => `/projects/${id}` },
+    bug: { label: t("search.bugs"), icon: Bug, path: () => `/bugs` },
+  };
 
   const search = useCallback(async (q: string) => {
     if (q.trim().length < 2) {
@@ -43,13 +45,13 @@ export function SearchPage() {
       if (error) throw new Error(error.message);
       setResults(data?.results ?? []);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Erro desconhecido na busca";
-      toast({ variant: "destructive", title: "Erro na busca", description: message });
+      const message = err instanceof Error ? err.message : t("search.unknownError");
+      toast({ variant: "destructive", title: t("search.searchError"), description: message });
       setResults([]);
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, t]);
 
   useEffect(() => {
     const timer = setTimeout(() => search(query), 350);
@@ -65,13 +67,13 @@ export function SearchPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Busca Global</h1>
-        <p className="text-muted-foreground mt-1">Encontre módulos, projetos e bugs.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("search.title")}</h1>
+        <p className="text-muted-foreground mt-1">{t("search.subtitle")}</p>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Digite para buscar..." className="pl-10" autoFocus />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("common.typeToSearch")} className="pl-10" autoFocus />
       </div>
 
       {loading && (
@@ -83,7 +85,7 @@ export function SearchPage() {
       {!loading && searched && results.length === 0 && (
         <div className="flex flex-col items-center py-12 text-center">
           <Search className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">Nenhum resultado para &quot;{query}&quot;</p>
+          <p className="text-muted-foreground">{t("common.noResults", { query })}</p>
         </div>
       )}
 

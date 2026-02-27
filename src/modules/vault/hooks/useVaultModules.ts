@@ -2,11 +2,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
+import i18n from "@/i18n/config";
 import type { VaultModule, VaultModuleSummary, VaultDomain, VaultModuleType, VaultValidationStatus } from "../types";
 
-// =============================================================================
-// Filtros para listagem de módulos
-// =============================================================================
+// Filters for module listing
 export interface VaultModuleFilters {
   domain?: VaultDomain;
   module_type?: VaultModuleType;
@@ -19,9 +18,7 @@ export interface VaultModuleFilters {
   offset?: number;
 }
 
-// =============================================================================
-// useVaultModules — lista módulos com filtros opcionais
-// =============================================================================
+// Lists modules with optional filters
 export function useVaultModules(filters?: VaultModuleFilters) {
   const { user } = useAuth();
   return useQuery({
@@ -35,9 +32,7 @@ export function useVaultModules(filters?: VaultModuleFilters) {
   });
 }
 
-// =============================================================================
-// useVaultSearch — busca avançada via função SQL
-// =============================================================================
+// Advanced search via SQL function
 export function useVaultSearch(params: VaultModuleFilters & { validated?: boolean }) {
   const { user } = useAuth();
   return useQuery({
@@ -51,9 +46,7 @@ export function useVaultSearch(params: VaultModuleFilters & { validated?: boolea
   });
 }
 
-// =============================================================================
-// useVaultPlaybook — busca todos os módulos do playbook de SaaS por fase
-// =============================================================================
+// Fetches all SaaS playbook modules grouped by phase
 export function useVaultPlaybook() {
   const { user } = useAuth();
   return useQuery({
@@ -66,9 +59,7 @@ export function useVaultPlaybook() {
   });
 }
 
-// =============================================================================
-// useCreateVaultModule — cria módulo com todos os campos novos
-// =============================================================================
+// Creates a module with all structured fields
 export interface CreateModuleInput {
   title: string;
   description?: string;
@@ -98,18 +89,16 @@ export function useCreateVaultModule(onSuccess?: () => void) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault_modules"] });
       queryClient.invalidateQueries({ queryKey: ["vault_playbook"] });
-      toast({ title: "Módulo criado com sucesso!" });
+      toast({ title: i18n.t("toast.moduleCreated") });
       onSuccess?.();
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro ao criar módulo", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.createError"), description: err.message });
     },
   });
 }
 
-// =============================================================================
-// useUpdateVaultModule — atualiza campos seletivamente
-// =============================================================================
+// Updates module fields selectively
 export function useUpdateVaultModule(onSuccess?: () => void) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -120,11 +109,11 @@ export function useUpdateVaultModule(onSuccess?: () => void) {
       queryClient.invalidateQueries({ queryKey: ["vault_modules"] });
       queryClient.invalidateQueries({ queryKey: ["vault_module", vars.id] });
       queryClient.invalidateQueries({ queryKey: ["vault_playbook"] });
-      toast({ title: "Módulo atualizado!" });
+      toast({ title: i18n.t("toast.moduleUpdated") });
       onSuccess?.();
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro ao atualizar", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.updateError"), description: err.message });
     },
   });
 }
