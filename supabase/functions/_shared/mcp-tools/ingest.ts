@@ -39,6 +39,7 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
         why_it_matters: { type: "string", description: "Why this knowledge is valuable (strongly encouraged)" },
         context_markdown: { type: "string", description: "Extended context in Markdown" },
         code_example: { type: "string", description: "Usage example (strongly encouraged)" },
+        usage_hint: { type: "string", description: "When to use this module (strongly encouraged). E.g. 'Use when you need to receive WhatsApp status webhooks'" },
         source_project: { type: "string", description: "Source project name" },
         module_group: { type: "string", description: "Group name for related modules" },
         implementation_order: { type: "number", description: "Order within group (1-based)" },
@@ -61,6 +62,7 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
       const warnings: string[] = [];
       if (!params.why_it_matters) warnings.push("why_it_matters is empty — agents benefit greatly from knowing WHY this module exists.");
       if (!params.code_example) warnings.push("code_example is empty — agents need usage examples to implement correctly.");
+      if (!params.usage_hint) warnings.push("usage_hint is empty — agents need to know WHEN to use this module.");
 
       const insertData: Record<string, unknown> = {
         title: params.title,
@@ -74,7 +76,7 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
 
       const optionalFields = [
         "slug", "description", "domain", "module_type", "why_it_matters",
-        "context_markdown", "code_example", "source_project", "module_group",
+        "context_markdown", "code_example", "usage_hint", "source_project", "module_group",
       ];
       for (const field of optionalFields) {
         if (params[field]) insertData[field] = params[field];

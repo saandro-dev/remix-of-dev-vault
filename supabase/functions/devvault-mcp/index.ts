@@ -1,5 +1,5 @@
 /**
- * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v2.1).
+ * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v2.2).
  *
  * Thin shell: Hono router, CORS, auth middleware, MCP transport.
  * All tool logic lives in _shared/mcp-tools/ (one file per tool).
@@ -37,7 +37,7 @@ app.all("/*", async (c) => {
   if (authResult instanceof Response) return authResult;
 
   const client = getSupabaseClient("general");
-  const server = new McpServer({ name: "devvault", version: "2.1.0" });
+  const server = new McpServer({ name: "devvault", version: "2.2.0" });
 
   registerAllTools(server, client, authResult);
 

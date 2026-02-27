@@ -12,17 +12,20 @@ import type { ToolRegistrar } from "./types.ts";
 
 const logger = createLogger("mcp-tool:get");
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const registerGetTool: ToolRegistrar = (server, client) => {
   server.tool("devvault_get", {
     description:
       "Fetch a specific module by ID or slug. Returns full code, context, dependencies, " +
       "completeness score, and group metadata. CRITICAL: If any dependency has " +
       "dependency_type='required', you MUST call devvault_get for each required " +
-      "dependency BEFORE implementing this module.",
+      "dependency BEFORE implementing this module. " +
+      "You can pass either a UUID id or a slug string — auto-detected.",
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: "string", description: "Module UUID" },
+        id: { type: "string", description: "Module UUID or slug (auto-detected)" },
         slug: { type: "string", description: "Module slug (alternative to id)" },
       },
       required: [],
@@ -30,6 +33,12 @@ export const registerGetTool: ToolRegistrar = (server, client) => {
     handler: async (params: Record<string, unknown>) => {
       if (!params.id && !params.slug) {
         return { content: [{ type: "text", text: "Error: Provide either 'id' or 'slug'" }] };
+      }
+
+      // Auto-detect: if id is provided but not a valid UUID, treat as slug
+      if (params.id && !UUID_RE.test(params.id as string)) {
+        params.slug = params.id;
+        params.id = undefined;
       }
 
       const rpcParams: Record<string, unknown> = {};
