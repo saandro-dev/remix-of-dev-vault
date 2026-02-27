@@ -299,7 +299,7 @@
     "rateLimiting": "Rate Limiting",
     "rateLimitContent": "The API enforces a limit of **60 requests per minute** per IP address.\n\nWhen exceeded, all subsequent requests return **429 Too Many Requests** and the IP is blocked for **5 minutes**.\n\nThe response header will include `retryAfterSeconds` indicating the remaining block time.",
     "auditLog": "Audit Log",
-    "auditLogContent": "All API calls are automatically logged in the `devvault_api_audit_log` table, including:\n\n- **user_id** — owner of the API key used\n- **api_key_id** — reference to the key used\n- **ip_address** — source IP\n- **action** — edge function name invoked\n- **success** — success/failure boolean\n- **http_status** — HTTP status code returned\n- **error_code / error_message** — failure details\n- **processing_time_ms** — processing time\n- **request_body** — partial payload (title and category only, no code)",
+    "auditLogContent": "All API calls are automatically logged in the `devvault_api_audit_log` table, including:\n\n- **user_id** — owner of the API key used\n- **api_key_id** — reference to the key used\n- **ip_address** — source IP\n- **action** — edge function name invoked\n- **success** — success/failure boolean\n- **http_status** — HTTP status code returned\n- **error_code / error_message** — failure details\n- **processing_time_ms** — processing time\n- **request_body** — partial payload (title and domain only, no code)",
     "ingestSummary": "Ingest module into Global Vault",
     "ingestDescription": "Creates a new code module in the authenticated user's Global Vault via API key. Ideal for automations, CI/CD scripts and AI agents that need to save snippets programmatically.",
     "paramTitle": "Descriptive module title",
@@ -396,6 +396,16 @@
     "apiKeyRemovedDesc": "The secret was deleted from Vault.",
     "apiKeyAddError": "Error adding key",
     "apiKeyRemoveError": "Error removing key"
+  },
+
+  "share": {
+    "button": "Share",
+    "title": "Share Module",
+    "emailPlaceholder": "user@email.com",
+    "shareAction": "Share",
+    "currentShares": "Shared with",
+    "noShares": "Not shared with anyone yet.",
+    "remove": "Remove"
   },
 
   "admin": {

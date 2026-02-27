@@ -6,6 +6,7 @@ import { TagCloud } from "@/components/TagCloud";
 import { Button } from "@/components/ui/button";
 import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { EditModuleSheet } from "@/modules/vault/components/EditModuleSheet";
+import { ShareModuleDialog } from "@/modules/vault/components/ShareModuleDialog";
 import { useVaultModule, useDeleteVaultModule } from "@/modules/vault/hooks/useVaultModule";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { ArrowLeft, Trash2, Copy, Check, Loader2, Pencil, Lock, Users, Globe } from "lucide-react";
@@ -96,6 +97,7 @@ export function VaultDetailPage() {
         </div>
         {isOwner && (
           <div className="flex items-center gap-2">
+            <ShareModuleDialog moduleId={mod.id} />
             <Button variant="outline" size="sm" className="gap-2" onClick={() => setEditOpen(true)}>
               <Pencil className="h-3.5 w-3.5" /> {t("common.edit")}
             </Button>

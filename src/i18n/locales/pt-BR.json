@@ -299,7 +299,7 @@
     "rateLimiting": "Rate Limiting",
     "rateLimitContent": "A API impõe limite de **60 requisições por minuto** por endereço IP.\n\nAo exceder o limite, todas as requisições subsequentes retornam **429 Too Many Requests** e o IP fica bloqueado por **5 minutos**.\n\nO header de resposta incluirá `retryAfterSeconds` indicando o tempo restante de bloqueio.",
     "auditLog": "Audit Log",
-    "auditLogContent": "Todas as chamadas à API são registradas automaticamente na tabela `devvault_api_audit_log`, incluindo:\n\n- **user_id** — dono da API key usada\n- **api_key_id** — referência à chave utilizada\n- **ip_address** — IP de origem\n- **action** — nome da edge function invocada\n- **success** — booleano de sucesso/falha\n- **http_status** — código HTTP retornado\n- **error_code / error_message** — detalhes em caso de falha\n- **processing_time_ms** — tempo de processamento\n- **request_body** — payload parcial (título e categoria apenas, sem código)",
+    "auditLogContent": "Todas as chamadas à API são registradas automaticamente na tabela `devvault_api_audit_log`, incluindo:\n\n- **user_id** — dono da API key usada\n- **api_key_id** — referência à chave utilizada\n- **ip_address** — IP de origem\n- **action** — nome da edge function invocada\n- **success** — booleano de sucesso/falha\n- **http_status** — código HTTP retornado\n- **error_code / error_message** — detalhes em caso de falha\n- **processing_time_ms** — tempo de processamento\n- **request_body** — payload parcial (título e domínio apenas, sem código)",
     "ingestSummary": "Ingerir módulo no Cofre Global",
     "ingestDescription": "Cria um novo módulo de código no Cofre Global do usuário autenticado via API key. Ideal para automações, scripts de CI/CD e agentes de IA que precisam salvar snippets programaticamente.",
     "paramTitle": "Título descritivo do módulo",
@@ -396,6 +396,16 @@
     "apiKeyRemovedDesc": "O secret foi apagado do Vault.",
     "apiKeyAddError": "Erro ao adicionar key",
     "apiKeyRemoveError": "Erro ao remover key"
+  },
+
+  "share": {
+    "button": "Compartilhar",
+    "title": "Compartilhar Módulo",
+    "emailPlaceholder": "usuario@email.com",
+    "shareAction": "Compartilhar",
+    "currentShares": "Compartilhado com",
+    "noShares": "Ainda não compartilhado com ninguém.",
+    "remove": "Remover"
   },
 
   "admin": {

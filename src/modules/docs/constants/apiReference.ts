@@ -41,7 +41,7 @@ export const auditSection: ApiSection = {
 - **http_status** — HTTP status code returned
 - **error_code / error_message** — details on failure
 - **processing_time_ms** — processing time
-- **request_body** — partial payload (title and category only, no code)`,
+- **request_body** — partial payload (title and domain only, no code)`,
 };
 
 export const vaultIngestEndpoint: ApiEndpoint = {
@@ -73,11 +73,11 @@ export const vaultIngestEndpoint: ApiEndpoint = {
       description: 'Programming language (e.g. "typescript", "python", "bash")',
     },
     {
-      name: "category",
+      name: "domain",
       type: "string",
       required: true,
-      description: "Module category",
-      constraints: '"frontend" | "backend" | "devops" | "security"',
+      description: "Module domain",
+      constraints: '"security" | "backend" | "frontend" | "architecture" | "devops" | "saas_playbook"',
     },
     {
       name: "description",
@@ -105,10 +105,11 @@ export const vaultIngestEndpoint: ApiEndpoint = {
       description: "Additional context in Markdown (usage instructions, notes, etc.)",
     },
     {
-      name: "is_public",
-      type: "boolean",
+      name: "visibility",
+      type: "string",
       required: false,
-      description: "Whether the module should be public. Default: false",
+      description: "Module visibility level. Default: \"private\"",
+      constraints: '"private" | "shared" | "global"',
     },
   ],
   responses: [
@@ -123,7 +124,8 @@ export const vaultIngestEndpoint: ApiEndpoint = {
             module: {
               id: "uuid-of-module",
               title: "Hook useDebounce",
-              category: "frontend",
+              domain: "frontend",
+              visibility: "private",
               created_at: "2026-02-27T12:00:00.000Z",
             },
           },
@@ -217,10 +219,10 @@ export const vaultIngestEndpoint: ApiEndpoint = {
     "title": "Hook useDebounce",
     "code": "export function useDebounce<T>(value: T, delay: number): T {\\n  const [debounced, setDebounced] = useState(value);\\n  useEffect(() => {\\n    const timer = setTimeout(() => setDebounced(value), delay);\\n    return () => clearTimeout(timer);\\n  }, [value, delay]);\\n  return debounced;\\n}",
     "language": "typescript",
-    "category": "frontend",
+    "domain": "frontend",
     "description": "Custom hook for debouncing reactive values",
     "tags": ["react", "hooks", "debounce"],
-    "is_public": false
+    "visibility": "private"
   }'`,
     },
     {
@@ -245,7 +247,7 @@ export const vaultIngestEndpoint: ApiEndpoint = {
   return debounced;
 }\`,
       language: "typescript",
-      category: "frontend",
+      domain: "frontend",
       description: "Custom hook for debouncing reactive values",
       tags: ["react", "hooks", "debounce"],
     }),
@@ -277,7 +279,7 @@ response = requests.post(
   return debounced;
 }""",
         "language": "typescript",
-        "category": "frontend",
+        "domain": "frontend",
         "description": "Custom hook for debouncing reactive values",
         "tags": ["react", "hooks", "debounce"],
     },
