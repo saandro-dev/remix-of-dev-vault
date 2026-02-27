@@ -20,3 +20,37 @@ export interface AdminContextValue {
   cancelRoleChange: () => void;
   refetch: () => void;
 }
+
+export interface AdminStats {
+  totalUsers: number;
+  totalModules: number;
+  globalModules: number;
+  activeApiKeys: number;
+  auditLogs24h: number;
+  openBugs: number;
+  totalProjects: number;
+  activeShares: number;
+}
+
+export interface AdminApiKey {
+  id: string;
+  userId: string;
+  ownerName: string;
+  keyName: string;
+  keyPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  expiresAt: string | null;
+}
+
+export interface AdminGlobalModule {
+  id: string;
+  title: string;
+  description: string | null;
+  domain: string | null;
+  language: string;
+  tags: string[];
+  authorName: string;
+  createdAt: string;
+}

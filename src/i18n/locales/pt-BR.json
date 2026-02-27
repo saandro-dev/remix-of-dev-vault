@@ -410,7 +410,7 @@
 
   "admin": {
     "title": "Administração",
-    "subtitle": "Gerencie usuários e permissões.",
+    "subtitle": "Gerencie usuários, saúde do sistema, API keys e módulos globais.",
     "users": "Usuários",
     "role": "Papel",
     "changeRole": "Alterar Papel",
@@ -423,6 +423,36 @@
     "moderator": "Moderador",
     "user": "Usuário",
     "joined": "Entrou em",
-    "actions": "Ações"
+    "actions": "Ações",
+    "tabs": {
+      "usersRoles": "Usuários & Papéis",
+      "systemHealth": "Saúde do Sistema",
+      "apiMonitor": "Monitor de API",
+      "moderation": "Moderação Global"
+    },
+    "stats": {
+      "totalUsers": "Total de Usuários",
+      "totalModules": "Total de Módulos",
+      "globalModules": "Módulos Globais",
+      "activeApiKeys": "API Keys Ativas",
+      "auditLogs24h": "Logs de Auditoria (24h)",
+      "openBugs": "Bugs Abertos",
+      "totalProjects": "Total de Projetos",
+      "activeShares": "Compartilhamentos Ativos"
+    },
+    "apiMonitor": {
+      "owner": "Dono",
+      "keyName": "Nome da Chave",
+      "active": "Ativa",
+      "noKeys": "Nenhuma API key encontrada."
+    },
+    "moderation": {
+      "moduleTitle": "Módulo",
+      "author": "Autor",
+      "noModules": "Nenhum módulo global encontrado.",
+      "unpublishTitle": "Despublicar Módulo",
+      "unpublishConfirm": "Tem certeza que deseja tornar \"{{title}}\" privado novamente? Ele não será mais visível para outros usuários.",
+      "unpublished": "Módulo despublicado com sucesso!"
+    }
   }
 }

@@ -410,7 +410,7 @@
 
   "admin": {
     "title": "Administration",
-    "subtitle": "Manage users and roles.",
+    "subtitle": "Manage users, system health, API keys and global modules.",
     "users": "Users",
     "role": "Role",
     "changeRole": "Change Role",
@@ -423,6 +423,36 @@
     "moderator": "Moderator",
     "user": "User",
     "joined": "Joined",
-    "actions": "Actions"
+    "actions": "Actions",
+    "tabs": {
+      "usersRoles": "Users & Roles",
+      "systemHealth": "System Health",
+      "apiMonitor": "API Monitor",
+      "moderation": "Global Moderation"
+    },
+    "stats": {
+      "totalUsers": "Total Users",
+      "totalModules": "Total Modules",
+      "globalModules": "Global Modules",
+      "activeApiKeys": "Active API Keys",
+      "auditLogs24h": "Audit Logs (24h)",
+      "openBugs": "Open Bugs",
+      "totalProjects": "Total Projects",
+      "activeShares": "Active Shares"
+    },
+    "apiMonitor": {
+      "owner": "Owner",
+      "keyName": "Key Name",
+      "active": "Active",
+      "noKeys": "No API keys found."
+    },
+    "moderation": {
+      "moduleTitle": "Module",
+      "author": "Author",
+      "noModules": "No global modules found.",
+      "unpublishTitle": "Unpublish Module",
+      "unpublishConfirm": "Are you sure you want to set \"{{title}}\" back to private? It will no longer be visible to other users.",
+      "unpublished": "Module unpublished successfully!"
+    }
   }
 }
