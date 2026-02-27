@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ export function ResetPasswordPage() {
   const [isRecovery, setIsRecovery] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -33,7 +35,7 @@ export function ResetPasswordPage() {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      toast({ variant: "destructive", title: "Erro", description: "As senhas não coincidem." });
+      toast({ variant: "destructive", title: t("auth.error"), description: t("auth.passwordsDontMatch") });
       return;
     }
 
@@ -42,9 +44,9 @@ export function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      toast({ variant: "destructive", title: "Erro", description: error.message });
+      toast({ variant: "destructive", title: t("auth.error"), description: error.message });
     } else {
-      toast({ title: "Senha atualizada!", description: "Você já pode fazer login." });
+      toast({ title: t("auth.passwordUpdated"), description: t("auth.canLoginNow") });
       navigate("/login");
     }
 
@@ -56,7 +58,7 @@ export function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md border-border bg-card">
           <CardContent className="pt-6 text-center">
-            <p className="text-muted-foreground">Link inválido ou expirado.</p>
+            <p className="text-muted-foreground">{t("auth.invalidLink")}</p>
           </CardContent>
         </Card>
       </div>
@@ -70,19 +72,19 @@ export function ResetPasswordPage() {
           <div className="flex justify-center">
             <Vault className="h-10 w-10 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold text-foreground">Nova Senha</CardTitle>
+          <CardTitle className="text-2xl font-bold text-foreground">{t("auth.newPassword")}</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Defina sua nova senha
+            {t("auth.setNewPassword")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleReset}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-foreground">Nova Senha</Label>
+              <Label htmlFor="password" className="text-foreground">{t("auth.newPassword")}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder={t("auth.minChars")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -90,11 +92,11 @@ export function ResetPasswordPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm" className="text-foreground">Confirmar Senha</Label>
+              <Label htmlFor="confirm" className="text-foreground">{t("auth.confirmPassword")}</Label>
               <Input
                 id="confirm"
                 type="password"
-                placeholder="Repita a senha"
+                placeholder={t("auth.repeatPassword")}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
@@ -104,7 +106,7 @@ export function ResetPasswordPage() {
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Atualizar Senha"}
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.updatePassword")}
             </Button>
           </CardFooter>
         </form>

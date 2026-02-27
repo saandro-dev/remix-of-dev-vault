@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ export function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,13 +38,13 @@ export function SignupPage() {
       log.error("Signup failed:", error.message);
       toast({
         variant: "destructive",
-        title: "Falha no cadastro",
+        title: t("auth.signupFailed"),
         description: error.message,
       });
     } else {
       toast({
-        title: "Conta criada!",
-        description: "Verifique seu email para confirmar o cadastro.",
+        title: t("auth.accountCreated"),
+        description: t("auth.checkEmail"),
       });
       navigate("/login");
     }
@@ -57,30 +59,30 @@ export function SignupPage() {
           <div className="flex justify-center">
             <Vault className="h-10 w-10 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold text-foreground">Criar Conta</CardTitle>
+          <CardTitle className="text-2xl font-bold text-foreground">{t("auth.signupTitle")}</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Comece a organizar seu conhecimento técnico
+            {t("auth.signupSubtitle")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSignup}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-foreground">Nome</Label>
+              <Label htmlFor="name" className="text-foreground">{t("auth.nameLabel")}</Label>
               <Input
                 id="name"
                 type="text"
-                placeholder="Seu nome"
+                placeholder={t("auth.namePlaceholder")}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-foreground">Email</Label>
+              <Label htmlFor="email" className="text-foreground">{t("common.email")}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="seu@email.com"
+                placeholder={t("auth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -88,11 +90,11 @@ export function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-foreground">Senha</Label>
+              <Label htmlFor="password" className="text-foreground">{t("auth.passwordLabel")}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder={t("auth.minChars")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -107,14 +109,14 @@ export function SignupPage() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  Criar Conta <ArrowRight className="h-4 w-4" />
+                  {t("auth.signupTitle")} <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </Button>
             <p className="text-sm text-muted-foreground">
-              Já tem conta?{" "}
+              {t("auth.alreadyHaveAccount")}{" "}
               <Link to="/login" className="text-primary hover:underline font-medium">
-                Entrar
+                {t("auth.login")}
               </Link>
             </p>
           </CardFooter>

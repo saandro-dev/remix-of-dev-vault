@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Plus, Search, Shield, Server, Layout, Building2, Rocket, BookOpen, Loader2, Package, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { useVaultModules } from "../hooks/useVaultModules";
 import { CreateModuleDialog } from "../components/CreateModuleDialog";
 import type { VaultDomain, VaultModuleSummary } from "../types";
-import { DOMAIN_LABELS, DOMAIN_COLORS, VALIDATION_COLORS, MODULE_TYPE_LABELS } from "../types";
+import { DOMAIN_COLORS, VALIDATION_COLORS } from "../types";
 
-// Ícones por domínio
 const DOMAIN_ICONS: Record<VaultDomain, React.ElementType> = {
   security: Shield,
   backend: Server,
@@ -22,24 +22,26 @@ const DOMAIN_ICONS: Record<VaultDomain, React.ElementType> = {
 const ALL_DOMAINS: VaultDomain[] = ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"];
 
 function ValidationBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
   if (status === "validated") return (
     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${VALIDATION_COLORS.validated}`}>
-      <CheckCircle2 className="h-3 w-3" /> Validado
+      <CheckCircle2 className="h-3 w-3" /> {t("vault.validated")}
     </span>
   );
   if (status === "deprecated") return (
     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${VALIDATION_COLORS.deprecated}`}>
-      <XCircle className="h-3 w-3" /> Depreciado
+      <XCircle className="h-3 w-3" /> {t("vault.deprecated")}
     </span>
   );
   return (
     <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${VALIDATION_COLORS.draft}`}>
-      <Clock className="h-3 w-3" /> Rascunho
+      <Clock className="h-3 w-3" /> {t("vault.draft")}
     </span>
   );
 }
 
 function ModuleCard({ mod, onClick }: { mod: VaultModuleSummary; onClick: () => void }) {
+  const { t } = useTranslation();
   const Icon = DOMAIN_ICONS[mod.domain] ?? Package;
   return (
     <button
@@ -69,14 +71,14 @@ function ModuleCard({ mod, onClick }: { mod: VaultModuleSummary; onClick: () => 
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1">
           <span className={`text-xs px-1.5 py-0.5 rounded border ${DOMAIN_COLORS[mod.domain]}`}>
-            {DOMAIN_LABELS[mod.domain]}
+            {t(`domains.${mod.domain}`)}
           </span>
           <span className="text-xs px-1.5 py-0.5 rounded border border-border text-muted-foreground">
-            {MODULE_TYPE_LABELS[mod.module_type]}
+            {t(`moduleTypes.${mod.module_type}`)}
           </span>
           {mod.saas_phase && (
             <span className="text-xs px-1.5 py-0.5 rounded border border-cyan-400/20 text-cyan-400 bg-cyan-400/10">
-              Fase {mod.saas_phase}
+              {t("common.phase")} {mod.saas_phase}
             </span>
           )}
         </div>
@@ -101,6 +103,7 @@ function ModuleCard({ mod, onClick }: { mod: VaultModuleSummary; onClick: () => 
 
 export function VaultListPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [activeDomain, setActiveDomain] = useState<VaultDomain | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -110,7 +113,6 @@ export function VaultListPage() {
     query: searchQuery || undefined,
   });
 
-  // Contagem por domínio para os badges
   const { data: allModules } = useVaultModules();
   const domainCounts = (allModules ?? []).reduce<Record<string, number>>((acc, m) => {
     acc[m.domain] = (acc[m.domain] ?? 0) + 1;
@@ -119,20 +121,18 @@ export function VaultListPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Biblioteca de Conhecimento</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("vault.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {allModules?.length ?? 0} módulos · padrões validados em produção
+            {t("vault.moduleCount", { count: allModules?.length ?? 0 })}
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Novo Módulo
+          <Plus className="h-4 w-4" /> {t("vault.newModule")}
         </Button>
       </div>
 
-      {/* Filtros por domínio */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setActiveDomain(undefined)}
@@ -142,7 +142,7 @@ export function VaultListPage() {
               : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
           }`}
         >
-          Todos {allModules?.length ? `(${allModules.length})` : ""}
+          {t("common.all")} {allModules?.length ? `(${allModules.length})` : ""}
         </button>
         {ALL_DOMAINS.map((domain) => {
           const Icon = DOMAIN_ICONS[domain];
@@ -159,25 +159,23 @@ export function VaultListPage() {
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
-              {DOMAIN_LABELS[domain]}
+              {t(`domains.${domain}`)}
               {count > 0 && <span className="text-xs opacity-70">({count})</span>}
             </button>
           );
         })}
       </div>
 
-      {/* Busca */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar por título, descrição ou porquê..."
+          placeholder={t("vault.searchPlaceholder")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9"
         />
       </div>
 
-      {/* Grid de módulos */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -186,27 +184,21 @@ export function VaultListPage() {
         <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
           <Package className="h-12 w-12 text-muted-foreground/30" />
           <div>
-            <p className="text-foreground font-medium">Nenhum módulo encontrado</p>
+            <p className="text-foreground font-medium">{t("vault.noModules")}</p>
             <p className="text-sm text-muted-foreground mt-1">
-              {searchQuery || activeDomain
-                ? "Tente outros filtros ou busca"
-                : "Crie o primeiro módulo da biblioteca"}
+              {searchQuery || activeDomain ? t("vault.tryOtherFilters") : t("vault.createFirstModule")}
             </p>
           </div>
           {!searchQuery && !activeDomain && (
             <Button onClick={() => setCreateOpen(true)} variant="outline" className="gap-2">
-              <Plus className="h-4 w-4" /> Criar primeiro módulo
+              <Plus className="h-4 w-4" /> {t("vault.createFirst")}
             </Button>
           )}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {modules.map((mod) => (
-            <ModuleCard
-              key={mod.id}
-              mod={mod}
-              onClick={() => navigate(`/vault/${mod.id}`)}
-            />
+            <ModuleCard key={mod.id} mod={mod} onClick={() => navigate(`/vault/${mod.id}`)} />
           ))}
         </div>
       )}

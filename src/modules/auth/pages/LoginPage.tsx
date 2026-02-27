@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/";
 
@@ -31,9 +33,9 @@ export function LoginPage() {
       log.error("Login failed:", error.message);
       toast({
         variant: "destructive",
-        title: "Falha no login",
+        title: t("auth.loginFailed"),
         description: error.message === "Invalid login credentials"
-          ? "Email ou senha incorretos."
+          ? t("auth.invalidCredentials")
           : error.message,
       });
     } else {
@@ -50,19 +52,19 @@ export function LoginPage() {
           <div className="flex justify-center">
             <Vault className="h-10 w-10 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold text-foreground">DevVault</CardTitle>
+          <CardTitle className="text-2xl font-bold text-foreground">{t("auth.loginTitle")}</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Entre na sua conta para acessar seu cofre
+            {t("auth.loginSubtitle")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-foreground">Email</Label>
+              <Label htmlFor="email" className="text-foreground">{t("common.email")}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="seu@email.com"
+                placeholder={t("auth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -71,18 +73,18 @@ export function LoginPage() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-foreground">Senha</Label>
+                <Label htmlFor="password" className="text-foreground">{t("auth.passwordLabel")}</Label>
                 <Link
                   to="/forgot-password"
                   className="text-xs text-primary hover:underline"
                 >
-                  Esqueceu a senha?
+                  {t("auth.forgotPassword")}
                 </Link>
               </div>
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder={t("auth.passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -96,14 +98,14 @@ export function LoginPage() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  Entrar <ArrowRight className="h-4 w-4" />
+                  {t("auth.login")} <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </Button>
             <p className="text-sm text-muted-foreground">
-              Não tem conta?{" "}
+              {t("auth.noAccount")}{" "}
               <Link to="/signup" className="text-primary hover:underline font-medium">
-                Criar conta
+                {t("auth.createAccount")}
               </Link>
             </p>
           </CardFooter>

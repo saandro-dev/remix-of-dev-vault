@@ -1,7 +1,9 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Search, Settings, LogOut, KeyRound } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -21,6 +23,7 @@ interface TopbarProps {
 export function Topbar({ onOpenSearch }: TopbarProps) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { t } = useTranslation();
 
   const handleLogout = async () => {
     await signOut();
@@ -43,15 +46,16 @@ export function Topbar({ onOpenSearch }: TopbarProps) {
               onClick={onOpenSearch}
             >
               <Search className="h-4 w-4" />
-              <span className="hidden sm:inline text-xs">Search</span>
+              <span className="hidden sm:inline text-xs">{t("topbar.search")}</span>
               <kbd className="hidden sm:inline-flex pointer-events-none h-5 select-none items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
                 ⌘K
               </kbd>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Global Search (⌘K)</TooltipContent>
+          <TooltipContent>{t("topbar.globalSearch")}</TooltipContent>
         </Tooltip>
 
+        <LanguageSwitcher />
         <ThemeToggle />
 
         <DropdownMenu>
@@ -64,14 +68,14 @@ export function Topbar({ onOpenSearch }: TopbarProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={() => navigate("/settings")} className="gap-2 cursor-pointer">
-              <Settings className="h-4 w-4" /> Configurações
+              <Settings className="h-4 w-4" /> {t("topbar.settings")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/settings/api-keys")} className="gap-2 cursor-pointer">
-              <KeyRound className="h-4 w-4" /> API & Integrações
+              <KeyRound className="h-4 w-4" /> {t("topbar.apiIntegrations")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="gap-2 cursor-pointer text-destructive">
-              <LogOut className="h-4 w-4" /> Sair
+              <LogOut className="h-4 w-4" /> {t("topbar.logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

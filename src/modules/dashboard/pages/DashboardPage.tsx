@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FolderOpen, Package, Key, Bug, ArrowRight, Loader2 } from "lucide-react";
@@ -7,22 +8,23 @@ import { useDashboardStats } from "@/modules/dashboard/hooks/useDashboardStats";
 export function DashboardPage() {
   const navigate = useNavigate();
   const { data, isLoading } = useDashboardStats();
+  const { t } = useTranslation();
 
   const stats = data?.stats;
   const recentProjects = data?.recentProjects;
 
   const statCards = [
-    { label: "Projetos", value: stats?.projects, icon: FolderOpen, path: "/projects", color: "text-primary" },
-    { label: "Módulos no Cofre", value: stats?.modules, icon: Package, path: "/vault", color: "text-info" },
-    { label: "API Keys", value: stats?.keys, icon: Key, path: "/projects", color: "text-warning" },
-    { label: "Bugs Abertos", value: stats?.openBugs, icon: Bug, path: "/bugs", color: "text-destructive" },
+    { label: t("dashboard.projects"), value: stats?.projects, icon: FolderOpen, path: "/projects", color: "text-primary" },
+    { label: t("dashboard.vaultModules"), value: stats?.modules, icon: Package, path: "/vault", color: "text-info" },
+    { label: t("dashboard.apiKeys"), value: stats?.keys, icon: Key, path: "/projects", color: "text-warning" },
+    { label: t("dashboard.openBugs"), value: stats?.openBugs, icon: Bug, path: "/bugs", color: "text-destructive" },
   ];
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Visão geral do seu DevVault.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("dashboard.title")}</h1>
+        <p className="text-muted-foreground mt-1">{t("dashboard.subtitle")}</p>
       </div>
 
       {isLoading ? (
@@ -52,9 +54,9 @@ export function DashboardPage() {
           {recentProjects && recentProjects.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Projetos Recentes</h2>
+                <h2 className="text-lg font-semibold text-foreground">{t("dashboard.recentProjects")}</h2>
                 <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate("/projects")}>
-                  Ver todos <ArrowRight className="h-3.5 w-3.5" />
+                  {t("common.viewAll")} <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -69,7 +71,7 @@ export function DashboardPage() {
                         <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
                         <div className="truncate">
                           <p className="font-medium text-foreground text-sm truncate">{project.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{project.description || "Sem descrição"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{project.description || t("common.noDescription")}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -81,9 +83,9 @@ export function DashboardPage() {
 
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { label: "Novo Projeto", path: "/projects", icon: FolderOpen },
-              { label: "Novo Módulo", path: "/vault", icon: Package },
-              { label: "Registrar Bug", path: "/bugs", icon: Bug },
+              { label: t("dashboard.newProject"), path: "/projects", icon: FolderOpen },
+              { label: t("dashboard.newModule"), path: "/vault", icon: Package },
+              { label: t("dashboard.registerBug"), path: "/bugs", icon: Bug },
             ].map((shortcut) => (
               <Button
                 key={shortcut.label}

@@ -416,47 +416,86 @@ export type Database = {
         Row: {
           category: Database["public"]["Enums"]["vault_category"]
           code: string
+          code_example: string | null
           context_markdown: string | null
           created_at: string
           dependencies: string | null
           description: string | null
+          domain: Database["public"]["Enums"]["vault_domain"] | null
           id: string
           is_public: boolean
           language: string
+          module_type: Database["public"]["Enums"]["vault_module_type"] | null
+          phase_title: string | null
+          related_modules: string[] | null
+          saas_phase: number | null
+          search_vector: unknown
+          slug: string | null
+          source_project: string | null
           tags: string[]
           title: string
           updated_at: string
           user_id: string
+          validation_status:
+            | Database["public"]["Enums"]["vault_validation_status"]
+            | null
+          why_it_matters: string | null
         }
         Insert: {
           category?: Database["public"]["Enums"]["vault_category"]
           code?: string
+          code_example?: string | null
           context_markdown?: string | null
           created_at?: string
           dependencies?: string | null
           description?: string | null
+          domain?: Database["public"]["Enums"]["vault_domain"] | null
           id?: string
           is_public?: boolean
           language?: string
+          module_type?: Database["public"]["Enums"]["vault_module_type"] | null
+          phase_title?: string | null
+          related_modules?: string[] | null
+          saas_phase?: number | null
+          search_vector?: unknown
+          slug?: string | null
+          source_project?: string | null
           tags?: string[]
           title: string
           updated_at?: string
           user_id: string
+          validation_status?:
+            | Database["public"]["Enums"]["vault_validation_status"]
+            | null
+          why_it_matters?: string | null
         }
         Update: {
           category?: Database["public"]["Enums"]["vault_category"]
           code?: string
+          code_example?: string | null
           context_markdown?: string | null
           created_at?: string
           dependencies?: string | null
           description?: string | null
+          domain?: Database["public"]["Enums"]["vault_domain"] | null
           id?: string
           is_public?: boolean
           language?: string
+          module_type?: Database["public"]["Enums"]["vault_module_type"] | null
+          phase_title?: string | null
+          related_modules?: string[] | null
+          saas_phase?: number | null
+          search_vector?: unknown
+          slug?: string | null
+          source_project?: string | null
           tags?: string[]
           title?: string
           updated_at?: string
           user_id?: string
+          validation_status?:
+            | Database["public"]["Enums"]["vault_validation_status"]
+            | null
+          why_it_matters?: string | null
         }
         Relationships: []
       }
@@ -473,12 +512,77 @@ export type Database = {
         Args: { p_key_id: string; p_user_id: string }
         Returns: boolean
       }
+      get_vault_module: {
+        Args: { p_id?: string; p_slug?: string }
+        Returns: {
+          code: string
+          code_example: string
+          context_markdown: string
+          created_at: string
+          description: string
+          domain: string
+          id: string
+          language: string
+          module_type: string
+          phase_title: string
+          related_modules: string[]
+          saas_phase: number
+          slug: string
+          source_project: string
+          tags: string[]
+          title: string
+          updated_at: string
+          validation_status: string
+          why_it_matters: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      list_vault_domains: {
+        Args: never
+        Returns: {
+          domain: string
+          module_types: string[]
+          total: number
+        }[]
+      }
+      query_vault_modules: {
+        Args: {
+          p_domain?: string
+          p_limit?: number
+          p_module_type?: string
+          p_offset?: number
+          p_query?: string
+          p_saas_phase?: number
+          p_tags?: string[]
+        }
+        Returns: {
+          code: string
+          code_example: string
+          context_markdown: string
+          created_at: string
+          description: string
+          domain: string
+          id: string
+          language: string
+          module_type: string
+          phase_title: string
+          related_modules: string[]
+          relevance_score: number
+          saas_phase: number
+          slug: string
+          source_project: string
+          tags: string[]
+          title: string
+          updated_at: string
+          validation_status: string
+          why_it_matters: string
+        }[]
       }
       read_project_api_key: {
         Args: { p_key_id: string; p_user_id: string }
@@ -487,6 +591,37 @@ export type Database = {
       revoke_devvault_api_key: {
         Args: { p_key_id: string; p_user_id: string }
         Returns: boolean
+      }
+      search_vault_modules: {
+        Args: {
+          p_domain?: Database["public"]["Enums"]["vault_domain"]
+          p_limit?: number
+          p_module_type?: Database["public"]["Enums"]["vault_module_type"]
+          p_offset?: number
+          p_query?: string
+          p_saas_phase?: number
+          p_source?: string
+          p_user_id: string
+          p_validated?: boolean
+        }
+        Returns: {
+          code_example: string
+          created_at: string
+          description: string
+          domain: Database["public"]["Enums"]["vault_domain"]
+          id: string
+          language: string
+          module_type: Database["public"]["Enums"]["vault_module_type"]
+          phase_title: string
+          related_modules: string[]
+          saas_phase: number
+          source_project: string
+          tags: string[]
+          title: string
+          updated_at: string
+          validation_status: Database["public"]["Enums"]["vault_validation_status"]
+          why_it_matters: string
+        }[]
       }
       store_project_api_key: {
         Args: {
@@ -512,6 +647,21 @@ export type Database = {
       bug_status: "open" | "resolved"
       project_environment: "dev" | "staging" | "prod"
       vault_category: "frontend" | "backend" | "devops" | "security"
+      vault_domain:
+        | "security"
+        | "backend"
+        | "frontend"
+        | "architecture"
+        | "devops"
+        | "saas_playbook"
+      vault_module_type:
+        | "code_snippet"
+        | "full_module"
+        | "sql_migration"
+        | "architecture_doc"
+        | "playbook_phase"
+        | "pattern_guide"
+      vault_validation_status: "draft" | "validated" | "deprecated"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -643,6 +793,23 @@ export const Constants = {
       bug_status: ["open", "resolved"],
       project_environment: ["dev", "staging", "prod"],
       vault_category: ["frontend", "backend", "devops", "security"],
+      vault_domain: [
+        "security",
+        "backend",
+        "frontend",
+        "architecture",
+        "devops",
+        "saas_playbook",
+      ],
+      vault_module_type: [
+        "code_snippet",
+        "full_module",
+        "sql_migration",
+        "architecture_doc",
+        "playbook_phase",
+        "pattern_guide",
+      ],
+      vault_validation_status: ["draft", "validated", "deprecated"],
     },
   },
 } as const

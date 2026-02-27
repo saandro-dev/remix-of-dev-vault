@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ export function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +25,7 @@ export function ForgotPasswordPage() {
     });
 
     if (error) {
-      toast({ variant: "destructive", title: "Erro", description: error.message });
+      toast({ variant: "destructive", title: t("auth.error"), description: error.message });
     } else {
       setSent(true);
     }
@@ -38,27 +40,27 @@ export function ForgotPasswordPage() {
           <div className="flex justify-center">
             <Vault className="h-10 w-10 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold text-foreground">Recuperar Senha</CardTitle>
+          <CardTitle className="text-2xl font-bold text-foreground">{t("auth.recoverPassword")}</CardTitle>
           <CardDescription className="text-muted-foreground">
-            {sent ? "Email enviado!" : "Digite seu email para receber o link de recuperação"}
+            {sent ? t("auth.emailSent") : t("auth.recoverSubtitle")}
           </CardDescription>
         </CardHeader>
         {sent ? (
           <CardContent className="text-center space-y-4">
             <Mail className="h-12 w-12 text-success mx-auto" />
             <p className="text-sm text-muted-foreground">
-              Verifique sua caixa de entrada e clique no link para redefinir sua senha.
+              {t("auth.checkInbox")}
             </p>
           </CardContent>
         ) : (
           <form onSubmit={handleReset}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-foreground">Email</Label>
+                <Label htmlFor="email" className="text-foreground">{t("common.email")}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="seu@email.com"
+                  placeholder={t("auth.emailPlaceholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -67,14 +69,14 @@ export function ForgotPasswordPage() {
             </CardContent>
             <CardFooter>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar Link"}
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.sendLink")}
               </Button>
             </CardFooter>
           </form>
         )}
         <CardFooter className="justify-center">
           <Link to="/login" className="text-sm text-primary hover:underline flex items-center gap-1">
-            <ArrowLeft className="h-3 w-3" /> Voltar ao login
+            <ArrowLeft className="h-3 w-3" /> {t("auth.backToLogin")}
           </Link>
         </CardFooter>
       </Card>

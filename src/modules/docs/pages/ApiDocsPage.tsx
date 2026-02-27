@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EndpointCard } from "../components/EndpointCard";
@@ -15,24 +16,22 @@ const SECTION_ICONS: Record<string, React.ElementType> = {
 };
 
 export function ApiDocsPage() {
+  const { t } = useTranslation();
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-16">
-      {/* Header */}
       <header className="space-y-2">
         <div className="flex items-center gap-3">
           <BookOpen className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            API Reference
+            {t("apiDocs.title")}
           </h1>
         </div>
         <p className="text-muted-foreground leading-relaxed">
-          Documentação completa da API pública do DevVault. Use esta referência
-          para integrar agentes de IA, scripts de CI/CD ou qualquer automação
-          que precise salvar módulos no Cofre Global.
+          {t("apiDocs.subtitle")}
         </p>
       </header>
 
-      {/* Base URL */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
@@ -47,7 +46,6 @@ export function ApiDocsPage() {
         </CardContent>
       </Card>
 
-      {/* Info Sections */}
       {allSections.map((section) => {
         const Icon = SECTION_ICONS[section.id] ?? FileText;
         return (
@@ -102,12 +100,9 @@ export function ApiDocsPage() {
         );
       })}
 
-      {/* Endpoints */}
       <div className="space-y-2">
-        <h2 className="text-lg font-semibold text-foreground">Endpoints</h2>
-        <p className="text-sm text-muted-foreground">
-          Lista de todos os endpoints disponíveis na API pública.
-        </p>
+        <h2 className="text-lg font-semibold text-foreground">{t("apiDocs.endpoints")}</h2>
+        <p className="text-sm text-muted-foreground">{t("apiDocs.endpointsSubtitle")}</p>
       </div>
 
       {allEndpoints.map((ep) => (

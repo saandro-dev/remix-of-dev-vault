@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import { useVaultModules } from "@/modules/vault/hooks/useVaultModules";
 import { Plus, Loader2 } from "lucide-react";
 
 export function BugCreateDialog() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [symptom, setSymptom] = useState("");
@@ -49,25 +51,25 @@ export function BugCreateDialog() {
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); setOpen(v); }}>
       <DialogTrigger asChild>
         <Button className="gap-2">
-          <Plus className="h-4 w-4" /> Registrar Bug
+          <Plus className="h-4 w-4" /> {t("bugs.registerBug")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Registrar Bug</DialogTitle>
+          <DialogTitle>{t("bugs.registerBug")}</DialogTitle>
         </DialogHeader>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label>Título</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Ex: Erro de CORS na API de pagamento" />
+            <Label>{t("bugs.titleLabel")}</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder={t("bugs.titlePlaceholder")} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Projeto (opcional)</Label>
+              <Label>{t("bugs.project")}</Label>
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("common.none")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
+                  <SelectItem value="none">{t("common.none")}</SelectItem>
                   {projects?.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -75,11 +77,11 @@ export function BugCreateDialog() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Módulo (opcional)</Label>
+              <Label>{t("bugs.module")}</Label>
               <Select value={selectedModuleId} onValueChange={setSelectedModuleId}>
-                <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("common.none")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
+                  <SelectItem value="none">{t("common.none")}</SelectItem>
                   {modules?.map((m) => (
                     <SelectItem key={m.id} value={m.id}>{m.title}</SelectItem>
                   ))}
@@ -88,23 +90,23 @@ export function BugCreateDialog() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Sintoma</Label>
-            <Textarea value={symptom} onChange={(e) => setSymptom(e.target.value)} required placeholder="O que aconteceu?" />
+            <Label>{t("bugs.symptom")}</Label>
+            <Textarea value={symptom} onChange={(e) => setSymptom(e.target.value)} required placeholder={t("bugs.symptomPlaceholder")} />
           </div>
           <div className="space-y-2">
-            <Label>Código Causador</Label>
-            <Textarea value={causeCode} onChange={(e) => setCauseCode(e.target.value)} className="font-mono text-sm" placeholder="Trecho de código" />
+            <Label>{t("bugs.causeCode")}</Label>
+            <Textarea value={causeCode} onChange={(e) => setCauseCode(e.target.value)} className="font-mono text-sm" placeholder={t("bugs.causeCodePlaceholder")} />
           </div>
           <div className="space-y-2">
-            <Label>Solução</Label>
-            <Textarea value={solution} onChange={(e) => setSolution(e.target.value)} placeholder="Como foi resolvido?" />
+            <Label>{t("bugs.solution")}</Label>
+            <Textarea value={solution} onChange={(e) => setSolution(e.target.value)} placeholder={t("bugs.solutionPlaceholder")} />
           </div>
           <div className="space-y-2">
-            <Label>Tags (separadas por vírgula)</Label>
-            <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="cors, api, auth" />
+            <Label>{t("bugs.tagsSeparated")}</Label>
+            <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder={t("bugs.tagsPlaceholder")} />
           </div>
           <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-            {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registrar"}
+            {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("common.register")}
           </Button>
         </form>
       </DialogContent>

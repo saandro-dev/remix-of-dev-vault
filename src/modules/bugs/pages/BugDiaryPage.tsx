@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { Loader2, Bug } from "lucide-react";
 import { useBugs, useToggleBugStatus, useDeleteBug } from "@/modules/bugs/hooks/useBugs";
@@ -9,6 +10,7 @@ import { BugCard } from "@/modules/bugs/components/BugCard";
 import type { BugStatus } from "@/modules/bugs/types";
 
 export function BugDiaryPage() {
+  const { t } = useTranslation();
   const { data: bugs, isLoading } = useBugs();
   const { data: projects } = useProjects();
   const { data: modules } = useVaultModules();
@@ -35,8 +37,8 @@ export function BugDiaryPage() {
       <ConfirmDialog />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Diário de Bugs</h1>
-          <p className="text-muted-foreground mt-1">Documente sintomas, causas e soluções.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("bugs.title")}</h1>
+          <p className="text-muted-foreground mt-1">{t("bugs.subtitle")}</p>
         </div>
         <BugCreateDialog />
       </div>
@@ -52,7 +54,7 @@ export function BugDiaryPage() {
                 : "bg-muted text-muted-foreground border-border hover:bg-accent"
             }`}
           >
-            {status === null ? "Todos" : status === "open" ? "Abertos" : "Resolvidos"}
+            {status === null ? t("common.all") : status === "open" ? t("bugs.open") : t("bugs.resolved")}
           </button>
         ))}
       </div>
@@ -64,7 +66,7 @@ export function BugDiaryPage() {
       ) : !filtered?.length ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Bug className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">Nenhum bug registrado.</p>
+          <p className="text-muted-foreground">{t("bugs.noBugs")}</p>
         </div>
       ) : (
         <div className="space-y-4">

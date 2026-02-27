@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ interface CreateKeyCardProps {
 export function CreateKeyCard({ onKeyCreated }: CreateKeyCardProps) {
   const [keyName, setKeyName] = useState("");
   const createMutation = useCreateDevVaultKey();
+  const { t } = useTranslation();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,20 +32,18 @@ export function CreateKeyCard({ onKeyCreated }: CreateKeyCardProps) {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Key className="h-4 w-4" />
-          Gerar Nova Chave
+          {t("apiKeys.generateNew")}
         </CardTitle>
-        <CardDescription>
-          Chaves de API permitem que agentes, scripts e ferramentas externas adicionem módulos ao seu Cofre.
-        </CardDescription>
+        <CardDescription>{t("apiKeys.generateDescription")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="flex items-end gap-3" onSubmit={handleSubmit}>
           <div className="flex-1 space-y-2">
-            <Label>Nome da Chave</Label>
+            <Label>{t("apiKeys.keyName")}</Label>
             <Input
               value={keyName}
               onChange={(e) => setKeyName(e.target.value)}
-              placeholder="Ex: MCP Agent, CI Pipeline..."
+              placeholder={t("apiKeys.keyNamePlaceholder")}
               required
               minLength={2}
             />
@@ -54,7 +54,7 @@ export function CreateKeyCard({ onKeyCreated }: CreateKeyCardProps) {
             ) : (
               <Plus className="h-4 w-4" />
             )}
-            Gerar
+            {t("common.generate")}
           </Button>
         </form>
       </CardContent>

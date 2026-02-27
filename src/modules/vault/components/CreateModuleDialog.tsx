@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,6 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCreateVaultModule } from "../hooks/useVaultModules";
 import type { VaultDomain, VaultModuleType, VaultValidationStatus } from "../types";
-import { DOMAIN_LABELS, MODULE_TYPE_LABELS, VALIDATION_STATUS_LABELS } from "../types";
 
 interface Props {
   open: boolean;
@@ -21,6 +21,7 @@ const MODULE_TYPES: VaultModuleType[] = ["code_snippet", "full_module", "sql_mig
 const LANGUAGES = ["typescript", "sql", "bash", "json", "yaml", "markdown", "javascript", "python"];
 
 export function CreateModuleDialog({ open, onOpenChange }: Props) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("basic");
   const create = useCreateVaultModule(() => onOpenChange(false));
 
@@ -70,195 +71,126 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Módulo de Conhecimento</DialogTitle>
+          <DialogTitle>{t("createModule.title")}</DialogTitle>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="grid grid-cols-3 w-full">
-            <TabsTrigger value="basic">Básico</TabsTrigger>
-            <TabsTrigger value="code">Código</TabsTrigger>
-            <TabsTrigger value="meta">Metadados</TabsTrigger>
+            <TabsTrigger value="basic">{t("createModule.tabBasic")}</TabsTrigger>
+            <TabsTrigger value="code">{t("createModule.tabCode")}</TabsTrigger>
+            <TabsTrigger value="meta">{t("createModule.tabMeta")}</TabsTrigger>
           </TabsList>
 
-          {/* ABA BÁSICO */}
           <TabsContent value="basic" className="space-y-4 mt-4">
             <div className="space-y-1.5">
-              <Label>Título *</Label>
-              <Input
-                placeholder="Ex: Supabase Vault — Como usar vault.create_secret()"
-                value={form.title}
-                onChange={(e) => set("title", e.target.value)}
-              />
+              <Label>{t("createModule.moduleTitle")}</Label>
+              <Input placeholder={t("createModule.titlePlaceholder")} value={form.title} onChange={(e) => set("title", e.target.value)} />
             </div>
-
             <div className="space-y-1.5">
-              <Label>Descrição</Label>
-              <Textarea
-                placeholder="O que este módulo faz e quando usar..."
-                value={form.description}
-                onChange={(e) => set("description", e.target.value)}
-                rows={3}
-              />
+              <Label>{t("createModule.description")}</Label>
+              <Textarea placeholder={t("createModule.descriptionPlaceholder")} value={form.description} onChange={(e) => set("description", e.target.value)} rows={3} />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Domínio</Label>
+                <Label>{t("createModule.domain")}</Label>
                 <Select value={form.domain} onValueChange={(v) => set("domain", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {DOMAINS.map((d) => (
-                      <SelectItem key={d} value={d}>{DOMAIN_LABELS[d]}</SelectItem>
+                      <SelectItem key={d} value={d}>{t(`domains.${d}`)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Tipo de Módulo</Label>
+                <Label>{t("createModule.moduleType")}</Label>
                 <Select value={form.module_type} onValueChange={(v) => set("module_type", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {MODULE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{MODULE_TYPE_LABELS[t]}</SelectItem>
+                    {MODULE_TYPES.map((mt) => (
+                      <SelectItem key={mt} value={mt}>{t(`moduleTypes.${mt}`)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-
             <div className="space-y-1.5">
-              <Label>Por que isso importa?</Label>
-              <Textarea
-                placeholder="Explique o motivo arquitetural desta decisão. Ex: 'Usar vault.create_secret() em vez de INSERT direto porque...'"
-                value={form.why_it_matters}
-                onChange={(e) => set("why_it_matters", e.target.value)}
-                rows={3}
-              />
+              <Label>{t("createModule.whyItMatters")}</Label>
+              <Textarea placeholder={t("createModule.whyPlaceholder")} value={form.why_it_matters} onChange={(e) => set("why_it_matters", e.target.value)} rows={3} />
             </div>
-
             <div className="space-y-1.5">
-              <Label>Tags (separadas por vírgula)</Label>
-              <Input
-                placeholder="vault, criptografia, supabase, segurança"
-                value={form.tags}
-                onChange={(e) => set("tags", e.target.value)}
-              />
+              <Label>{t("createModule.tagsSeparated")}</Label>
+              <Input placeholder={t("createModule.tagsPlaceholder")} value={form.tags} onChange={(e) => set("tags", e.target.value)} />
             </div>
           </TabsContent>
 
-          {/* ABA CÓDIGO */}
           <TabsContent value="code" className="space-y-4 mt-4">
             <div className="space-y-1.5">
-              <Label>Linguagem</Label>
+              <Label>{t("createModule.language")}</Label>
               <Select value={form.language} onValueChange={(v) => set("language", v)}>
                 <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {LANGUAGES.map((l) => (
-                    <SelectItem key={l} value={l}>{l}</SelectItem>
-                  ))}
+                  {LANGUAGES.map((l) => (<SelectItem key={l} value={l}>{l}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1.5">
-              <Label>Código Principal</Label>
-              <Textarea
-                placeholder="// Cole o código completo aqui..."
-                value={form.code}
-                onChange={(e) => set("code", e.target.value)}
-                rows={10}
-                className="font-mono text-sm"
-              />
+              <Label>{t("createModule.mainCode")}</Label>
+              <Textarea placeholder={t("createModule.codePlaceholder")} value={form.code} onChange={(e) => set("code", e.target.value)} rows={10} className="font-mono text-sm" />
             </div>
-
             <div className="space-y-1.5">
-              <Label>Exemplo de Uso</Label>
-              <Textarea
-                placeholder="// Exemplo mínimo de como usar este módulo..."
-                value={form.code_example}
-                onChange={(e) => set("code_example", e.target.value)}
-                rows={6}
-                className="font-mono text-sm"
-              />
+              <Label>{t("createModule.usageExample")}</Label>
+              <Textarea placeholder={t("createModule.examplePlaceholder")} value={form.code_example} onChange={(e) => set("code_example", e.target.value)} rows={6} className="font-mono text-sm" />
             </div>
-
             <div className="space-y-1.5">
-              <Label>Documentação / Contexto (Markdown)</Label>
-              <Textarea
-                placeholder="# Como usar&#10;&#10;Explique com mais detalhes, decisões, alternativas consideradas..."
-                value={form.context_markdown}
-                onChange={(e) => set("context_markdown", e.target.value)}
-                rows={6}
-              />
+              <Label>{t("createModule.docContext")}</Label>
+              <Textarea placeholder={t("createModule.docPlaceholder")} value={form.context_markdown} onChange={(e) => set("context_markdown", e.target.value)} rows={6} />
             </div>
           </TabsContent>
 
-          {/* ABA METADADOS */}
           <TabsContent value="meta" className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Fase do SaaS</Label>
-                <Input
-                  type="number"
-                  placeholder="1, 2, 3..."
-                  value={form.saas_phase}
-                  onChange={(e) => set("saas_phase", e.target.value)}
-                  min={1}
-                />
-                <p className="text-xs text-muted-foreground">Preencha se for parte de um playbook</p>
+                <Label>{t("createModule.saasPhase")}</Label>
+                <Input type="number" placeholder={t("createModule.phasePlaceholder")} value={form.saas_phase} onChange={(e) => set("saas_phase", e.target.value)} min={1} />
+                <p className="text-xs text-muted-foreground">{t("createModule.phaseHint")}</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Título da Fase</Label>
-                <Input
-                  placeholder="Ex: Fundação, Autenticação..."
-                  value={form.phase_title}
-                  onChange={(e) => set("phase_title", e.target.value)}
-                />
+                <Label>{t("createModule.phaseTitle")}</Label>
+                <Input placeholder={t("createModule.phaseTitlePlaceholder")} value={form.phase_title} onChange={(e) => set("phase_title", e.target.value)} />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Projeto de Origem</Label>
-                <Input
-                  placeholder="risecheckout, devvault..."
-                  value={form.source_project}
-                  onChange={(e) => set("source_project", e.target.value)}
-                />
+                <Label>{t("createModule.sourceProject")}</Label>
+                <Input placeholder={t("createModule.sourceProjectPlaceholder")} value={form.source_project} onChange={(e) => set("source_project", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Status de Validação</Label>
+                <Label>{t("createModule.validationStatus")}</Label>
                 <Select value={form.validation_status} onValueChange={(v) => set("validation_status", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(["draft", "validated", "deprecated"] as VaultValidationStatus[]).map((s) => (
-                      <SelectItem key={s} value={s}>{VALIDATION_STATUS_LABELS[s]}</SelectItem>
+                      <SelectItem key={s} value={s}>{t(`validationStatus.${s}`)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-
             <div className="flex items-center justify-between p-3 rounded-lg border border-border">
               <div>
-                <p className="text-sm font-medium">Módulo Público</p>
-                <p className="text-xs text-muted-foreground">Visível para outros usuários via API</p>
+                <p className="text-sm font-medium">{t("createModule.publicModule")}</p>
+                <p className="text-xs text-muted-foreground">{t("createModule.publicHint")}</p>
               </div>
-              <Switch
-                checked={form.is_public}
-                onCheckedChange={(v) => set("is_public", v)}
-              />
+              <Switch checked={form.is_public} onCheckedChange={(v) => set("is_public", v)} />
             </div>
           </TabsContent>
         </Tabs>
 
         <div className="flex justify-end gap-2 pt-2 border-t border-border">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!form.title.trim() || create.isPending}
-          >
-            {create.isPending ? "Salvando..." : "Criar Módulo"}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
+          <Button onClick={handleSubmit} disabled={!form.title.trim() || create.isPending}>
+            {create.isPending ? t("common.saving") : t("createModule.createModule")}
           </Button>
         </div>
       </DialogContent>
