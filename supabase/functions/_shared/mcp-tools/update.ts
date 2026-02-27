@@ -1,0 +1,104 @@
+/**
+ * mcp-tools/update.ts — devvault_update tool.
+ *
+ * Partial update of an existing module by ID or slug.
+ * Returns updated completeness score after mutation.
+ */
+
+import { createLogger } from "../logger.ts";
+import { getCompleteness } from "./completeness.ts";
+import type { ToolRegistrar } from "./types.ts";
+
+const logger = createLogger("mcp-tool:update");
+
+const ALLOWED_UPDATE_FIELDS = [
+  "title", "description", "code", "code_example", "why_it_matters",
+  "context_markdown", "tags", "domain", "module_type", "language",
+  "source_project", "module_group", "implementation_order", "validation_status",
+] as const;
+
+export const registerUpdateTool: ToolRegistrar = (server, client, auth) => {
+  server.tool("devvault_update", {
+    description:
+      "Update an existing module by ID or slug. Supports partial updates — only the " +
+      "fields you provide will be changed. Use this to fill missing fields like " +
+      "why_it_matters, code_example, fix language, update tags, etc. Returns the " +
+      "updated completeness score.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Module UUID (provide id or slug)" },
+        slug: { type: "string", description: "Module slug (provide id or slug)" },
+        title: { type: "string" },
+        description: { type: "string" },
+        code: { type: "string" },
+        code_example: { type: "string" },
+        why_it_matters: { type: "string" },
+        context_markdown: { type: "string" },
+        tags: { type: "array", items: { type: "string" } },
+        domain: { type: "string", enum: ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"] },
+        module_type: { type: "string", enum: ["code_snippet", "full_module", "sql_migration", "architecture_doc", "playbook_phase", "pattern_guide"] },
+        language: { type: "string" },
+        source_project: { type: "string" },
+        module_group: { type: "string" },
+        implementation_order: { type: "number" },
+        validation_status: { type: "string", enum: ["draft", "validated", "deprecated"] },
+      },
+      required: [],
+    },
+    handler: async (params: Record<string, unknown>) => {
+      if (!params.id && !params.slug) {
+        return { content: [{ type: "text", text: "Error: Provide either 'id' or 'slug'" }] };
+      }
+
+      let moduleId = params.id as string | undefined;
+      if (!moduleId && params.slug) {
+        const { data: found } = await client
+          .from("vault_modules")
+          .select("id")
+          .eq("slug", params.slug as string)
+          .single();
+        if (!found) {
+          return { content: [{ type: "text", text: `Module not found with slug: ${params.slug}` }] };
+        }
+        moduleId = found.id;
+      }
+
+      const updateFields: Record<string, unknown> = {};
+      for (const field of ALLOWED_UPDATE_FIELDS) {
+        if (params[field] !== undefined) updateFields[field] = params[field];
+      }
+
+      if (Object.keys(updateFields).length === 0) {
+        return { content: [{ type: "text", text: "Error: No fields to update" }] };
+      }
+
+      const { data, error } = await client
+        .from("vault_modules")
+        .update(updateFields)
+        .eq("id", moduleId!)
+        .select("id, slug, title, updated_at")
+        .single();
+
+      if (error) {
+        logger.error("update failed", { error: error.message });
+        return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+      }
+
+      const completeness = await getCompleteness(client, moduleId!);
+      logger.info("module updated via MCP", { moduleId, userId: auth.userId, fields: Object.keys(updateFields) });
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            success: true,
+            module: data,
+            _completeness: completeness,
+            updated_fields: Object.keys(updateFields),
+          }, null, 2),
+        }],
+      };
+    },
+  });
+};
