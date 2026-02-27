@@ -1,199 +1,102 @@
 
 
-# Plano: Sistema RBAC + Painel Admin
+# Relatório de Auditoria: RBAC + Admin Panel
 
-## Resumo
-
-Implementar controle de acesso baseado em roles (owner > admin > user) com painel administrativo usando XState. Adaptado do relatório da Manus com correções para conformidade com o Protocolo DevVault V1.
+## Status: PARCIALMENTE COMPLETO — Correções Necessárias
 
 ---
 
-## Correções vs Relatório Manus
+## 1. O QUE FOI IMPLEMENTADO CORRETAMENTE
 
-| Problema no Relatório | Correção |
-|---|---|
-| `usePermissions` usa `supabase.rpc()` direto (viola Regra 5.5) | Usar `invokeEdgeFunction("admin-crud", { action: "get-my-role" })` |
-| `admin-crud` não usa helpers existentes (`handleCorsV2`, `createSuccessResponse`) | Seguir padrão de `bugs-crud/index.ts` com helpers corretos |
-| Comentários em português | Tudo em inglês técnico |
-| XState `fromPromise` com API incorreta para v5 | Usar import correto de `xstate` |
-| RLS policies fazem DROP sem verificar existentes | Adicionar novas policies sem dropar as de service-role |
-
----
-
-## Etapa 1 — Migration SQL
-
-**1 arquivo de migração** com:
-- `ALTER TYPE public.app_role ADD VALUE 'owner'`
-- `CREATE OR REPLACE FUNCTION public.is_admin_or_owner(uuid)` — SECURITY DEFINER
-- `CREATE OR REPLACE FUNCTION public.get_user_role(uuid)` — retorna role ou 'user' como fallback
-- Novas RLS policies em `user_roles`: admin/owner SELECT, individual SELECT, admin/owner ALL
-- Novas RLS policies em `profiles`: public SELECT (para listar users no admin panel), individual UPDATE
+| Componente | Status | Detalhe |
+|------------|--------|---------|
+| Database migration (owner enum, functions, RLS) | PASS | `is_admin_or_owner`, `get_user_role` criados corretamente |
+| `role-validator.ts` (backend) | PASS | Hierarquia correta, `requireRole` com throw |
+| `admin-crud/index.ts` | PASS | 3 actions, usa `handleCorsV2`, `createSuccessResponse(req, ...)` |
+| `usePermissions.ts` | PASS | Usa `invokeEdgeFunction` (Regra 5.5 OK) |
+| `RoleProtectedRoute.tsx` | PASS | Hierarquia numérica, loading spinner, redirect |
+| `appRoutes.tsx` | PASS | `/admin` com `RoleProtectedRoute` |
+| `navigationConfig.ts` | PASS | Item `admin` com `requiredRole: "admin"` |
+| `AppSidebar.tsx` | PASS | Filtra nav por role |
+| `AdminProvider.tsx` | PASS | React Query + Context, i18n nos toasts |
+| `UsersTable.tsx` | PASS | Tabela com avatar, role badge, actions (owner only) |
+| `RoleChangeDialog.tsx` | PASS | Select com 3 roles, confirmacao, disabled state |
+| i18n keys (en + pt-BR) | PASS | Admin keys completas incluindo `moderator` |
+| `ProtectedRoute.tsx` | PASS | `t("common.loading")` em vez de PT hardcoded |
 
 ---
 
-## Etapa 2 — Backend (Edge Function)
+## 2. VIOLACOES ENCONTRADAS
 
-### `supabase/functions/_shared/role-validator.ts`
-- `getUserRole(supabase, userId)` — chama `get_user_role` RPC
-- `requireRole(supabase, userId, requiredRole)` — valida hierarquia, throws se insuficiente
-- Hierarquia: `{ owner: 1, admin: 2, user: 3 }`
+### 2.1 CRITICA: `auth.ts` usa signature legada de `createErrorResponse`
 
-### `supabase/functions/admin-crud/index.ts`
-Segue padrão de `bugs-crud` (usa `handleCors`, `authenticateRequest`, `isResponse`, `createSuccessResponse`, `createErrorResponse`).
+**Arquivo:** `supabase/functions/_shared/auth.ts` (linhas 14 e 28)
 
-**Actions:**
-- `get-my-role` — retorna a role do user autenticado (substitui `supabase.rpc()` do frontend)
-- `list-users` — requer admin+; retorna profiles com roles
-- `change-role` — requer owner; atualiza role de target user
+Chama `createErrorResponse(ERROR_CODES.UNAUTHORIZED, "...", 401)` sem `req`, resultando em CORS `*` wildcard em vez do CORS seguro com allowlist. Enquanto `admin-crud` usa corretamente `createErrorResponse(req, ...)`, o `auth.ts` compartilhado usa a forma insegura.
 
-### `supabase/config.toml`
-- Adicionar `[functions.admin-crud]` com `verify_jwt = false`
+**Impacto:** Toda Edge Function que usa `authenticateRequest()` retorna erros de auth com CORS `*`.
 
----
+**Correcao:** Alterar `authenticateRequest` para receber `req` e usar a signature segura.
 
-## Etapa 3 — Frontend: Hooks + Rotas
+### 2.2 CRITICA: Comentarios em portugues nos shared helpers
 
-### `src/modules/auth/hooks/usePermissions.ts`
-- Usa `invokeEdgeFunction("admin-crud", { action: "get-my-role" })` (Regra 5.5)
-- React Query com `staleTime: 5min`, `refetchOnWindowFocus: true`
-- Expõe: `role`, `isLoading`, `isAdmin`, `isOwner`
+**Arquivos afetados:**
+- `supabase/functions/_shared/api-helpers.ts` — 15+ comentarios em PT ("Cria uma resposta", "Sobrecarga legada", "Mantido para compatibilidade", "Extrai o IP", "Trata requisicoes")
+- `supabase/functions/_shared/cors-v2.ts` — 6+ comentarios em PT ("Trata requisicoes OPTIONS", "Retorna null", "Origem nao permitida")
+- `supabase/functions/_shared/sentry.ts` — 5+ comentarios em PT ("Envolve o handler", "Garante que nenhum erro")
 
-### `src/modules/auth/components/RoleProtectedRoute.tsx`
-- Aceita `requiredRole: "admin" | "owner"`
-- Hierarquia numérica para comparação
-- Redirect para `/` se sem permissão
-- Loading spinner enquanto verifica
+**Violacao:** Regra 5.4 — Nomenclatura em ingles tecnico.
 
-### Modificar `src/routes/appRoutes.tsx`
-- Adicionar rota `/admin` wrappada em `<RoleProtectedRoute requiredRole="admin">`
+### 2.3 MEDIA: Funcoes legadas dead code em `api-helpers.ts`
 
-### Modificar `src/modules/navigation/config/navigationConfig.ts`
-- Adicionar item `admin` no grupo `account` com ícone `Shield`
+- `handleCors()` esta marcado como `@deprecated` mas ainda existe no arquivo
+- `corsHeaders` wildcard `*` exportado e usado pelo `auth.ts` e possivelmente outros
+- Comentario "Mantido para compatibilidade retroativa durante a migração" — viola Regra 3.5 ("Nada e temporario")
 
-### Modificar `src/layouts/AppSidebar.tsx`
-- Filtrar item `admin` da nav baseado em `usePermissions` (só mostra se admin/owner)
+### 2.4 MEDIA: `vault-ingest/index.ts` tem strings de erro em portugues
 
-### Modificar `src/modules/auth/components/ProtectedRoute.tsx`
-- Traduzir "Carregando..." para `t("common.loading")`
+Pelo menos 12 mensagens de erro hardcoded em PT: "Apenas POST é aceito", "Rate limit excedido", "API Key inválida", "Body JSON inválido", "Payload vazio", "Máximo 50 módulos", etc.
+
+### 2.5 BAIXA: `.lovable/plan.md` desatualizado
+
+O plano menciona XState como dependencia e lista arquivos `machines/adminMachine.ts` e `machines/adminMachine.types.ts` que nunca foram criados. A implementacao real usa React Query + Context (decisao correta), mas o plano nao foi atualizado para refletir isso.
+
+### 2.6 BAIXA: `AdminUser.email` removido da interface mas presente no plano
+
+O plano original listava `AdminUser { id, displayName, avatarUrl, email, role, createdAt }` com `email`. A interface final nao tem `email` (correto, ja que `profiles` nao tem email). O plano esta desatualizado.
 
 ---
 
-## Etapa 4 — Frontend: Admin Panel com XState
+## 3. PLANO DE REMEDIACAO
 
-### Estrutura de arquivos:
+### Step 1: Corrigir `auth.ts` para usar CORS seguro
+- Alterar `authenticateRequest(req)` para propagar `req` nas chamadas de `createErrorResponse`
+- Usar signature `createErrorResponse(req, code, message, status)` em vez da legada
+
+### Step 2: Traduzir todos os comentarios dos shared helpers para ingles
+- `api-helpers.ts` — todos os JSDoc e inline comments
+- `cors-v2.ts` — todos os JSDoc e inline comments
+- `sentry.ts` — todos os JSDoc e inline comments
+
+### Step 3: Remover dead code legado de `api-helpers.ts`
+- Deletar `corsHeaders` wildcard (apos migrar `auth.ts`)
+- Deletar funcao `handleCors()` deprecated
+- Verificar que nenhum outro arquivo importa esses exports
+
+### Step 4: Traduzir strings de erro em `vault-ingest/index.ts`
+- Substituir todas as mensagens PT por equivalentes em ingles
+
+### Step 5: Atualizar `.lovable/plan.md`
+- Remover referencias a XState/machines
+- Refletir a arquitetura real (React Query + Context)
+
+### Arquivos a modificar:
 ```text
-src/modules/admin/
-├── types/admin.types.ts
-├── machines/
-│   ├── adminMachine.types.ts
-│   └── adminMachine.ts
-├── context/
-│   ├── adminFetchers.ts
-│   ├── adminHandlers.ts
-│   └── AdminProvider.tsx
-├── hooks/useAdmin.ts
-├── components/
-│   ├── UsersTable.tsx
-│   └── RoleChangeDialog.tsx
-└── pages/AdminPage.tsx
+supabase/functions/_shared/auth.ts
+supabase/functions/_shared/api-helpers.ts
+supabase/functions/_shared/cors-v2.ts
+supabase/functions/_shared/sentry.ts
+supabase/functions/vault-ingest/index.ts
+.lovable/plan.md
 ```
-
-### `admin.types.ts`
-- `AdminUser { id, displayName, avatarUrl, email, role, createdAt }`
-
-### `adminMachine.ts` (XState v5)
-- States: `idle → loading → loaded → changingRole → error`
-- Events: `FETCH`, `ROLE_CHANGE`, `CONFIRM_ROLE_CHANGE`, `CANCEL`
-- Usa `fromPromise` importado de `xstate`
-
-### `adminFetchers.ts`
-- `fetchUsers()` — `invokeEdgeFunction("admin-crud", { action: "list-users" })`
-
-### `adminHandlers.ts`
-- `changeUserRole(targetUserId, newRole)` — `invokeEdgeFunction("admin-crud", { action: "change-role", ... })`
-
-### `AdminProvider.tsx`
-- Context React + `useMachine` do `@xstate/react`
-- Expõe state, users, selectedUser, send
-
-### `useAdmin.ts`
-- Hook que consome AdminContext
-
-### `UsersTable.tsx`
-- Tabela com avatar, nome, email, role badge, data criação, botão ações
-- Dropdown para mudar role (só visível para owners)
-
-### `RoleChangeDialog.tsx`
-- Dialog de confirmação antes de mudar role
-- Select com opções: user, admin, owner
-- Mostra user atual e nova role
-
-### `AdminPage.tsx`
-- Título + subtítulo via i18n
-- Renderiza `<AdminProvider>` + `<UsersTable />`
-
----
-
-## i18n Keys
-
-Adicionar ao `en.json` e `pt-BR.json`:
-```json
-{
-  "admin": {
-    "title": "Administration",
-    "subtitle": "Manage users and roles.",
-    "users": "Users",
-    "role": "Role",
-    "changeRole": "Change Role",
-    "confirmRoleChange": "Are you sure you want to change the role of {{name}} to {{role}}?",
-    "roleChanged": "Role updated successfully!",
-    "roleChangeError": "Error changing role",
-    "noUsers": "No users found.",
-    "owner": "Owner",
-    "admin": "Admin",
-    "user": "User",
-    "joined": "Joined",
-    "actions": "Actions"
-  },
-  "nav": {
-    "admin": "Admin Panel"
-  }
-}
-```
-
----
-
-## Dependências a Instalar
-
-- `xstate` (v5)
-- `@xstate/react`
-
----
-
-## Arquivos Totais
-
-| Ação | Arquivo |
-|------|---------|
-| CREATE | `supabase/migrations/XXXX_rbac_owner_role.sql` |
-| CREATE | `supabase/functions/_shared/role-validator.ts` |
-| CREATE | `supabase/functions/admin-crud/index.ts` |
-| CREATE | `src/modules/auth/hooks/usePermissions.ts` |
-| CREATE | `src/modules/auth/components/RoleProtectedRoute.tsx` |
-| CREATE | `src/modules/admin/types/admin.types.ts` |
-| CREATE | `src/modules/admin/machines/adminMachine.types.ts` |
-| CREATE | `src/modules/admin/machines/adminMachine.ts` |
-| CREATE | `src/modules/admin/context/adminFetchers.ts` |
-| CREATE | `src/modules/admin/context/adminHandlers.ts` |
-| CREATE | `src/modules/admin/context/AdminProvider.tsx` |
-| CREATE | `src/modules/admin/hooks/useAdmin.ts` |
-| CREATE | `src/modules/admin/components/UsersTable.tsx` |
-| CREATE | `src/modules/admin/components/RoleChangeDialog.tsx` |
-| CREATE | `src/modules/admin/pages/AdminPage.tsx` |
-| MODIFY | `src/routes/appRoutes.tsx` |
-| MODIFY | `src/modules/navigation/config/navigationConfig.ts` |
-| MODIFY | `src/layouts/AppSidebar.tsx` |
-| MODIFY | `src/modules/auth/components/ProtectedRoute.tsx` |
-| MODIFY | `src/i18n/locales/en.json` |
-| MODIFY | `src/i18n/locales/pt-BR.json` |
-| MODIFY | `supabase/config.toml` |
 
