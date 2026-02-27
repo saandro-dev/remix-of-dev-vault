@@ -1,38 +1,116 @@
 
 
-# Audit Report: JWT-Based Instant Roles + Admin Panel v2
+# Plano: Knowledge Graph — Grafo de Dependências entre Módulos
 
-## Status: TOTAL SUCCESS -- Zero Violations
+## Contexto
+
+Transformar o repositório de módulos independentes em um **Grafo de Conhecimento** com relacionamentos N:N tipados (`required` / `recommended`), permitindo navegação encadeada e respostas HATEOAS para agentes de IA.
 
 ---
 
-## Checklist
+## Fase 1: Migration SQL — Tabela `vault_module_dependencies`
 
-| Area | Check | Verdict |
-|------|-------|---------|
-| **Rule 5.5** | Zero `supabase.from()` in `src/` | PASS |
-| **Rule 5.4** | All files under 300 lines (`usePermissions`: 41, `AdminPage`: 51, `SystemHealthTab`: 80, `ApiMonitorTab`: 133, `GlobalModerationTab`: 154, `admin.types`: 56) | PASS |
-| **Dead Code** | Zero `get-my-role` calls in frontend (only JSDoc reference explaining it's kept for external API) | PASS |
-| **Dead Code** | No orphaned imports, no unused interfaces | PASS |
-| **JWT Roles** | `usePermissions` reads from `user.app_metadata.app_role` -- zero network calls | PASS |
-| **JWT Roles** | `sync_user_role_to_metadata()` DB function exists with `SECURITY DEFINER` + `SET search_path TO 'public'` | PASS |
-| **JWT Roles** | Trigger `trg_sync_user_role_to_metadata` fires on INSERT/UPDATE of role on `public.user_roles` | PASS |
-| **Backend** | `admin-crud` has 8 actions, all with proper role guards (`admin` or `owner`) | PASS |
-| **Backend** | No FK joins -- profiles merged via Map pattern | PASS |
-| **Backend** | `admin-revoke-api-key` distinct from user's `revoke-api-key` | PASS |
-| **SOLID/SRP** | Each tab component has single responsibility | PASS |
-| **i18n** | All strings via `t()`, keys in both `en.json` and `pt-BR.json` | PASS |
-| **Documentation** | `.lovable/plan.md` reflects current state accurately | PASS |
-| **Documentation** | `usePermissions.ts` JSDoc explains trigger-based approach | PASS |
-| **Documentation** | `admin-crud/index.ts` JSDoc header lists all 8 actions | PASS |
-| **Protocol 4.1** | No band-aids, no quick fixes | PASS |
-| **Protocol 4.4** | Zero technical debt -- no TODOs, no "fix later" | PASS |
-| **Security** | Roles in separate `user_roles` table (not in profiles) | PASS |
-| **Security** | Role checks server-side via `requireRole()` in Edge Function | PASS |
-| **Types** | `AdminStats`, `AdminApiKey`, `AdminGlobalModule` fully typed | PASS |
-| **Types** | `AppRole` consistent across `admin.types.ts`, `usePermissions.ts`, `RoleProtectedRoute.tsx` | PASS |
+Criar tabela de junção N:N com:
+- `id` (uuid, PK)
+- `module_id` (uuid, FK → vault_modules.id ON DELETE CASCADE)
+- `depends_on_id` (uuid, FK → vault_modules.id ON DELETE CASCADE)
+- `dependency_type` (text, validado por trigger: `required` | `recommended`)
+- `created_at` (timestamptz)
+- Constraint UNIQUE em `(module_id, depends_on_id)` para evitar duplicatas
+- Constraint CHECK `module_id != depends_on_id` para evitar auto-referência
+- Validação de `dependency_type` via trigger (não CHECK com now(), seguindo guidelines)
 
-## Verdict
+**RLS Policies** (mesmo padrão de `vault_modules`):
+- Service role full access
+- Users can SELECT dependencies de módulos que possuem acesso (owned, shared, global)
+- Users can INSERT/DELETE dependencies de módulos que são donos
 
-**TOTAL SUCCESS.** Zero dead code, zero legacy references, zero protocol violations. The JWT-based instant roles implementation eliminates network latency for role checks. The Admin Panel v2 operates with 4 tabs, 8 backend actions, and full i18n coverage. All files are under 300 lines. No `supabase.from()` calls exist in the frontend. Documentation is current and accurate.
+---
+
+## Fase 2: Backend — Edge Functions
+
+### 2a. `vault-crud/index.ts` — Action `get`
+Após buscar o módulo, fazer query adicional em `vault_module_dependencies` com join em `vault_modules` para trazer `title` e `slug` de cada dependência. Retornar array `module_dependencies` no response com `fetch_url` HATEOAS.
+
+### 2b. `vault-crud/index.ts` — Actions `add_dependency` e `remove_dependency`
+- `add_dependency`: recebe `module_id`, `depends_on_id`, `dependency_type`. Valida ownership do `module_id`.
+- `remove_dependency`: recebe `module_id`, `depends_on_id`. Valida ownership.
+
+### 2c. `vault-crud/index.ts` — Action `list_dependencies`
+Retorna dependências de um módulo (para uso no autocomplete do frontend).
+
+### 2d. `vault-query/index.ts` — Action `get`
+Enriquecer resposta com array `dependencies` incluindo `fetch_url` para cada dependência (padrão HATEOAS).
+
+---
+
+## Fase 3: Tipagem e Hooks (Frontend)
+
+### 3a. `src/modules/vault/types.ts`
+Adicionar interface `ModuleDependency`:
+```typescript
+export interface ModuleDependency {
+  id: string;
+  depends_on_id: string;
+  title: string;
+  slug: string | null;
+  dependency_type: "required" | "recommended";
+  fetch_url: string;
+}
+```
+Adicionar `module_dependencies?: ModuleDependency[]` à interface `VaultModule`.
+
+### 3b. `src/modules/vault/hooks/useModuleDependencies.ts` (novo)
+- `useModuleDependencies(moduleId)` — lista dependências de um módulo
+- `useAddDependency(moduleId)` — mutation para adicionar
+- `useRemoveDependency(moduleId)` — mutation para remover
+- `useSearchModulesForDependency(query)` — busca módulos para autocomplete (exclui o módulo atual)
+
+---
+
+## Fase 4: UI/UX
+
+### 4a. `VaultDetailPage.tsx` — Seção "Prerequisites"
+Nova seção abaixo de Tags exibindo cards clicáveis para cada dependência. Badge `required` / `recommended`. Click navega via React Router para `/vault/:depends_on_id`.
+
+### 4b. `CreateModuleDialog.tsx` — Tab "Meta" com campo de dependências
+Componente Combobox multi-select usando `cmdk` (já instalado). Busca módulos do vault por título. Cada seleção exibe chip com tipo (`required`/`recommended`) e botão de remoção.
+
+### 4c. `EditModuleSheet.tsx` — Campo de dependências
+Mesmo componente de autocomplete. Carrega dependências existentes via `useModuleDependencies`. Permite adicionar/remover.
+
+### 4d. Componente reutilizável `DependencySelector.tsx` (novo)
+Componente isolado usado tanto em Create quanto em Edit. Encapsula o Combobox + chips + tipo de dependência.
+
+### 4e. Componente `DependencyCard.tsx` (novo)
+Card visual para exibir uma dependência na tela de detalhes. Clicável, com ícone de tipo.
+
+---
+
+## i18n
+
+Adicionar chaves em `en.json` e `pt-BR.json`:
+- `vault.prerequisites`, `vault.noPrerequisites`
+- `dependencies.required`, `dependencies.recommended`
+- `dependencies.addDependency`, `dependencies.searchModules`, `dependencies.type`
+- `toast.dependencyAdded`, `toast.dependencyRemoved`
+
+---
+
+## Arquivos
+
+```text
+CREATE   supabase/migrations/XXXX_vault_module_dependencies.sql
+MODIFY   supabase/functions/vault-crud/index.ts        (add_dependency, remove_dependency, enrich get)
+MODIFY   supabase/functions/vault-query/index.ts       (enrich get with HATEOAS)
+MODIFY   src/modules/vault/types.ts                    (ModuleDependency interface)
+CREATE   src/modules/vault/hooks/useModuleDependencies.ts
+CREATE   src/modules/vault/components/DependencySelector.tsx
+CREATE   src/modules/vault/components/DependencyCard.tsx
+MODIFY   src/modules/vault/pages/VaultDetailPage.tsx   (prerequisites section)
+MODIFY   src/modules/vault/components/CreateModuleDialog.tsx (dependency field)
+MODIFY   src/modules/vault/components/EditModuleSheet.tsx    (dependency field)
+MODIFY   src/i18n/locales/en.json
+MODIFY   src/i18n/locales/pt-BR.json
+```
 
