@@ -4,7 +4,7 @@ import {
   FolderOpen,
   Code2,
   Bug,
-  
+  BookOpen,
   Settings,
   KeyRound,
   type LucideIcon,
@@ -65,6 +65,7 @@ export const navigationConfig: NavigationGroup[] = [
     items: [
       { id: "settings", label: "Configurações", icon: Settings, path: "/settings" },
       { id: "api-keys", label: "API & Integrações", icon: KeyRound, path: "/settings/api-keys" },
+      { id: "api-docs", label: "API Docs", icon: BookOpen, path: "/docs/api" },
     ],
   },
 ];

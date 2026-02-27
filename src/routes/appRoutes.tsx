@@ -12,6 +12,7 @@ import { BugDiaryPage } from "@/modules/bugs/pages/BugDiaryPage";
 import { SearchPage } from "@/modules/search/pages/SearchPage";
 import { SettingsPage } from "@/modules/settings/pages/SettingsPage";
 import { ApiKeysPage } from "@/modules/settings/pages/ApiKeysPage";
+import { ApiDocsPage } from "@/modules/docs/pages/ApiDocsPage";
 import { LoginPage } from "@/modules/auth/pages/LoginPage";
 import { SignupPage } from "@/modules/auth/pages/SignupPage";
 import { ForgotPasswordPage } from "@/modules/auth/pages/ForgotPasswordPage";
@@ -43,6 +44,7 @@ export const appRoutes: RouteObject[] = [
       
       { path: "settings", element: <SettingsPage /> },
       { path: "settings/api-keys", element: <ApiKeysPage /> },
+      { path: "docs/api", element: <ApiDocsPage /> },
     ],
   },
   { path: "*", element: <NotFound /> },
