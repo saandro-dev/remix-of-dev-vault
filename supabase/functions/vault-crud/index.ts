@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { handleCorsV2, createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 import { authenticateRequest, isResponse } from "../_shared/auth.ts";
 import { withSentry } from "../_shared/sentry.ts";
-import { log } from "../_shared/logger.ts";
+import { createLogger } from "../_shared/logger.ts";
+const log = createLogger("vault-crud");
 import {
   enrichModuleDependencies,
   handleAddDependency,
@@ -25,7 +26,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
   try {
     const body = await req.json();
     const { action } = body;
-    log("info", "vault-crud", `action=${action} user=${user.id}`);
+    log.info(`action=${action} user=${user.id}`);
 
     switch (action) {
 
@@ -107,7 +108,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
           .select()
           .single();
         if (error) throw error;
-        log("info", "vault-crud", `created module=${data.id} domain=${data.domain}`);
+        log.info(`created module=${data.id} domain=${data.domain}`);
         return createSuccessResponse(req, data, 201);
       }
 
@@ -216,7 +217,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
           .from("vault_module_shares")
           .upsert({ module_id, shared_with_user_id: targetProfile.id, shared_by_user_id: user.id }, { onConflict: "module_id,shared_with_user_id" });
         if (shareErr) throw shareErr;
-        log("info", "vault-crud", `shared module=${module_id} with=${targetProfile.id}`);
+        log.info(`shared module=${module_id} with=${targetProfile.id}`);
         return createSuccessResponse(req, { shared: true });
       }
 
@@ -262,7 +263,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
         return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, `Unknown action: ${action}`, 422);
     }
   } catch (err) {
-    log("error", "vault-crud", err.message);
+    log.error(err.message);
     return createErrorResponse(req, ERROR_CODES.INTERNAL_ERROR, err.message, 500);
   }
 }));
