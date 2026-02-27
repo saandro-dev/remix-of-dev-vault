@@ -1,116 +1,68 @@
 
 
-# Plano: Knowledge Graph — Grafo de Dependências entre Módulos
+# Relatório de Auditoria: Knowledge Graph (Grafo de Dependências)
 
-## Contexto
-
-Transformar o repositório de módulos independentes em um **Grafo de Conhecimento** com relacionamentos N:N tipados (`required` / `recommended`), permitindo navegação encadeada e respostas HATEOAS para agentes de IA.
+## Status: SUCESSO com 1 DESVIO do Plano
 
 ---
 
-## Fase 1: Migration SQL — Tabela `vault_module_dependencies`
+## Checklist Completo
 
-Criar tabela de junção N:N com:
-- `id` (uuid, PK)
-- `module_id` (uuid, FK → vault_modules.id ON DELETE CASCADE)
-- `depends_on_id` (uuid, FK → vault_modules.id ON DELETE CASCADE)
-- `dependency_type` (text, validado por trigger: `required` | `recommended`)
-- `created_at` (timestamptz)
-- Constraint UNIQUE em `(module_id, depends_on_id)` para evitar duplicatas
-- Constraint CHECK `module_id != depends_on_id` para evitar auto-referência
-- Validação de `dependency_type` via trigger (não CHECK com now(), seguindo guidelines)
-
-**RLS Policies** (mesmo padrão de `vault_modules`):
-- Service role full access
-- Users can SELECT dependencies de módulos que possuem acesso (owned, shared, global)
-- Users can INSERT/DELETE dependencies de módulos que são donos
-
----
-
-## Fase 2: Backend — Edge Functions
-
-### 2a. `vault-crud/index.ts` — Action `get`
-Após buscar o módulo, fazer query adicional em `vault_module_dependencies` com join em `vault_modules` para trazer `title` e `slug` de cada dependência. Retornar array `module_dependencies` no response com `fetch_url` HATEOAS.
-
-### 2b. `vault-crud/index.ts` — Actions `add_dependency` e `remove_dependency`
-- `add_dependency`: recebe `module_id`, `depends_on_id`, `dependency_type`. Valida ownership do `module_id`.
-- `remove_dependency`: recebe `module_id`, `depends_on_id`. Valida ownership.
-
-### 2c. `vault-crud/index.ts` — Action `list_dependencies`
-Retorna dependências de um módulo (para uso no autocomplete do frontend).
-
-### 2d. `vault-query/index.ts` — Action `get`
-Enriquecer resposta com array `dependencies` incluindo `fetch_url` para cada dependência (padrão HATEOAS).
+| Area | Verificacao | Veredicto |
+|------|-------------|-----------|
+| **Fase 1: DB** | Tabela `vault_module_dependencies` com RLS, UNIQUE, CHECK anti-self-reference, trigger `validate_dependency_type` | PASS |
+| **Fase 2a: vault-crud `get`** | Enriquece resposta com `module_dependencies[]` + `fetch_url` HATEOAS | PASS |
+| **Fase 2b: vault-crud `add/remove_dependency`** | Actions implementadas com validacao RLS de ownership | PASS |
+| **Fase 2c: vault-crud `list_dependencies`** | Action implementada com enriquecimento de title/slug | PASS |
+| **Fase 2d: vault-query `get`** | Enriquece resposta com `dependencies[]` + `fetch_url` HATEOAS | PASS |
+| **Fase 3a: types.ts** | `ModuleDependency`, `DependencyType`, `module_dependencies?` em `VaultModule` | PASS |
+| **Fase 3b: useModuleDependencies.ts** | 4 hooks: list, add, remove, search | PASS |
+| **Fase 4a: VaultDetailPage** | Secao "Prerequisites" com `DependencyCard` + navegacao React Router | PASS |
+| **Fase 4b: CreateModuleDialog** | `DependencySelector` na tab "Meta" | **FAIL** |
+| **Fase 4c: EditModuleSheet** | `DependencySelector` integrado com diff sync | PASS |
+| **Fase 4d: DependencySelector** | Componente reutilizavel com Combobox + chips + tipo | PASS |
+| **Fase 4e: DependencyCard** | Card visual clicavel com badge de tipo | PASS |
+| **i18n** | Todas as chaves em `en.json` e `pt-BR.json` | PASS |
+| **Regra 5.5** | Zero `supabase.from()` no frontend | PASS |
+| **Regra 5.4** | Todos os arquivos abaixo de 300 linhas (vault-crud: 395 — ver abaixo) | **WARN** |
+| **Codigo morto** | Nenhum import orfao, nenhuma interface sem uso | PASS |
+| **Documentacao** | `.lovable/plan.md` atualizado e correto | PASS |
+| **Protocolo 4.1** | Zero band-aids, zero quick fixes | PASS |
+| **Protocolo 4.4** | Zero divida tecnica, zero TODOs | PASS |
 
 ---
 
-## Fase 3: Tipagem e Hooks (Frontend)
+## Desvios Identificados
 
-### 3a. `src/modules/vault/types.ts`
-Adicionar interface `ModuleDependency`:
-```typescript
-export interface ModuleDependency {
-  id: string;
-  depends_on_id: string;
-  title: string;
-  slug: string | null;
-  dependency_type: "required" | "recommended";
-  fetch_url: string;
-}
-```
-Adicionar `module_dependencies?: ModuleDependency[]` à interface `VaultModule`.
+### DESVIO 1: `CreateModuleDialog.tsx` sem `DependencySelector` (Plano Fase 4b)
 
-### 3b. `src/modules/vault/hooks/useModuleDependencies.ts` (novo)
-- `useModuleDependencies(moduleId)` — lista dependências de um módulo
-- `useAddDependency(moduleId)` — mutation para adicionar
-- `useRemoveDependency(moduleId)` — mutation para remover
-- `useSearchModulesForDependency(query)` — busca módulos para autocomplete (exclui o módulo atual)
+O plano especifica que o `DependencySelector` deveria estar na tab "Meta" do `CreateModuleDialog.tsx`. A implementacao atual NAO inclui esse componente. O `EditModuleSheet` tem, mas o `CreateModuleDialog` nao.
+
+**Impacto:** O usuario so consegue adicionar dependencias ao EDITAR um modulo, nao ao CRIAR. Isso viola o plano aprovado.
+
+**Correcao necessaria:** Integrar `DependencySelector` na tab "Meta" do `CreateModuleDialog` e, apos o `create.mutate` retornar o `id` do modulo criado, disparar as mutations `add_dependency` para cada dependencia selecionada.
+
+### AVISO: `vault-crud/index.ts` com 395 linhas
+
+O arquivo ultrapassa o limite de 300 linhas (Regra 5.4). Com 14 actions num unico switch-case, ele se aproxima de um "God Object". Recomenda-se extrair handlers em funcoes separadas ou arquivos auxiliares futuramente.
 
 ---
 
-## Fase 4: UI/UX
+## Plano de Correcao
 
-### 4a. `VaultDetailPage.tsx` — Seção "Prerequisites"
-Nova seção abaixo de Tags exibindo cards clicáveis para cada dependência. Badge `required` / `recommended`. Click navega via React Router para `/vault/:depends_on_id`.
+### Passo 1: Adicionar DependencySelector ao CreateModuleDialog
+- Importar `DependencySelector` e `PendingDependency`
+- Adicionar state `pendingDeps`
+- Inserir o componente na tab "Meta" (precisa de um `moduleId` temporario — usar string vazia e filtrar pelo proprio titulo)
+- Apos `create.mutate` retornar o ID do modulo, executar `add_dependency` para cada item em `pendingDeps`
 
-### 4b. `CreateModuleDialog.tsx` — Tab "Meta" com campo de dependências
-Componente Combobox multi-select usando `cmdk` (já instalado). Busca módulos do vault por título. Cada seleção exibe chip com tipo (`required`/`recommended`) e botão de remoção.
+### Passo 2: Refatorar vault-crud para ficar abaixo de 300 linhas
+- Extrair os handlers de dependencia (`add_dependency`, `remove_dependency`, `list_dependencies`) e o enriquecimento de `get` para um arquivo helper compartilhado no edge function, ex: `_shared/dependency-helpers.ts`
 
-### 4c. `EditModuleSheet.tsx` — Campo de dependências
-Mesmo componente de autocomplete. Carrega dependências existentes via `useModuleDependencies`. Permite adicionar/remover.
-
-### 4d. Componente reutilizável `DependencySelector.tsx` (novo)
-Componente isolado usado tanto em Create quanto em Edit. Encapsula o Combobox + chips + tipo de dependência.
-
-### 4e. Componente `DependencyCard.tsx` (novo)
-Card visual para exibir uma dependência na tela de detalhes. Clicável, com ícone de tipo.
-
----
-
-## i18n
-
-Adicionar chaves em `en.json` e `pt-BR.json`:
-- `vault.prerequisites`, `vault.noPrerequisites`
-- `dependencies.required`, `dependencies.recommended`
-- `dependencies.addDependency`, `dependencies.searchModules`, `dependencies.type`
-- `toast.dependencyAdded`, `toast.dependencyRemoved`
-
----
-
-## Arquivos
-
+### Arquivos a modificar
 ```text
-CREATE   supabase/migrations/XXXX_vault_module_dependencies.sql
-MODIFY   supabase/functions/vault-crud/index.ts        (add_dependency, remove_dependency, enrich get)
-MODIFY   supabase/functions/vault-query/index.ts       (enrich get with HATEOAS)
-MODIFY   src/modules/vault/types.ts                    (ModuleDependency interface)
-CREATE   src/modules/vault/hooks/useModuleDependencies.ts
-CREATE   src/modules/vault/components/DependencySelector.tsx
-CREATE   src/modules/vault/components/DependencyCard.tsx
-MODIFY   src/modules/vault/pages/VaultDetailPage.tsx   (prerequisites section)
-MODIFY   src/modules/vault/components/CreateModuleDialog.tsx (dependency field)
-MODIFY   src/modules/vault/components/EditModuleSheet.tsx    (dependency field)
-MODIFY   src/i18n/locales/en.json
-MODIFY   src/i18n/locales/pt-BR.json
+MODIFY  src/modules/vault/components/CreateModuleDialog.tsx  (add DependencySelector)
+MODIFY  supabase/functions/vault-crud/index.ts               (extract dependency handlers)
+CREATE  supabase/functions/_shared/dependency-helpers.ts      (extracted handlers)
 ```
 
