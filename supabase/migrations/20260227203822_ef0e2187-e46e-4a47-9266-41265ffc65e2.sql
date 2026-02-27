@@ -1,0 +1,1 @@
+ALTER TABLE public.vault_modules ADD COLUMN IF NOT EXISTS usage_hint TEXT DEFAULT NULL;
