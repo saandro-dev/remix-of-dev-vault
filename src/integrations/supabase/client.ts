@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = "https://bskfnthwewhpfrldbhqx.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJza2ZudGh3ZXdocGZybGRiaHF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMjI2NzUsImV4cCI6MjA4NzY5ODY3NX0.5PDJb5LOxw5ShRjTJUjcSWt3Tw43JIV2HDkYP3rjSZQ";
+// Atualizado para a nova chave publishable (sb_publishable_...) — a legacy anon key JWT foi desabilitada no projeto.
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_XlH73lxriQdgud9WSQZ6Eg_paORcfoT";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
