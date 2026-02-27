@@ -1,155 +1,110 @@
 
 
-# Auditoria do Plano Manus: Sistema de Visibilidade em 3 Camadas
+# Audit Report: 3-Layer Visibility System
 
-## Veredicto: PLANO COM FALHAS ESTRUTURAIS — Requer Correções Significativas
-
----
-
-## Falhas Identificadas no Plano Manus
-
-### CRITICA 1: Ordem das Tarefas Invertida (Seguranca por Ultimo)
-
-O plano coloca RLS como Tarefa 4 (prioridade "MEDIA"), **depois** do backend e frontend. Isso significa que entre a Tarefa 1 (migration) e a Tarefa 4, o banco fica **sem politicas de seguranca adequadas** para a nova coluna `visibility` e a tabela `vault_module_shares`. RLS deve ser parte da migration, nao um afterthought.
-
-### CRITICA 2: Nao Atualiza 6 Funcoes SQL que Referenciam `is_public`
-
-Ao dropar `is_public`, as seguintes funcoes SQL **quebram imediatamente**:
-
-| Funcao | Referencia a `is_public` |
-|--------|--------------------------|
-| `bootstrap_vault_context()` | `vm.is_public = true` (3x) |
-| `query_vault_modules()` | `vm.is_public = true` |
-| `get_vault_module()` | `vm.is_public = true` |
-| `list_vault_domains()` | `vm.is_public = true` |
-| `search_vault_modules()` | `vm.is_public = true` |
-| RLS policy original | `is_public = true` |
-
-O plano da Manus **nao menciona nenhuma dessas funcoes**. O banco quebraria completamente.
-
-### CRITICA 3: `vault-ingest` e `vault-query` Nao Atualizados
-
-Ambas as Edge Functions referenciam `is_public`:
-- `vault-ingest`: linha 131 (`is_public: m.is_public ?? false`) e linha 178 (allowed fields)
-- `vault-query`: usa RPCs que referenciam `is_public`
-
-O plano so menciona `vault-crud`.
-
-### CRITICA 4: `global-search` Referencia Coluna `category` (Bug Pre-Existente)
-
-`global-search/index.ts` linha 60: `.select("id, title, category")` — a coluna `category` ja foi renomeada para `domain`. Este bug pre-existente deve ser corrigido nesta mesma migration.
-
-### MEDIA 1: RPC `get_visible_modules` Sem Filtros
-
-A funcao proposta retorna `SETOF vault_modules` sem parametros de filtro (domain, query, etc.). Isso forca o backend a fazer filtragem em memoria, violando Clean Architecture — a filtragem deve ser no banco.
-
-### MEDIA 2: Auto-Mudanca de Visibility no `share`
-
-O plano sugere que ao fazer `share`, a visibility muda automaticamente para `'shared'`, e ao fazer `unshare` (se nao sobrar ninguem) muda para `'private'`. Isso acopla estado de compartilhamento com estado de visibilidade. A visibility deve ser um campo controlado **explicitamente** pelo usuario.
-
-### MEDIA 3: Comentarios em Portugues nos SQL
-
-Os exemplos de migration contem comentarios em PT: "Adiciona a nova coluna", "Migra os dados existentes", "Remove a coluna antiga", etc.
-
-### BAIXA 1: 4 Migrations Separadas Desnecessarias
-
-Com zero usuarios, nao ha razao para 4 migrations. Uma unica migration atomica e mais segura e correta.
+## Status: NOT A TOTAL SUCCESS -- 4 Violations Found
 
 ---
 
-## Plano Corrigido
+## What PASSED
 
-### Etapa 1 — Migration SQL Unica (Atomica)
-
-Um unico arquivo de migration que faz **tudo**:
-
-1. Criar enum `visibility_level` (`private`, `shared`, `global`)
-2. Adicionar coluna `visibility` com default `'private'`
-3. Migrar dados: `UPDATE SET visibility = 'global' WHERE is_public = true`
-4. Criar tabela `vault_module_shares` com composite PK, `shared_by_user_id`, e timestamps
-5. **Recriar TODAS as 5 funcoes SQL** substituindo `is_public = true` por `visibility = 'global'`
-6. Criar nova RPC `get_visible_modules(p_user_id, p_scope, p_domain, p_module_type, p_query, p_limit, p_offset)` com parametro `scope` (`owned`, `shared_with_me`, `global`, `all`)
-7. Criar RLS policies para `vault_module_shares` e atualizar as de `vault_modules`
-8. Dropar `is_public` (somente apos todas as dependencias estarem atualizadas)
-9. Dropar indice `idx_vault_modules_is_public`, criar `idx_vault_modules_visibility`
-10. Todos os comentarios em ingles
-
-### Etapa 2 — Backend (Edge Functions)
-
-**`vault-crud/index.ts`** — Alteracoes:
-- Action `list`: substituir query direta por chamada a `get_visible_modules` RPC com parametro `scope`
-- Action `get`: substituir `is_public.eq.true` por logica de visibility
-- Action `create`: substituir `is_public` por `visibility` (default `'private'`)
-- Action `update`: substituir `is_public` por `visibility` no allowed fields
-- Action `get_playbook`: substituir `is_public.eq.true` por `visibility.eq.global`
-- Novas actions: `share`, `unshare`, `list-shares`
-
-**`vault-ingest/index.ts`** — Alteracoes:
-- Substituir `is_public` por `visibility` no mapping e allowed fields
-- Manter backward compatibility: se `is_public: true` vier no payload, converter para `visibility: 'global'`
-
-**`global-search/index.ts`** — Correcoes:
-- Linha 60: substituir `category` por `domain`
-- Adicionar filtro de visibility na query de modules
-
-### Etapa 3 — Frontend: Types, Hooks, UI
-
-**Types (`vault/types.ts`)**:
-- Adicionar `VisibilityLevel = 'private' | 'shared' | 'global'`
-- Substituir `is_public: boolean` por `visibility: VisibilityLevel` em `VaultModule`
-- Remover `VaultCategory` (dead code)
-
-**Hooks (`vault/hooks/`)**:
-- `useVaultModules`: adicionar parametro `scope` aos filters
-- Novo hook `useModuleShares`: CRUD de compartilhamentos via `vault-crud`
-
-**Navigation (`navigationConfig.ts`)**:
-- Reestruturar grupo vault em 3 items: "My Modules", "Shared with Me", "Global Vault"
-
-**Routes (`appRoutes.tsx`)**:
-- `/vault` → owned modules
-- `/vault/shared` → shared with me
-- `/vault/global` → global modules
-- `/vault/:moduleId` → detail (unchanged)
-
-**UI Components**:
-- `CreateModuleDialog`: substituir Switch `is_public` por RadioGroup com 3 opcoes de visibility
-- `EditModuleSheet`: adicionar controle de visibility
-- `VaultDetailPage`: adicionar botao "Share" (so para owner), dialog de compartilhamento
-- Novo componente: `ShareModuleDialog` — input de email, lista de shares, botao remover
-- `VaultListPage`: adaptar para receber `scope` como prop ou da rota
-
-**i18n**: Adicionar keys para visibility, sharing, e novas rotas
-
-### Etapa 4 — Deploy e Validacao
-
-- Deploy das 3 Edge Functions modificadas
-- Atualizar `supabase/types.ts` para refletir novo schema
-- Atualizar API docs (`apiReference.ts`) para refletir `visibility` em vez de `is_public`
+| Component | Status |
+|---|---|
+| Migration: enum, column, shares table, 6 SQL functions, RPC, RLS, drop is_public | PASS |
+| `vault-crud`: list (RPC), get (access control), create/update/delete (visibility), share/unshare/list_shares | PASS |
+| `vault-ingest`: visibility field, backward compat (is_public → global) | PASS |
+| `global-search`: uses `domain` (not `category`), visibility filter | PASS |
+| Frontend types: `VisibilityLevel`, `VaultScope`, no `is_public`, no `VaultCategory` | PASS |
+| `useVaultModules`: scope param, RPC-based listing | PASS |
+| `useModuleShares`: share/unshare/list hooks | PASS |
+| Navigation: 3 vault items (My Modules, Shared with Me, Global Vault) | PASS |
+| Routes: `/vault`, `/vault/shared`, `/vault/global` | PASS |
+| CreateModuleDialog: RadioGroup with 3 visibility options | PASS |
+| EditModuleSheet: RadioGroup visibility control | PASS |
+| VaultListPage: scope derived from route, visibility badges | PASS |
+| VaultDetailPage: visibility badge, owner-only controls | PASS |
+| i18n: visibility keys in en.json + pt-BR.json | PASS |
+| Rule 5.5: zero `supabase.from()` in frontend | PASS |
+| Rule 5.4: all comments in English | PASS |
+| `constants.ts`: cleaned, no dead code | PASS |
 
 ---
 
-## Arquivos a Modificar/Criar
+## What FAILED
 
+### CRITICAL 1: Missing RPC `get_user_id_by_email`
+
+**File:** `vault-crud/index.ts` line 206
+
+The `share` action calls `client.rpc("get_user_id_by_email", { p_email: email })` but this function **does not exist** in the database. The DB functions list confirms no such RPC. Sharing will fail with a 500 error at runtime.
+
+**Fix:** Create a `SECURITY DEFINER` function `get_user_id_by_email(p_email text)` that queries `auth.users` and returns the user `id`. This must be a SQL migration.
+
+### CRITICAL 2: Missing `ShareModuleDialog` Component
+
+The plan listed `CREATE src/modules/vault/components/ShareModuleDialog.tsx` but the file was **never created**. The `VaultDetailPage` has no "Share" button. The sharing UI is incomplete -- hooks exist (`useModuleShares`, `useShareModule`, `useUnshareModule`) but no UI consumes them.
+
+**Fix:** Create `ShareModuleDialog.tsx` and integrate it into `VaultDetailPage` with a "Share" button visible only to module owners.
+
+### MEDIUM 1: `apiReference.ts` Still References `is_public` and `category`
+
+**File:** `src/modules/docs/constants/apiReference.ts`
+- Line 108: param `is_public` (boolean) -- should be `visibility` (string enum)
+- Line 77: param `category` -- should be `domain`
+- Line 127: response body shows `category: "frontend"` -- should be `domain`
+- Line 220-223: cURL example uses `"category": "frontend"` and `"is_public": false`
+- All 3 code examples use `category` instead of `domain`
+
+**Fix:** Replace all `is_public` references with `visibility` param, replace all `category` with `domain`, update response bodies and code examples.
+
+### LOW 1: `.lovable/plan.md` Not Updated for Implementation Results
+
+The plan still shows the **pre-implementation** audit. Should be updated to reflect the actual completed implementation status.
+
+**Fix:** Update `.lovable/plan.md` to document the completed 3-layer visibility system.
+
+---
+
+## Remediation Plan
+
+### Step 1: SQL Migration -- Create `get_user_id_by_email` RPC
+```sql
+CREATE OR REPLACE FUNCTION public.get_user_id_by_email(p_email text)
+  RETURNS uuid
+  LANGUAGE sql
+  SECURITY DEFINER
+  SET search_path TO 'public', 'auth'
+AS $$
+  SELECT id FROM auth.users WHERE email = lower(p_email) LIMIT 1;
+$$;
+```
+
+### Step 2: Create `ShareModuleDialog.tsx`
+- Email input + "Share" button
+- List of current shares with "Remove" button for each
+- Uses `useModuleShares`, `useShareModule`, `useUnshareModule`
+- Add i18n keys: `share.title`, `share.emailPlaceholder`, `share.shareButton`, `share.noShares`, `share.remove`
+
+### Step 3: Integrate Share button into `VaultDetailPage`
+- Add "Share" button next to Edit/Delete (owner-only)
+- Open `ShareModuleDialog` on click
+
+### Step 4: Update `apiReference.ts`
+- Replace `is_public` param with `visibility` (type `string`, constraints `"private" | "shared" | "global"`)
+- Replace all `category` references with `domain`
+- Update response bodies and code examples
+
+### Step 5: Update `.lovable/plan.md`
+- Document completed 3-layer visibility system
+
+### Files to modify/create:
 ```text
-CREATE  supabase/migrations/XXXX_visibility_three_layers.sql
-MODIFY  supabase/functions/vault-crud/index.ts
-MODIFY  supabase/functions/vault-ingest/index.ts
-MODIFY  supabase/functions/global-search/index.ts
-MODIFY  src/modules/vault/types.ts
-MODIFY  src/modules/vault/hooks/useVaultModules.ts
-MODIFY  src/modules/vault/hooks/useVaultModule.ts
-CREATE  src/modules/vault/hooks/useModuleShares.ts
-MODIFY  src/modules/vault/components/CreateModuleDialog.tsx
-MODIFY  src/modules/vault/components/EditModuleSheet.tsx
+CREATE  supabase/migrations/XXXX_get_user_id_by_email.sql
 CREATE  src/modules/vault/components/ShareModuleDialog.tsx
-MODIFY  src/modules/vault/pages/VaultListPage.tsx
 MODIFY  src/modules/vault/pages/VaultDetailPage.tsx
-MODIFY  src/modules/navigation/config/navigationConfig.ts
-MODIFY  src/routes/appRoutes.tsx
+MODIFY  src/modules/docs/constants/apiReference.ts
 MODIFY  src/i18n/locales/en.json
 MODIFY  src/i18n/locales/pt-BR.json
-MODIFY  src/integrations/supabase/types.ts
-MODIFY  src/modules/docs/constants/apiReference.ts
+MODIFY  .lovable/plan.md
 ```
 
