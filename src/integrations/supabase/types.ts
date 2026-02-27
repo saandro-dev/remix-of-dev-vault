@@ -516,6 +516,7 @@ export type Database = {
         Args: { p_key_id: string; p_user_id: string }
         Returns: boolean
       }
+      get_user_role: { Args: { _user_id: string }; Returns: string }
       get_vault_module: {
         Args: { p_id?: string; p_slug?: string }
         Returns: {
@@ -547,6 +548,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean }
       list_vault_domains: {
         Args: never
         Returns: {
@@ -647,7 +649,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "moderator" | "user" | "owner"
       bug_status: "open" | "resolved"
       project_environment: "dev" | "staging" | "prod"
       vault_category: "frontend" | "backend" | "devops" | "security"
@@ -793,7 +795,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "owner"],
       bug_status: ["open", "resolved"],
       project_environment: ["dev", "staging", "prod"],
       vault_category: ["frontend", "backend", "devops", "security"],

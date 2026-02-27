@@ -14,6 +14,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { navigationConfig } from "@/modules/navigation/config/navigationConfig";
+import { usePermissions } from "@/modules/auth/hooks/usePermissions";
 import { Vault } from "lucide-react";
 
 export function AppSidebar() {
@@ -21,6 +22,20 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { t } = useTranslation();
+  const { isAdmin, isOwner } = usePermissions();
+
+  const ROLE_LEVEL: Record<string, number> = {
+    owner: 1,
+    admin: 2,
+  };
+
+  const hasAccess = (requiredRole?: string) => {
+    if (!requiredRole) return true;
+    const required = ROLE_LEVEL[requiredRole] ?? 99;
+    if (isOwner) return true;
+    if (isAdmin) return required >= 2;
+    return false;
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -43,7 +58,7 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {group.items.map((item) => {
+                {group.items.filter((item) => hasAccess(item.requiredRole)).map((item) => {
                   const isActive = location.pathname === item.path;
                   return (
                     <SidebarMenuItem key={item.id}>
