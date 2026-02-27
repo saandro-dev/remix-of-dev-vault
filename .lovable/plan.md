@@ -1,41 +1,33 @@
-# DevVault — Admin Panel v2
 
-## Status: ✅ IMPLEMENTED
 
-**Date:** 2026-02-27
+# Plan: JWT-Based Instant Roles
 
----
+## Analysis
 
-## Architecture
+The current `usePermissions` hook makes a network call to `admin-crud` (`get-my-role` action) on every page load, causing 1-2s delay for role-dependent UI. The Manus plan proposes injecting the role into `app_metadata` via a database trigger so it's available instantly from the JWT.
 
-All admin operations consolidated in `admin-crud` Edge Function (8 actions total):
+## Audit of Manus Plan
 
-| Action | Role | Description |
-|--------|------|-------------|
-| `get-my-role` | any | Returns authenticated user's role |
-| `list-users` | admin+ | All users with profiles and roles |
-| `change-role` | owner | Change target user's role |
-| `admin-stats` | admin+ | System health metrics (8 counts) |
-| `list-api-keys` | admin+ | All API keys with owner info |
-| `admin-revoke-api-key` | owner | Force-revoke any user's API key |
-| `list-global-modules` | admin+ | All modules with visibility = 'global' |
-| `unpublish-module` | admin+ | Set module visibility back to 'private' |
+| Item | Verdict |
+|------|---------|
+| Trigger on `public.user_roles` (not on `auth` schema) | PASS — trigger is on public table |
+| `SECURITY DEFINER` function updating `raw_app_meta_data` | PASS — documented Supabase pattern |
+| Initial sync via `UPDATE public.user_roles SET role = role` | PASS — triggers the function for all existing rows |
+| Frontend reads `user.app_metadata.app_role` | PASS — zero network calls |
+| Removes `useQuery` + `invokeEdgeFunction` dependency | PASS — eliminates unnecessary API call |
+| `get-my-role` action in `admin-crud` | KEEP — still valid for external API consumers |
 
-## Frontend
+## Implementation Steps
 
-`AdminPage.tsx` uses `Tabs` with 4 tabs:
-1. **Users & Roles** — existing `UsersTable` + `RoleChangeDialog`
-2. **System Health** — `SystemHealthTab` with 8 metric cards
-3. **API Monitor** — `ApiMonitorTab` with key table + owner-only revoke
-4. **Global Moderation** — `GlobalModerationTab` with unpublish confirmation
+### Step 1: SQL Migration
+Create `sync_user_role_to_metadata` function + trigger on `public.user_roles`. Run initial sync for existing users.
 
-## Files Modified/Created
+### Step 2: Modify `usePermissions.ts`
+Remove `useQuery`, `invokeEdgeFunction` imports. Read role from `user?.app_metadata?.app_role`. Depend only on `useAuth` loading state.
 
-- `supabase/functions/admin-crud/index.ts` — 5 new actions
-- `src/modules/admin/types/admin.types.ts` — 3 new interfaces
-- `src/modules/admin/components/SystemHealthTab.tsx` — NEW
-- `src/modules/admin/components/ApiMonitorTab.tsx` — NEW
-- `src/modules/admin/components/GlobalModerationTab.tsx` — NEW
-- `src/modules/admin/pages/AdminPage.tsx` — Tabs layout
-- `src/i18n/locales/en.json` — admin.* expanded
-- `src/i18n/locales/pt-BR.json` — admin.* expanded
+### Files
+```text
+CREATE  supabase/migrations/XXXX_sync_role_to_jwt_metadata.sql
+MODIFY  src/modules/auth/hooks/usePermissions.ts
+```
+
