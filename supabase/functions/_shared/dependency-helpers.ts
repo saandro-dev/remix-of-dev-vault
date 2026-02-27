@@ -1,5 +1,4 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "./api-helpers.ts";
 import { createLogger } from "./logger.ts";
 
 const logger = createLogger("dependency-helpers");
@@ -50,66 +49,30 @@ export async function enrichModuleDependencies(
 }
 
 /**
- * Handles the add_dependency action.
+ * Batch-inserts dependencies for a module.
+ * Accepts an array of { depends_on_id, dependency_type? } objects.
  */
-export async function handleAddDependency(
-  req: Request,
+export async function batchInsertDependencies(
   client: SupabaseClient,
-  userId: string,
-  body: Record<string, unknown>
-): Promise<Response> {
-  const { module_id, depends_on_id, dependency_type = "required" } = body;
-  if (!module_id || !depends_on_id) {
-    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id or depends_on_id", 422);
-  }
+  moduleId: string,
+  dependencies: Array<{ depends_on_id: string; dependency_type?: string }>
+): Promise<void> {
+  if (!dependencies || dependencies.length === 0) return;
 
-  const { data, error } = await client
-    .from("vault_module_dependencies")
-    .insert({ module_id, depends_on_id, dependency_type })
-    .select()
-    .single();
-  if (error) throw error;
-
-  logger.info(`added dependency module=${module_id} depends_on=${depends_on_id}`);
-  return createSuccessResponse(req, data, 201);
-}
-
-/**
- * Handles the remove_dependency action.
- */
-export async function handleRemoveDependency(
-  req: Request,
-  client: SupabaseClient,
-  body: Record<string, unknown>
-): Promise<Response> {
-  const { module_id, depends_on_id } = body;
-  if (!module_id || !depends_on_id) {
-    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id or depends_on_id", 422);
-  }
+  const rows = dependencies.map((dep) => ({
+    module_id: moduleId,
+    depends_on_id: dep.depends_on_id,
+    dependency_type: dep.dependency_type ?? "required",
+  }));
 
   const { error } = await client
     .from("vault_module_dependencies")
-    .delete()
-    .eq("module_id", module_id as string)
-    .eq("depends_on_id", depends_on_id as string);
-  if (error) throw error;
+    .insert(rows);
 
-  return createSuccessResponse(req, { removed: true });
-}
-
-/**
- * Handles the list_dependencies action.
- */
-export async function handleListDependencies(
-  req: Request,
-  client: SupabaseClient,
-  body: Record<string, unknown>
-): Promise<Response> {
-  const { module_id } = body;
-  if (!module_id) {
-    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id", 422);
+  if (error) {
+    logger.error("batch insert dependencies failed", { error: error.message, moduleId });
+    throw error;
   }
 
-  const dependencies = await enrichModuleDependencies(client, module_id as string);
-  return createSuccessResponse(req, { dependencies });
+  logger.info(`batch inserted ${rows.length} dependencies for module=${moduleId}`);
 }
