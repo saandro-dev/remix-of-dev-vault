@@ -40,6 +40,7 @@ export interface VaultModule {
   id: string;
   user_id: string;
   title: string;
+  slug: string | null;
   description: string | null;
   domain: VaultDomain;
   module_type: VaultModuleType;
@@ -48,6 +49,7 @@ export interface VaultModule {
   saas_phase: number | null;
   phase_title: string | null;
   why_it_matters: string | null;
+  usage_hint: string | null;
   code_example: string | null;
   source_project: string | null;
   related_modules: string[];
@@ -56,6 +58,8 @@ export interface VaultModule {
   context_markdown: string | null;
   dependencies: string | null;
   tags: string[];
+  module_group: string | null;
+  implementation_order: number | null;
   module_dependencies?: ModuleDependency[];
   created_at: string;
   updated_at: string;
