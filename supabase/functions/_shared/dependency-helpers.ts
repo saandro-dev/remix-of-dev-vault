@@ -1,6 +1,8 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "./api-helpers.ts";
-import { log } from "./logger.ts";
+import { createLogger } from "./logger.ts";
+
+const logger = createLogger("dependency-helpers");
 
 interface DepModuleInfo {
   title: string;
@@ -68,7 +70,7 @@ export async function handleAddDependency(
     .single();
   if (error) throw error;
 
-  log("info", "vault-crud", `added dependency module=${module_id} depends_on=${depends_on_id}`);
+  logger.info(`added dependency module=${module_id} depends_on=${depends_on_id}`);
   return createSuccessResponse(req, data, 201);
 }
 

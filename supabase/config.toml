@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.admin-crud]
 verify_jwt = false
+
+[functions.devvault-mcp]
+verify_jwt = false
