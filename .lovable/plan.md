@@ -1,114 +1,94 @@
 
 
-# Analise do Relatorio da Manus + Plano de Internacionalizacao (i18n)
+# Audit Report: DevVault Post-Implementation Validation
+
+## Status: ISSUES FOUND — Requires Remediation
 
 ---
 
-## Avaliacao do Relatorio da Manus
+## 1. PROTOCOL VIOLATIONS DETECTED
 
-### Tarefa 1: Bootstrap Endpoint
-**Veredicto: APROVADA.** A SQL function `bootstrap_vault_context()` e a action `"bootstrap"` no `vault-query` sao a abordagem correta. Um agente recebe playbooks, dominios e top modules em uma unica chamada. Nenhuma objecao tecnica.
+### 1.1 Hardcoded Portuguese Strings (i18n Migration INCOMPLETE)
 
-### Tarefa 2: Evoluir Formulario de Criacao
-**Veredicto: JA IMPLEMENTADA.** O `CreateModuleDialog.tsx` atual ja possui 3 abas (Basico, Codigo, Metadados) com os campos `why_it_matters`, `code_example`, `context_markdown`, `source_project`, `saas_phase`, `phase_title`, `validation_status`, `is_public`. O unico campo faltante mencionado pela Manus e `dependencies` (lista de UUIDs). A Manus provavelmente analisou uma versao anterior do codigo.
+The i18n migration was supposed to convert ALL 146+ strings to `t()` calls with EN as default. **Multiple files were missed:**
 
-**Acao:** Adicionar apenas o campo `dependencies` ao formulario e ao hook de criacao.
+| File | Issue |
+|------|-------|
+| `src/modules/vault/hooks/useVaultModules.ts` | Toast messages in PT: "Módulo criado com sucesso!", "Erro ao criar módulo", "Módulo atualizado!", "Erro ao atualizar" |
+| `src/modules/vault/hooks/useVaultModule.ts` | Toast messages in PT: "Módulo atualizado!", "Erro", "Módulo excluído." |
+| `src/modules/settings/hooks/useDevVaultKeys.ts` | Toast messages in PT: "Chave criada com sucesso!", "Chave revogada!", "Erro" |
+| `src/modules/projects/hooks/useProjects.ts` | Toast: "Erro" |
+| `src/modules/projects/hooks/useProjectDetail.ts` | Toast: "Erro" |
+| `src/modules/projects/hooks/useProjectApiKeys.ts` | Toast: "Erro ao adicionar key", "Erro ao remover key" |
+| `src/modules/bugs/hooks/useBugs.ts` | Toast: "Erro" |
+| `src/modules/settings/hooks/useProfile.ts` | Toast: "Erro" |
+| `src/modules/search/pages/SearchPage.tsx` | Labels in PT: "Módulos", "Projetos", "Erro na busca", "Erro desconhecido" |
+| `src/modules/docs/components/EndpointCard.tsx` | Section headers in PT: "Parâmetros do Body (JSON)", "Respostas", "Exemplos de Uso" |
+| `src/modules/docs/components/ParamTable.tsx` | Table headers in PT: "Campo", "Tipo", "Obrigatório", "Descrição"; Badge text: "Sim"/"Não" |
 
-### Tarefa 3: Busca Bilingue
-**Veredicto: APROVADA.** Adicionar `search_vector_en` com `to_tsvector('english', ...)` e um indice GIN e a solucao correta para busca bilingue no PostgreSQL. A modificacao na `query_vault_modules` para combinar scores de ambos os vetores e tecnicamente solida.
+### 1.2 Dead/Legacy Code (DOMAIN_LABELS, MODULE_TYPE_LABELS, VALIDATION_STATUS_LABELS)
 
----
+`src/modules/vault/types.ts` lines 58-81 contain hardcoded Portuguese label maps (`DOMAIN_LABELS`, `MODULE_TYPE_LABELS`, `VALIDATION_STATUS_LABELS`). These are **dead code** — the UI now uses `t('domains.security')` etc. via i18n. These maps should be removed.
 
-## Decisao sobre Idioma: EN Padrao
+Similarly, `src/modules/vault/constants.ts` contains a hardcoded `CATEGORY_LABELS` map with "Segurança & Criptografia" — also dead code since the UI uses i18n keys.
 
-Concordo. O DevVault e um Knowledge OS para agentes. Agentes processam ingles nativamente. A decisao correta e:
+### 1.3 Comments/Documentation in Portuguese
 
-- **EN como idioma padrao** de toda a UI
-- **PT-BR como idioma secundario** disponivel via toggle
-- **Implementar i18n desde o inicio** com arquivos de traducao separados
+`src/modules/vault/types.ts` has all comments in Portuguese ("Labels amigáveis para exibição", "Versão resumida para listagens", "Novos campos estruturais", etc.). Per Protocol 5.4, nomenclature must use technical English.
 
-### Situacao Atual de Strings Hardcoded em PT-BR
-
-Identifiquei **146+ strings em portugues** espalhadas por **12+ arquivos**:
-- `CreateModuleDialog.tsx` — Labels, placeholders, tabs, botoes
-- `SettingsPage.tsx` — Titulos, descricoes, botoes
-- `Topbar.tsx` — Menu dropdown items
-- `BugCreateDialog.tsx` — Labels, placeholders
-- `ApiKeysPage.tsx` — Titulos, descricoes
-- `ProjectsListPage.tsx` — Titulos
-- `DashboardPage.tsx` — Labels, shortcuts
-- `ConfirmDelete.tsx` — Botoes
-- `ApiDocsPage.tsx` — Descricoes
-- `VaultListPage.tsx` — Botoes, placeholders
-- Auth pages (Login, Signup, ForgotPassword, ResetPassword)
+`src/modules/vault/hooks/useVaultModules.ts` has section comments in Portuguese ("Filtros para listagem de módulos").
 
 ---
 
-## Plano de Implementacao (4 Etapas)
+## 2. PROTOCOL COMPLIANCE CHECK
 
-### Etapa 1 — Sistema i18n
-1. Instalar `react-i18next` + `i18next`
-2. Criar estrutura `src/i18n/locales/en.json` e `src/i18n/locales/pt-BR.json`
-3. Criar `src/i18n/config.ts` com deteccao de idioma (localStorage) e fallback EN
-4. Criar componente `LanguageSwitcher` no Topbar
+| Rule | Status | Detail |
+|------|--------|--------|
+| 5.5 Zero DB from Frontend | PASS | No `supabase.from()` calls found in `src/` |
+| 5.4 File < 300 lines | PASS | All files under 300 lines |
+| 5.3 SOLID / SRP | PASS | Components are well-separated (ParamTable, CodeExample, EndpointCard) |
+| 5.4 English nomenclature | FAIL | Portuguese comments in types.ts, constants.ts, hooks |
+| i18n EN default | PASS | Config correctly sets `fallbackLng: "en"` |
+| Edge Functions documented | PASS | vault-query has proper JSDoc header |
+| apiReference.ts data | PASS | All 3 endpoints documented with examples |
 
-### Etapa 2 — Migrar Strings (EN padrao)
-1. Extrair todas as 146+ strings PT-BR para `en.json` como chaves em ingles
-2. Copiar traducoes para `pt-BR.json`
-3. Substituir strings hardcoded por chamadas `t('key')` em todos os 12+ arquivos
+---
 
-### Etapa 3 — Bootstrap Endpoint (Tarefa 1 da Manus)
-1. Criar SQL function `bootstrap_vault_context()`
-2. Adicionar action `"bootstrap"` ao `vault-query` Edge Function
-3. Atualizar documentacao da API (`apiReference.ts`)
+## 3. REMEDIATION PLAN
 
-### Etapa 4 — Campo Dependencies + Busca Bilingue (Tarefas 2 e 3 da Manus)
-1. Adicionar campo `dependencies` ao `CreateModuleDialog` e ao hook
-2. Criar migracao SQL para `search_vector_en` + indice GIN
-3. Atualizar `query_vault_modules` para busca combinada PT+EN
+### Step 1: Complete i18n migration in hooks (8 files)
+Add missing translation keys to `en.json` and `pt-BR.json`, then replace all hardcoded toast strings in hooks with `t()` calls. Since hooks don't have direct access to `useTranslation`, the proper architectural solution is to pass translated strings from the component layer OR use `i18n.t()` directly from the i18n instance (which is importable without hooks).
 
-### Arquivos a Criar/Modificar
+### Step 2: Complete i18n migration in docs components (2 files)
+Replace hardcoded PT strings in `EndpointCard.tsx` and `ParamTable.tsx` with `t()` calls.
 
+### Step 3: Complete i18n migration in SearchPage (1 file)
+Replace hardcoded PT labels and error messages.
+
+### Step 4: Remove dead code
+- Delete `DOMAIN_LABELS`, `MODULE_TYPE_LABELS`, `VALIDATION_STATUS_LABELS` from `src/modules/vault/types.ts`
+- Delete `CATEGORY_LABELS` from `src/modules/vault/constants.ts` (or the entire file if nothing else remains)
+- Verify no imports reference these deleted exports
+
+### Step 5: Translate comments to English
+- Update all Portuguese comments in `types.ts`, `constants.ts`, and hooks to English
+
+### Files to modify:
 ```text
-CRIAR:
-  src/i18n/config.ts
-  src/i18n/locales/en.json
-  src/i18n/locales/pt-BR.json
-  src/components/LanguageSwitcher.tsx
-
-MODIFICAR (i18n — strings):
-  src/modules/vault/components/CreateModuleDialog.tsx
-  src/modules/vault/components/EditModuleSheet.tsx
-  src/modules/vault/pages/VaultListPage.tsx
-  src/modules/vault/pages/VaultDetailPage.tsx
-  src/modules/settings/pages/SettingsPage.tsx
-  src/modules/settings/pages/ApiKeysPage.tsx
-  src/modules/settings/components/CreateKeyCard.tsx
-  src/modules/bugs/components/BugCreateDialog.tsx
-  src/modules/bugs/components/BugCard.tsx
-  src/modules/bugs/pages/BugDiaryPage.tsx
-  src/modules/dashboard/pages/DashboardPage.tsx
-  src/modules/projects/pages/ProjectsListPage.tsx
-  src/modules/projects/pages/ProjectDetailPage.tsx
-  src/modules/projects/pages/FolderDetailPage.tsx
-  src/modules/docs/pages/ApiDocsPage.tsx
-  src/modules/auth/pages/LoginPage.tsx
-  src/modules/auth/pages/SignupPage.tsx
-  src/modules/auth/pages/ForgotPasswordPage.tsx
-  src/modules/auth/pages/ResetPasswordPage.tsx
-  src/layouts/Topbar.tsx
-  src/layouts/AppSidebar.tsx
-  src/components/common/ConfirmDelete.tsx
-  src/modules/navigation/config/navigationConfig.ts
-  src/App.tsx (wrap com I18nextProvider)
-
-MODIFICAR (backend):
-  supabase/functions/vault-query/index.ts (action bootstrap)
-  src/modules/vault/components/CreateModuleDialog.tsx (campo dependencies)
-  src/modules/docs/constants/apiReference.ts (documentar bootstrap)
+src/i18n/locales/en.json              (add missing keys)
+src/i18n/locales/pt-BR.json           (add missing keys)
+src/modules/vault/hooks/useVaultModules.ts
+src/modules/vault/hooks/useVaultModule.ts
+src/modules/settings/hooks/useDevVaultKeys.ts
+src/modules/projects/hooks/useProjects.ts
+src/modules/projects/hooks/useProjectDetail.ts
+src/modules/projects/hooks/useProjectApiKeys.ts
+src/modules/bugs/hooks/useBugs.ts
+src/modules/settings/hooks/useProfile.ts
+src/modules/search/pages/SearchPage.tsx
+src/modules/docs/components/EndpointCard.tsx
+src/modules/docs/components/ParamTable.tsx
+src/modules/vault/types.ts            (remove dead labels, translate comments)
+src/modules/vault/constants.ts        (remove dead labels or entire file)
 ```
-
-### Ordem de Execucao
-
-A i18n (Etapas 1-2) deve ser feita PRIMEIRO porque altera todos os arquivos de UI. Fazer as tarefas da Manus antes criaria conflitos desnecessarios. Apos o i18n estar completo, as tarefas de backend (Etapas 3-4) entram de forma limpa.
 
