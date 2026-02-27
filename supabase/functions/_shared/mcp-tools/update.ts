@@ -13,7 +13,7 @@ const logger = createLogger("mcp-tool:update");
 
 const ALLOWED_UPDATE_FIELDS = [
   "title", "description", "code", "code_example", "why_it_matters",
-  "context_markdown", "tags", "domain", "module_type", "language",
+  "usage_hint", "context_markdown", "tags", "domain", "module_type", "language",
   "source_project", "module_group", "implementation_order", "validation_status",
 ] as const;
 
@@ -34,6 +34,7 @@ export const registerUpdateTool: ToolRegistrar = (server, client, auth) => {
         code: { type: "string" },
         code_example: { type: "string" },
         why_it_matters: { type: "string" },
+        usage_hint: { type: "string", description: "When to use this module" },
         context_markdown: { type: "string" },
         tags: { type: "array", items: { type: "string" } },
         domain: { type: "string", enum: ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"] },

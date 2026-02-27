@@ -14,7 +14,8 @@ export const registerSearchTool: ToolRegistrar = (server, client) => {
   server.tool("devvault_search", {
     description:
       "Search the Knowledge Graph by intent/text. Returns modules matching your query " +
-      "with relevance scoring. Supports full-text search in both PT and EN. " +
+      "with relevance scoring. Uses full-text search (PT/EN) with automatic ILIKE " +
+      "fallback when tsvector finds no matches. Results include usage_hint field. " +
       "For structured browsing without text search, use devvault_list instead.",
     inputSchema: {
       type: "object",
