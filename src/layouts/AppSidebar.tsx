@@ -1,4 +1,5 @@
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -19,6 +20,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const { t } = useTranslation();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -37,7 +39,7 @@ export function AppSidebar() {
         {navigationConfig.map((group) => (
           <SidebarGroup key={group.id}>
             <SidebarGroupLabel className="text-[11px] uppercase tracking-widest text-muted-foreground/70 font-semibold">
-              {group.label}
+              {t(group.labelKey)}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -52,7 +54,7 @@ export function AppSidebar() {
                           activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         >
                           <item.icon className="h-4 w-4 shrink-0" />
-                          {!collapsed && <span>{item.label}</span>}
+                          {!collapsed && <span>{t(item.labelKey)}</span>}
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

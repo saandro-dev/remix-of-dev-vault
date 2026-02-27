@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,10 +22,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import type { ProjectEnvironment, KeyFolder } from "@/modules/projects/types";
 
-// ---------------------------------------------------------------------------
-// ApiKeyRow — Linha da tabela com revelação sob demanda via Vault.
-// Só busca o valor real quando o usuário clica em "Revelar".
-// ---------------------------------------------------------------------------
 function ApiKeyRow({
   keyItem,
   onDelete,
@@ -32,11 +29,11 @@ function ApiKeyRow({
   keyItem: { id: string; label: string; environment: string; has_value: boolean };
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const [revealId, setRevealId] = useState<string | null>(null);
   const { data: revealedValue, isLoading: isRevealing } = useRevealApiKey(revealId);
 
   const handleReveal = () => {
-    // Alterna entre revelar e ocultar
     setRevealId((prev) => (prev ? null : keyItem.id));
   };
 
@@ -45,12 +42,11 @@ function ApiKeyRow({
       <TableCell className="font-medium">{keyItem.label}</TableCell>
       <TableCell>
         {revealedValue ? (
-          // Valor real obtido do Vault — passa para o KeyMask para copiar/ocultar
           <KeyMask value={revealedValue} />
         ) : (
           <div className="flex items-center gap-2">
             <code className="font-mono text-sm text-muted-foreground bg-muted px-2 py-1 rounded">
-              {keyItem.has_value ? "••••••••••••••••" : "Sem valor"}
+              {keyItem.has_value ? "••••••••••••••••" : t("common.noValue")}
             </code>
             {keyItem.has_value && (
               <Button
@@ -65,7 +61,7 @@ function ApiKeyRow({
                 ) : (
                   <Eye className="h-3 w-3" />
                 )}
-                {isRevealing ? "Buscando..." : "Revelar"}
+                {isRevealing ? t("common.fetching") : t("common.reveal")}
               </Button>
             )}
           </div>
@@ -88,12 +84,10 @@ function ApiKeyRow({
   );
 }
 
-// ---------------------------------------------------------------------------
-// FolderDetailPage — Página principal da pasta de API Keys.
-// ---------------------------------------------------------------------------
 export function FolderDetailPage() {
   const { projectId, folderId } = useParams<{ projectId: string; folderId: string }>();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const { confirm, ConfirmDialog } = useConfirmDelete();
 
   const { data: folder } = useQuery({
@@ -110,10 +104,7 @@ export function FolderDetailPage() {
   const [environment, setEnvironment] = useState<ProjectEnvironment>("dev");
 
   const createMutation = useCreateProjectApiKey(folderId, () => {
-    setLabel("");
-    setKeyValue("");
-    setEnvironment("dev");
-    setOpen(false);
+    setLabel(""); setKeyValue(""); setEnvironment("dev"); setOpen(false);
   });
   const deleteMutation = useDeleteProjectApiKey(folderId);
 
@@ -126,85 +117,50 @@ export function FolderDetailPage() {
     <div className="space-y-6">
       <ConfirmDialog />
 
-      {/* Header */}
       <div className="flex items-center gap-3">
         <Link to={`/projects/${projectId}`}>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            {folder?.name ?? "Pasta"}
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{folder?.name ?? t("projects.folder")}</h1>
           <p className="text-muted-foreground text-sm flex items-center gap-1.5">
             <Lock className="h-3 w-3" />
-            API Keys criptografadas no Vault
+            {t("projects.encryptedKeys")}
           </p>
         </div>
       </div>
 
-      {/* Toolbar */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <Key className="h-4 w-4" /> API Keys
         </h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-2">
-              <Plus className="h-4 w-4" /> Nova Key
-            </Button>
+            <Button size="sm" className="gap-2"><Plus className="h-4 w-4" /> {t("projects.newKey")}</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adicionar API Key</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground -mt-2">
-              O valor será criptografado no Supabase Vault. Nunca fica em texto plano no banco.
-            </p>
+            <DialogHeader><DialogTitle>{t("projects.addApiKey")}</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground -mt-2">{t("projects.encryptionNote")}</p>
             <form
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!projectId || !folderId) return;
-                createMutation.mutate({
-                  project_id: projectId,
-                  folder_id: folderId,
-                  label,
-                  key_value: keyValue,
-                  environment,
-                });
+                createMutation.mutate({ project_id: projectId, folder_id: folderId, label, key_value: keyValue, environment });
               }}
             >
               <div className="space-y-2">
-                <Label>Label</Label>
-                <Input
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  required
-                  placeholder="Ex: Stripe Secret Key"
-                />
+                <Label>{t("common.label")}</Label>
+                <Input value={label} onChange={(e) => setLabel(e.target.value)} required placeholder={t("projects.keyLabelPlaceholder")} />
               </div>
               <div className="space-y-2">
-                <Label>Valor da Key</Label>
-                <Input
-                  value={keyValue}
-                  onChange={(e) => setKeyValue(e.target.value)}
-                  required
-                  placeholder="sk_live_..."
-                  type="password"
-                  autoComplete="off"
-                />
+                <Label>{t("projects.keyValue")}</Label>
+                <Input value={keyValue} onChange={(e) => setKeyValue(e.target.value)} required placeholder={t("projects.keyValuePlaceholder")} type="password" autoComplete="off" />
               </div>
               <div className="space-y-2">
-                <Label>Ambiente</Label>
-                <Select
-                  value={environment}
-                  onValueChange={(v) => setEnvironment(v as ProjectEnvironment)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Label>{t("common.environment")}</Label>
+                <Select value={environment} onValueChange={(v) => setEnvironment(v as ProjectEnvironment)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="dev">Dev</SelectItem>
                     <SelectItem value="staging">Staging</SelectItem>
@@ -212,49 +168,32 @@ export function FolderDetailPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Adicionar com segurança"
-                )}
+              <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("common.addSecurely")}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Tabela */}
       {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : !apiKeys?.length ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Nenhuma API Key nesta pasta.
-        </div>
+        <div className="text-center py-8 text-muted-foreground">{t("projects.noKeysInFolder")}</div>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Label</TableHead>
+                <TableHead>{t("common.label")}</TableHead>
                 <TableHead>Key</TableHead>
-                <TableHead>Ambiente</TableHead>
+                <TableHead>{t("common.environment")}</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {apiKeys.map((key) => (
-                <ApiKeyRow
-                  key={key.id}
-                  keyItem={key}
-                  onDelete={() => handleDeleteKey(key)}
-                />
+                <ApiKeyRow key={key.id} keyItem={key} onDelete={() => handleDeleteKey(key)} />
               ))}
             </TableBody>
           </Table>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Copy, Check } from "lucide-react";
@@ -10,6 +11,7 @@ interface KeyRevealDialogProps {
 
 export function KeyRevealDialog({ rawKey, onClose }: KeyRevealDialogProps) {
   const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
 
   const handleCopy = async () => {
     if (!rawKey) return;
@@ -32,12 +34,9 @@ export function KeyRevealDialog({ rawKey, onClose }: KeyRevealDialogProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-warning" />
-            Chave Criada com Sucesso
+            {t("apiKeys.keyCreated")}
           </DialogTitle>
-          <DialogDescription>
-            Copie esta chave agora. Ela <strong>nunca mais será exibida</strong> após
-            fechar este diálogo. A chave está armazenada de forma criptografada no Supabase Vault.
-          </DialogDescription>
+          <DialogDescription dangerouslySetInnerHTML={{ __html: t("apiKeys.keyCreatedDescription") }} />
         </DialogHeader>
         <div className="space-y-4">
           <div className="p-3 bg-muted rounded-lg border">
@@ -47,9 +46,9 @@ export function KeyRevealDialog({ rawKey, onClose }: KeyRevealDialogProps) {
           </div>
           <Button className="w-full gap-2" onClick={handleCopy}>
             {copied ? (
-              <><Check className="h-4 w-4" /> Copiada!</>
+              <><Check className="h-4 w-4" /> {t("apiKeys.copied")}</>
             ) : (
-              <><Copy className="h-4 w-4" /> Copiar Chave</>
+              <><Copy className="h-4 w-4" /> {t("apiKeys.copyKey")}</>
             )}
           </Button>
         </div>

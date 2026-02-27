@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Save } from "lucide-react";
 import { useUpdateVaultModule } from "@/modules/vault/hooks/useVaultModule";
-import { CATEGORY_OPTIONS } from "@/modules/vault/constants";
-import type { VaultModule, VaultCategory } from "@/modules/vault/types";
+import type { VaultModule, VaultDomain } from "@/modules/vault/types";
+
+const DOMAINS: VaultDomain[] = ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"];
 
 interface EditModuleSheetProps {
   module: VaultModule;
@@ -17,9 +19,10 @@ interface EditModuleSheetProps {
 }
 
 export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState(module.title);
   const [description, setDescription] = useState(module.description ?? "");
-  const [category, setCategory] = useState<VaultCategory>(module.category);
+  const [domain, setDomain] = useState<VaultDomain>(module.domain);
   const [language, setLanguage] = useState(module.language);
   const [code, setCode] = useState(module.code);
   const [contextMarkdown, setContextMarkdown] = useState(module.context_markdown ?? "");
@@ -29,7 +32,7 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
   useEffect(() => {
     setTitle(module.title);
     setDescription(module.description ?? "");
-    setCategory(module.category);
+    setDomain(module.domain);
     setLanguage(module.language);
     setCode(module.code);
     setContextMarkdown(module.context_markdown ?? "");
@@ -45,7 +48,7 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
     updateMutation.mutate({
       title,
       description: description || null,
-      category,
+      domain,
       language,
       code,
       context_markdown: contextMarkdown || null,
@@ -58,53 +61,53 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Editar Módulo</SheetTitle>
+          <SheetTitle>{t("editModule.title")}</SheetTitle>
         </SheetHeader>
         <form className="space-y-4 mt-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label>Título</Label>
+            <Label>{t("editModule.titleLabel")}</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
           <div className="space-y-2">
-            <Label>Descrição</Label>
+            <Label>{t("editModule.description")}</Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Categoria</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as VaultCategory)}>
+              <Label>{t("editModule.domain")}</Label>
+              <Select value={domain} onValueChange={(v) => setDomain(v as VaultDomain)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  {DOMAINS.map((d) => (
+                    <SelectItem key={d} value={d}>{t(`domains.${d}`)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Linguagem</Label>
+              <Label>{t("editModule.language")}</Label>
               <Input value={language} onChange={(e) => setLanguage(e.target.value)} />
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Código</Label>
+            <Label>{t("editModule.code")}</Label>
             <Textarea value={code} onChange={(e) => setCode(e.target.value)} required className="font-mono text-sm min-h-[150px]" />
           </div>
           <div className="space-y-2">
-            <Label>Contexto (Markdown)</Label>
+            <Label>{t("editModule.context")}</Label>
             <Textarea value={contextMarkdown} onChange={(e) => setContextMarkdown(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Dependências</Label>
+            <Label>{t("editModule.dependencies")}</Label>
             <Input value={dependencies} onChange={(e) => setDependencies(e.target.value)} className="font-mono text-sm" />
           </div>
           <div className="space-y-2">
-            <Label>Tags (separadas por vírgula)</Label>
+            <Label>{t("editModule.tagsSeparated")}</Label>
             <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} />
           </div>
           <Button type="submit" className="w-full gap-2" disabled={updateMutation.isPending}>
             {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar Alterações
+            {t("editModule.saveChanges")}
           </Button>
         </form>
       </SheetContent>

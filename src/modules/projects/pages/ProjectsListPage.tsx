@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,7 @@ import type { Project } from "@/modules/projects/types";
 
 export function ProjectsListPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { data: projects, isLoading } = useProjects();
   const { confirm, ConfirmDialog } = useConfirmDelete();
 
@@ -40,7 +42,7 @@ export function ProjectsListPage() {
 
   const handleDelete = async (project: Project) => {
     const confirmed = await confirm({
-      resourceType: "projeto",
+      resourceType: t("projects.project"),
       resourceName: project.name,
     });
     if (confirmed) deleteMutation.mutate(project.id);
@@ -51,16 +53,16 @@ export function ProjectsListPage() {
       <ConfirmDialog />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Seus Projetos</h1>
-          <p className="text-muted-foreground mt-1">Gerencie seus projetos e API Keys.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("projects.title")}</h1>
+          <p className="text-muted-foreground mt-1">{t("projects.subtitle")}</p>
         </div>
         <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); setOpen(v); }}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" /> Novo Projeto</Button>
+            <Button className="gap-2"><Plus className="h-4 w-4" /> {t("projects.newProject")}</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingId ? "Editar Projeto" : "Novo Projeto"}</DialogTitle>
+              <DialogTitle>{editingId ? t("projects.editProject") : t("projects.newProject")}</DialogTitle>
             </DialogHeader>
             <form
               className="space-y-4"
@@ -70,22 +72,22 @@ export function ProjectsListPage() {
               }}
             >
               <div className="space-y-2">
-                <Label>Nome</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Ex: Checkout API" />
+                <Label>{t("common.name")}</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder={t("projects.namePlaceholder")} />
               </div>
               <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Breve descrição do projeto" />
+                <Label>{t("common.description")}</Label>
+                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("projects.descriptionPlaceholder")} />
               </div>
               <div className="space-y-2">
-                <Label>Cor</Label>
+                <Label>{t("common.color")}</Label>
                 <div className="flex items-center gap-2">
                   <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-9 rounded border border-border cursor-pointer" />
                   <Input value={color} onChange={(e) => setColor(e.target.value)} className="flex-1 font-mono text-sm" />
                 </div>
               </div>
               <Button type="submit" className="w-full" disabled={upsertMutation.isPending}>
-                {upsertMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Salvar" : "Criar"}
+                {upsertMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? t("common.save") : t("common.create")}
               </Button>
             </form>
           </DialogContent>
@@ -98,7 +100,7 @@ export function ProjectsListPage() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <FolderOpen className="h-10 w-10 text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">Nenhum projeto ainda. Crie o primeiro!</p>
+            <p className="text-muted-foreground">{t("projects.noProjects")}</p>
           </CardContent>
         </Card>
       ) : (
@@ -112,7 +114,7 @@ export function ProjectsListPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-2">{project.description || "Sem descrição"}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2">{project.description || t("common.noDescription")}</p>
                 <div className="flex gap-1 mt-3">
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); startEdit(project); }}>
                     <Pencil className="h-3.5 w-3.5" />

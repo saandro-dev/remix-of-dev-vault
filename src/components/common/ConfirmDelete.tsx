@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,8 +57,9 @@ export function useConfirmDelete(): {
   }, []);
 
   const ConfirmDialog: React.FC = () => {
+    const { t } = useTranslation();
     const [typed, setTyped] = useState("");
-    const keyword = "EXCLUIR";
+    const keyword = t("confirmDelete.keyword");
     const canConfirm = !state.requireTypeToConfirm || typed === keyword;
 
     return (
@@ -65,15 +67,16 @@ export function useConfirmDelete(): {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Excluir {state.resourceType}
+              {t("confirmDelete.title", { resourceType: state.resourceType })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir <strong>{state.resourceName}</strong>?
-              Esta ação não pode ser desfeita.
+              <span dangerouslySetInnerHTML={{
+                __html: t("confirmDelete.description", { resourceName: state.resourceName })
+              }} />
               {state.requireTypeToConfirm && (
-                <span className="block mt-2">
-                  Digite <strong>{keyword}</strong> para confirmar:
-                </span>
+                <span className="block mt-2" dangerouslySetInnerHTML={{
+                  __html: t("confirmDelete.typeToConfirm", { keyword })
+                }} />
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -89,14 +92,14 @@ export function useConfirmDelete(): {
 
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => handleClose(false)}>
-              Cancelar
+              {t("common.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={!canConfirm}
               onClick={() => handleClose(true)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Excluir
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

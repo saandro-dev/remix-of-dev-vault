@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useProfile, useUpdateProfile } from "@/modules/settings/hooks/useProfile";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { Loader2, Save, Upload } from "lucide-react";
 export function SettingsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { data: profile, isLoading } = useProfile();
   const updateMutation = useUpdateProfile();
 
@@ -51,10 +53,10 @@ export function SettingsPage() {
         .getPublicUrl(filePath);
 
       setAvatarUrl(urlData.publicUrl);
-      toast({ title: "Avatar enviado!" });
+      toast({ title: t("settings.avatarUploaded") });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Erro desconhecido";
-      toast({ variant: "destructive", title: "Erro no upload", description: message });
+      const message = err instanceof Error ? err.message : t("toast.unknownError");
+      toast({ variant: "destructive", title: t("settings.uploadError"), description: message });
     } finally {
       setUploading(false);
     }
@@ -84,20 +86,20 @@ export function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Configurações</h1>
-        <p className="text-muted-foreground mt-1">Gerencie seu perfil e preferências.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("settings.title")}</h1>
+        <p className="text-muted-foreground mt-1">{t("settings.subtitle")}</p>
       </div>
 
       <Tabs defaultValue="profile">
         <TabsList>
-          <TabsTrigger value="profile">Perfil</TabsTrigger>
-          <TabsTrigger value="account">Conta</TabsTrigger>
+          <TabsTrigger value="profile">{t("settings.profileTab")}</TabsTrigger>
+          <TabsTrigger value="account">{t("settings.accountTab")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Informações do Perfil</CardTitle>
+              <CardTitle className="text-base">{t("settings.profileInfo")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-4">
@@ -112,7 +114,7 @@ export function SettingsPage() {
                     <Button variant="outline" size="sm" className="gap-2" asChild disabled={uploading}>
                       <span>
                         {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                        Alterar Avatar
+                        {t("settings.changeAvatar")}
                       </span>
                     </Button>
                   </Label>
@@ -129,20 +131,20 @@ export function SettingsPage() {
 
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
-                  <Label>Nome de Exibição</Label>
+                  <Label>{t("settings.displayName")}</Label>
                   <Input
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     required
-                    placeholder="Seu nome"
+                    placeholder={t("settings.namePlaceholder")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Bio</Label>
+                  <Label>{t("settings.bio")}</Label>
                   <Textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="Conte um pouco sobre você..."
+                    placeholder={t("settings.bioPlaceholder")}
                     rows={3}
                   />
                 </div>
@@ -152,7 +154,7 @@ export function SettingsPage() {
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
-                  Salvar
+                  {t("common.save")}
                 </Button>
               </form>
             </CardContent>
@@ -162,13 +164,13 @@ export function SettingsPage() {
         <TabsContent value="account" className="space-y-6 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Informações da Conta</CardTitle>
+              <CardTitle className="text-base">{t("settings.accountInfo")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>{t("common.email")}</Label>
                 <Input value={user?.email ?? ""} disabled />
-                <p className="text-xs text-muted-foreground">O email não pode ser alterado aqui.</p>
+                <p className="text-xs text-muted-foreground">{t("settings.emailReadonly")}</p>
               </div>
             </CardContent>
           </Card>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ const PRESET_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const { t } = useTranslation();
   const { confirm, ConfirmDialog } = useConfirmDelete();
 
   const { data: project } = useProject(projectId);
@@ -27,7 +29,7 @@ export function ProjectDetailPage() {
   const deleteMutation = useDeleteFolder(projectId);
 
   const handleDeleteFolder = async (folder: { id: string; name: string }) => {
-    const confirmed = await confirm({ resourceType: "pasta", resourceName: folder.name });
+    const confirmed = await confirm({ resourceType: t("projects.folder"), resourceName: folder.name });
     if (confirmed) deleteMutation.mutate(folder.id);
   };
 
@@ -39,21 +41,21 @@ export function ProjectDetailPage() {
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">{project?.name ?? "Projeto"}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{project?.name ?? t("projects.project")}</h1>
           <p className="text-muted-foreground text-sm">{project?.description}</p>
         </div>
       </div>
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <Folder className="h-4 w-4" /> Pastas
+          <Folder className="h-4 w-4" /> {t("projects.folders")}
         </h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-2"><Plus className="h-4 w-4" /> Nova Pasta</Button>
+            <Button size="sm" className="gap-2"><Plus className="h-4 w-4" /> {t("projects.newFolder")}</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Criar Pasta</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("projects.createFolder")}</DialogTitle></DialogHeader>
             <form
               className="space-y-4"
               onSubmit={(e) => {
@@ -63,11 +65,11 @@ export function ProjectDetailPage() {
               }}
             >
               <div className="space-y-2">
-                <Label>Nome</Label>
-                <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} required placeholder="Ex: Keys do Supabase" />
+                <Label>{t("common.name")}</Label>
+                <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} required placeholder={t("projects.folderNamePlaceholder")} />
               </div>
               <div className="space-y-2">
-                <Label>Cor</Label>
+                <Label>{t("common.color")}</Label>
                 <div className="flex gap-2">
                   {PRESET_COLORS.map((c) => (
                     <button
@@ -83,7 +85,7 @@ export function ProjectDetailPage() {
                 </div>
               </div>
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar"}
+                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("common.create")}
               </Button>
             </form>
           </DialogContent>
@@ -94,7 +96,7 @@ export function ProjectDetailPage() {
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : !folders?.length ? (
         <div className="text-center py-8 text-muted-foreground">
-          Nenhuma pasta criada. Crie uma pasta para organizar suas API Keys.
+          {t("projects.noFolders")}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -12,14 +12,14 @@ import {
 
 export interface NavigationItem {
   id: string;
-  label: string;
+  labelKey: string;
   icon: LucideIcon;
   path: string;
 }
 
 export interface NavigationGroup {
   id: string;
-  label: string;
+  labelKey: string;
   items: NavigationItem[];
   defaultOpen?: boolean;
 }
@@ -27,45 +27,45 @@ export interface NavigationGroup {
 export const navigationConfig: NavigationGroup[] = [
   {
     id: "main",
-    label: "Menu Principal",
+    labelKey: "nav.mainMenu",
     defaultOpen: true,
     items: [
-      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
-      { id: "search", label: "Busca Global", icon: Search, path: "/search" },
+      { id: "dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, path: "/" },
+      { id: "search", labelKey: "nav.globalSearch", icon: Search, path: "/search" },
     ],
   },
   {
     id: "projects",
-    label: "Seus Projetos",
+    labelKey: "nav.yourProjects",
     defaultOpen: true,
     items: [
-      { id: "projects-list", label: "Todos os Projetos", icon: FolderOpen, path: "/projects" },
+      { id: "projects-list", labelKey: "nav.allProjects", icon: FolderOpen, path: "/projects" },
     ],
   },
   {
     id: "vault",
-    label: "Cofre Global",
+    labelKey: "nav.globalVault",
     defaultOpen: true,
     items: [
-      { id: "vault", label: "Cofre Global", icon: Code2, path: "/vault" },
+      { id: "vault", labelKey: "nav.globalVault", icon: Code2, path: "/vault" },
     ],
   },
   {
     id: "tools",
-    label: "Ferramentas",
+    labelKey: "nav.tools",
     defaultOpen: true,
     items: [
-      { id: "bugs", label: "Diário de Bugs", icon: Bug, path: "/bugs" },
+      { id: "bugs", labelKey: "nav.bugDiary", icon: Bug, path: "/bugs" },
     ],
   },
   {
     id: "account",
-    label: "Conta",
+    labelKey: "nav.account",
     defaultOpen: false,
     items: [
-      { id: "settings", label: "Configurações", icon: Settings, path: "/settings" },
-      { id: "api-keys", label: "API & Integrações", icon: KeyRound, path: "/settings/api-keys" },
-      { id: "api-docs", label: "API Docs", icon: BookOpen, path: "/docs/api" },
+      { id: "settings", labelKey: "nav.settings", icon: Settings, path: "/settings" },
+      { id: "api-keys", labelKey: "nav.apiIntegrations", icon: KeyRound, path: "/settings/api-keys" },
+      { id: "api-docs", labelKey: "nav.apiDocs", icon: BookOpen, path: "/docs/api" },
     ],
   },
 ];
