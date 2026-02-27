@@ -4,8 +4,16 @@ export async function invokeEdgeFunction<T>(
   functionName: string,
   body: Record<string, unknown>
 ): Promise<T> {
+  // Busca a sessão atual para enviar o JWT do usuário logado no header Authorization
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {};
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+
   const { data, error } = await supabase.functions.invoke(functionName, {
     body,
+    headers,
   });
 
   if (error) {
