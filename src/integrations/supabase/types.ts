@@ -430,6 +430,7 @@ export type Database = {
           related_modules: string[] | null
           saas_phase: number | null
           search_vector: unknown
+          search_vector_en: unknown
           slug: string | null
           source_project: string | null
           tags: string[]
@@ -458,6 +459,7 @@ export type Database = {
           related_modules?: string[] | null
           saas_phase?: number | null
           search_vector?: unknown
+          search_vector_en?: unknown
           slug?: string | null
           source_project?: string | null
           tags?: string[]
@@ -486,6 +488,7 @@ export type Database = {
           related_modules?: string[] | null
           saas_phase?: number | null
           search_vector?: unknown
+          search_vector_en?: unknown
           slug?: string | null
           source_project?: string | null
           tags?: string[]
@@ -504,6 +507,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bootstrap_vault_context: { Args: never; Returns: Json }
       create_devvault_api_key: {
         Args: { p_key_name: string; p_raw_key: string; p_user_id: string }
         Returns: string

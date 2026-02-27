@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.profiles-crud]
 verify_jwt = false
+
+[functions.vault-query]
+verify_jwt = false
