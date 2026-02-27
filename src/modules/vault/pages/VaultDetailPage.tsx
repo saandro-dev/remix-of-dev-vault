@@ -7,18 +7,30 @@ import { Button } from "@/components/ui/button";
 import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { EditModuleSheet } from "@/modules/vault/components/EditModuleSheet";
 import { useVaultModule, useDeleteVaultModule } from "@/modules/vault/hooks/useVaultModule";
-import { ArrowLeft, Trash2, Copy, Check, Loader2, Pencil } from "lucide-react";
+import { useAuth } from "@/modules/auth/providers/AuthProvider";
+import { ArrowLeft, Trash2, Copy, Check, Loader2, Pencil, Lock, Users, Globe } from "lucide-react";
+import { VISIBILITY_COLORS } from "../types";
+import type { VisibilityLevel } from "../types";
+
+const VISIBILITY_ICONS: Record<VisibilityLevel, React.ElementType> = {
+  private: Lock,
+  shared: Users,
+  global: Globe,
+};
 
 export function VaultDetailPage() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [depCopied, setDepCopied] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const { confirm, ConfirmDialog } = useConfirmDelete();
 
   const { data: mod, isLoading } = useVaultModule(moduleId);
   const deleteMutation = useDeleteVaultModule();
+
+  const isOwner = mod?.user_id === user?.id;
 
   const handleDelete = async () => {
     if (!mod) return;
@@ -60,6 +72,8 @@ export function VaultDetailPage() {
     );
   }
 
+  const VisIcon = VISIBILITY_ICONS[mod.visibility];
+
   return (
     <div className="space-y-6 max-w-4xl">
       <ConfirmDialog />
@@ -71,18 +85,25 @@ export function VaultDetailPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">{mod.title}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-foreground">{mod.title}</h1>
+              <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${VISIBILITY_COLORS[mod.visibility]}`}>
+                <VisIcon className="h-3 w-3" /> {t(`visibility.${mod.visibility}`)}
+              </span>
+            </div>
             <p className="text-sm text-muted-foreground">{mod.description}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => setEditOpen(true)}>
-            <Pencil className="h-3.5 w-3.5" /> {t("common.edit")}
-          </Button>
-          <Button variant="destructive" size="sm" className="gap-2" onClick={handleDelete} disabled={deleteMutation.isPending}>
-            <Trash2 className="h-3.5 w-3.5" /> {t("common.delete")}
-          </Button>
-        </div>
+        {isOwner && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-3.5 w-3.5" /> {t("common.edit")}
+            </Button>
+            <Button variant="destructive" size="sm" className="gap-2" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              <Trash2 className="h-3.5 w-3.5" /> {t("common.delete")}
+            </Button>
+          </div>
+        )}
       </div>
 
       <TagCloud tags={mod.tags} />
@@ -113,7 +134,9 @@ export function VaultDetailPage() {
         <CodeBlock code={mod.code} language={mod.language} />
       </div>
 
-      <EditModuleSheet module={mod} open={editOpen} onOpenChange={setEditOpen} />
+      {isOwner && (
+        <EditModuleSheet module={mod} open={editOpen} onOpenChange={setEditOpen} />
+      )}
     </div>
   );
 }

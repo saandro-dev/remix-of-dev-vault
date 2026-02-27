@@ -54,6 +54,9 @@
     "globalSearch": "Global Search",
     "yourProjects": "Your Projects",
     "allProjects": "All Projects",
+    "vault": "Vault",
+    "myModules": "My Modules",
+    "sharedWithMe": "Shared with Me",
     "globalVault": "Global Vault",
     "tools": "Tools",
     "bugDiary": "Bug Diary",
@@ -150,8 +153,10 @@
   },
 
   "vault": {
-    "title": "Knowledge Library",
-    "moduleCount": "{{count}} modules · validated production patterns",
+    "title": "My Modules",
+    "sharedWithMe": "Shared with Me",
+    "globalVaultTitle": "Global Vault",
+    "moduleCount": "{{count}} modules",
     "newModule": "New Module",
     "noModules": "No modules found",
     "tryOtherFilters": "Try other filters or search",
@@ -166,6 +171,15 @@
     "validated": "Validated",
     "deprecated": "Deprecated",
     "draft": "Draft"
+  },
+
+  "visibility": {
+    "private": "Private",
+    "privateHint": "Only you can see this module",
+    "shared": "Shared",
+    "sharedHint": "Visible to specific users you invite",
+    "global": "Global",
+    "globalHint": "Visible to all users via API"
   },
 
   "createModule": {
@@ -198,8 +212,7 @@
     "sourceProject": "Source Project",
     "sourceProjectPlaceholder": "risecheckout, devvault...",
     "validationStatus": "Validation Status",
-    "publicModule": "Public Module",
-    "publicHint": "Visible to other users via API",
+    "visibility": "Visibility",
     "createModule": "Create Module"
   },
 
@@ -213,6 +226,7 @@
     "context": "Context (Markdown)",
     "dependencies": "Dependencies",
     "tagsSeparated": "Tags (comma-separated)",
+    "visibility": "Visibility",
     "saveChanges": "Save Changes"
   },
 
@@ -300,7 +314,8 @@
     "paramTagsConstraints": "Maximum 10 items",
     "paramDependencies": "External dependencies needed (free text)",
     "paramContextMarkdown": "Additional context in Markdown (usage instructions, notes, etc.)",
-    "paramIsPublic": "Whether the module should be public. Default: false",
+    "paramVisibility": "Module visibility level. Default: \"private\"",
+    "paramVisibilityConstraints": "\"private\" | \"shared\" | \"global\"",
     "response201": "Module created successfully",
     "response400": "Invalid JSON in request body",
     "response401": "API key missing, invalid or revoked",
@@ -358,6 +373,8 @@
     "moduleCreated": "Module created successfully!",
     "moduleUpdated": "Module updated!",
     "moduleDeleted": "Module deleted.",
+    "moduleShared": "Module shared successfully!",
+    "moduleUnshared": "Share removed.",
     "createError": "Error creating module",
     "updateError": "Error updating",
     "deleteError": "Error",

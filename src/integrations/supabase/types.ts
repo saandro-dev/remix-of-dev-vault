@@ -412,6 +412,35 @@ export type Database = {
         }
         Relationships: []
       }
+      vault_module_shares: {
+        Row: {
+          created_at: string
+          module_id: string
+          shared_by_user_id: string
+          shared_with_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          module_id: string
+          shared_by_user_id: string
+          shared_with_user_id: string
+        }
+        Update: {
+          created_at?: string
+          module_id?: string
+          shared_by_user_id?: string
+          shared_with_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_module_shares_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vault_modules: {
         Row: {
           category: Database["public"]["Enums"]["vault_category"]
@@ -423,7 +452,6 @@ export type Database = {
           description: string | null
           domain: Database["public"]["Enums"]["vault_domain"] | null
           id: string
-          is_public: boolean
           language: string
           module_type: Database["public"]["Enums"]["vault_module_type"] | null
           phase_title: string | null
@@ -440,6 +468,7 @@ export type Database = {
           validation_status:
             | Database["public"]["Enums"]["vault_validation_status"]
             | null
+          visibility: Database["public"]["Enums"]["visibility_level"]
           why_it_matters: string | null
         }
         Insert: {
@@ -452,7 +481,6 @@ export type Database = {
           description?: string | null
           domain?: Database["public"]["Enums"]["vault_domain"] | null
           id?: string
-          is_public?: boolean
           language?: string
           module_type?: Database["public"]["Enums"]["vault_module_type"] | null
           phase_title?: string | null
@@ -469,6 +497,7 @@ export type Database = {
           validation_status?:
             | Database["public"]["Enums"]["vault_validation_status"]
             | null
+          visibility?: Database["public"]["Enums"]["visibility_level"]
           why_it_matters?: string | null
         }
         Update: {
@@ -481,7 +510,6 @@ export type Database = {
           description?: string | null
           domain?: Database["public"]["Enums"]["vault_domain"] | null
           id?: string
-          is_public?: boolean
           language?: string
           module_type?: Database["public"]["Enums"]["vault_module_type"] | null
           phase_title?: string | null
@@ -498,6 +526,7 @@ export type Database = {
           validation_status?:
             | Database["public"]["Enums"]["vault_validation_status"]
             | null
+          visibility?: Database["public"]["Enums"]["visibility_level"]
           why_it_matters?: string | null
         }
         Relationships: []
@@ -538,6 +567,36 @@ export type Database = {
           title: string
           updated_at: string
           validation_status: string
+          why_it_matters: string
+        }[]
+      }
+      get_visible_modules: {
+        Args: {
+          p_domain?: string
+          p_limit?: number
+          p_module_type?: string
+          p_offset?: number
+          p_query?: string
+          p_scope?: string
+          p_user_id: string
+        }
+        Returns: {
+          code_example: string
+          created_at: string
+          description: string
+          domain: string
+          id: string
+          language: string
+          module_type: string
+          phase_title: string
+          related_modules: string[]
+          saas_phase: number
+          source_project: string
+          tags: string[]
+          title: string
+          updated_at: string
+          validation_status: string
+          visibility: string
           why_it_matters: string
         }[]
       }
@@ -668,6 +727,7 @@ export type Database = {
         | "playbook_phase"
         | "pattern_guide"
       vault_validation_status: "draft" | "validated" | "deprecated"
+      visibility_level: "private" | "shared" | "global"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -816,6 +876,7 @@ export const Constants = {
         "pattern_guide",
       ],
       vault_validation_status: ["draft", "validated", "deprecated"],
+      visibility_level: ["private", "shared", "global"],
     },
   },
 } as const

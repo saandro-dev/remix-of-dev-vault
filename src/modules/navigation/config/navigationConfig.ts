@@ -8,6 +8,8 @@ import {
   Settings,
   KeyRound,
   Shield,
+  Globe,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -46,10 +48,12 @@ export const navigationConfig: NavigationGroup[] = [
   },
   {
     id: "vault",
-    labelKey: "nav.globalVault",
+    labelKey: "nav.vault",
     defaultOpen: true,
     items: [
-      { id: "vault", labelKey: "nav.globalVault", icon: Code2, path: "/vault" },
+      { id: "vault-mine", labelKey: "nav.myModules", icon: Code2, path: "/vault" },
+      { id: "vault-shared", labelKey: "nav.sharedWithMe", icon: Users, path: "/vault/shared" },
+      { id: "vault-global", labelKey: "nav.globalVault", icon: Globe, path: "/vault/global" },
     ],
   },
   {

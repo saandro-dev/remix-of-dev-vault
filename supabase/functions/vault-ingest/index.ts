@@ -77,13 +77,21 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
 
   logger.info("vault-ingest request", { action, ip: clientIp, userId });
 
+  /**
+   * Resolves visibility from payload.
+   * Backward compatible: if is_public is sent, maps to 'global'.
+   */
+  function resolveVisibility(m: Record<string, unknown>): string {
+    if (m.visibility) return m.visibility as string;
+    if (m.is_public === true) return "global";
+    return "private";
+  }
+
   // 5. Route by action
   switch (action) {
 
-    // ── INGEST: create modules (individual or batch) ─────────────────────
+    // -- INGEST: create modules (individual or batch) --
     case "ingest": {
-      // Supports: {"action":"ingest","modules":[...]} or {"action":"ingest","title":"..."}
-      // or backward compatibility: direct array or direct object without action
       let rawModules: unknown[];
       if (Array.isArray(body.modules)) {
         rawModules = body.modules;
@@ -111,32 +119,32 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
         const m = mod as Record<string, unknown>;
         if (!m.title) throw new Error("Module missing required field: title");
         return {
-          user_id:          userId,
-          title:            m.title,
-          description:      m.description ?? null,
-          domain:           m.domain ?? m.category ?? "backend",
-          module_type:      m.module_type ?? "code_snippet",
-          language:         m.language ?? "typescript",
-          code:             m.code ?? "",
-          context_markdown: m.context_markdown ?? null,
-          dependencies:     m.dependencies ?? null,
-          tags:             m.tags ?? [],
-          saas_phase:       m.saas_phase ?? null,
-          phase_title:      m.phase_title ?? null,
-          why_it_matters:   m.why_it_matters ?? null,
-          code_example:     m.code_example ?? null,
-          source_project:   m.source_project ?? null,
+          user_id:           userId,
+          title:             m.title,
+          description:       m.description ?? null,
+          domain:            m.domain ?? m.category ?? "backend",
+          module_type:       m.module_type ?? "code_snippet",
+          language:          m.language ?? "typescript",
+          code:              m.code ?? "",
+          context_markdown:  m.context_markdown ?? null,
+          dependencies:      m.dependencies ?? null,
+          tags:              m.tags ?? [],
+          saas_phase:        m.saas_phase ?? null,
+          phase_title:       m.phase_title ?? null,
+          why_it_matters:    m.why_it_matters ?? null,
+          code_example:      m.code_example ?? null,
+          source_project:    m.source_project ?? null,
           validation_status: m.validation_status ?? "draft",
-          related_modules:  m.related_modules ?? [],
-          is_public:        m.is_public ?? false,
-          slug:             m.slug ?? null,
+          related_modules:   m.related_modules ?? [],
+          visibility:        resolveVisibility(m),
+          slug:              m.slug ?? null,
         };
       });
 
       const { data, error } = await supabase
         .from("vault_modules")
         .insert(toInsert)
-        .select("id, slug, title, domain, module_type, validation_status");
+        .select("id, slug, title, domain, module_type, validation_status, visibility");
 
       if (error) {
         logger.error("Failed to insert modules", { error: error.message });
@@ -147,7 +155,7 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
       return createSuccessResponse(req, { ingested: data.length, modules: data }, 201);
     }
 
-    // ── UPDATE: update existing module ───────────────────────────────────
+    // -- UPDATE: update existing module --
     case "update": {
       const id = body.id as string;
       if (!id) {
@@ -175,7 +183,7 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
         "code", "context_markdown", "dependencies", "tags",
         "saas_phase", "phase_title", "why_it_matters", "code_example",
         "source_project", "validation_status", "related_modules",
-        "is_public", "slug",
+        "visibility", "slug",
       ];
 
       const updates: Record<string, unknown> = {};
@@ -183,6 +191,11 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
         if (field in body) {
           updates[field] = body[field];
         }
+      }
+
+      // Backward compatibility: is_public → visibility
+      if ("is_public" in body && !("visibility" in body)) {
+        updates["visibility"] = body["is_public"] === true ? "global" : "private";
       }
 
       if (Object.keys(updates).length === 0) {
@@ -193,7 +206,7 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
         .from("vault_modules")
         .update(updates)
         .eq("id", id)
-        .select("id, slug, title, domain, module_type, validation_status, updated_at")
+        .select("id, slug, title, domain, module_type, validation_status, visibility, updated_at")
         .single();
 
       if (error) {
@@ -205,7 +218,7 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
       return createSuccessResponse(req, { updated: true, module: data });
     }
 
-    // ── DELETE: delete module ────────────────────────────────────────────
+    // -- DELETE: delete module --
     case "delete": {
       const id = body.id as string;
       if (!id) {
@@ -241,7 +254,7 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
       return createSuccessResponse(req, { deleted: true, id, title: existing.title });
     }
 
-    // ── DEFAULT ──────────────────────────────────────────────────────────
+    // -- DEFAULT --
     default:
       return createErrorResponse(
         req,

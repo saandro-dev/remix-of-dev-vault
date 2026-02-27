@@ -3,10 +3,11 @@ import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
 import i18n from "@/i18n/config";
-import type { VaultModule, VaultModuleSummary, VaultDomain, VaultModuleType, VaultValidationStatus } from "../types";
+import type { VaultModule, VaultModuleSummary, VaultDomain, VaultModuleType, VaultValidationStatus, VaultScope, VisibilityLevel } from "../types";
 
 // Filters for module listing
 export interface VaultModuleFilters {
+  scope?: VaultScope;
   domain?: VaultDomain;
   module_type?: VaultModuleType;
   saas_phase?: number;
@@ -18,7 +19,7 @@ export interface VaultModuleFilters {
   offset?: number;
 }
 
-// Lists modules with optional filters
+// Lists modules with optional filters via get_visible_modules RPC
 export function useVaultModules(filters?: VaultModuleFilters) {
   const { user } = useAuth();
   return useQuery({
@@ -26,7 +27,12 @@ export function useVaultModules(filters?: VaultModuleFilters) {
     queryFn: () =>
       invokeEdgeFunction<{ items: VaultModuleSummary[]; total: number }>("vault-crud", {
         action: "list",
-        ...filters,
+        scope: filters?.scope ?? "owned",
+        domain: filters?.domain,
+        module_type: filters?.module_type,
+        query: filters?.query,
+        limit: filters?.limit ?? 50,
+        offset: filters?.offset ?? 0,
       }).then((d) => d.items),
     enabled: !!user,
   });
@@ -77,7 +83,7 @@ export interface CreateModuleInput {
   source_project?: string;
   validation_status?: VaultValidationStatus;
   related_modules?: string[];
-  is_public?: boolean;
+  visibility?: VisibilityLevel;
 }
 
 export function useCreateVaultModule(onSuccess?: () => void) {

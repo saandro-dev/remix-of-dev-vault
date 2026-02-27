@@ -57,8 +57,8 @@ serve(
     const [modulesRes, projectsRes, bugsRes] = await Promise.all([
       generalClient
         .from("vault_modules")
-        .select("id, title, category")
-        .eq("user_id", user.id)
+        .select("id, title, domain, visibility")
+        .or(`user_id.eq.${user.id},visibility.eq.global`)
         .ilike("title", searchTerm)
         .limit(10),
       generalClient
@@ -80,7 +80,7 @@ serve(
         id: m.id,
         title: m.title,
         type: "module" as const,
-        meta: m.category,
+        meta: m.domain,
       })),
       ...(projectsRes.data ?? []).map((p) => ({
         id: p.id,

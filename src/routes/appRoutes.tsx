@@ -40,6 +40,8 @@ export const appRoutes: RouteObject[] = [
       { path: "projects/:projectId", element: <ProjectDetailPage /> },
       { path: "projects/:projectId/folders/:folderId", element: <FolderDetailPage /> },
       { path: "vault", element: <VaultListPage /> },
+      { path: "vault/shared", element: <VaultListPage /> },
+      { path: "vault/global", element: <VaultListPage /> },
       { path: "vault/:moduleId", element: <VaultDetailPage /> },
       { path: "bugs", element: <BugDiaryPage /> },
       {

@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plus, Search, Shield, Server, Layout, Building2, Rocket, BookOpen, Loader2, Package, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { Plus, Search, Shield, Server, Layout, Building2, Rocket, BookOpen, Loader2, Package, CheckCircle2, Clock, XCircle, Lock, Users, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useVaultModules } from "../hooks/useVaultModules";
 import { CreateModuleDialog } from "../components/CreateModuleDialog";
-import type { VaultDomain, VaultModuleSummary } from "../types";
-import { DOMAIN_COLORS, VALIDATION_COLORS } from "../types";
+import type { VaultDomain, VaultModuleSummary, VaultScope, VisibilityLevel } from "../types";
+import { DOMAIN_COLORS, VALIDATION_COLORS, VISIBILITY_COLORS } from "../types";
 
 const DOMAIN_ICONS: Record<VaultDomain, React.ElementType> = {
   security: Shield,
@@ -17,6 +17,12 @@ const DOMAIN_ICONS: Record<VaultDomain, React.ElementType> = {
   architecture: Building2,
   devops: Rocket,
   saas_playbook: BookOpen,
+};
+
+const VISIBILITY_ICONS: Record<VisibilityLevel, React.ElementType> = {
+  private: Lock,
+  shared: Users,
+  global: Globe,
 };
 
 const ALL_DOMAINS: VaultDomain[] = ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"];
@@ -40,6 +46,16 @@ function ValidationBadge({ status }: { status: string }) {
   );
 }
 
+function VisibilityBadge({ visibility }: { visibility: VisibilityLevel }) {
+  const { t } = useTranslation();
+  const Icon = VISIBILITY_ICONS[visibility];
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${VISIBILITY_COLORS[visibility]}`}>
+      <Icon className="h-3 w-3" /> {t(`visibility.${visibility}`)}
+    </span>
+  );
+}
+
 function ModuleCard({ mod, onClick }: { mod: VaultModuleSummary; onClick: () => void }) {
   const { t } = useTranslation();
   const Icon = DOMAIN_ICONS[mod.domain] ?? Package;
@@ -57,7 +73,10 @@ function ModuleCard({ mod, onClick }: { mod: VaultModuleSummary; onClick: () => 
             {mod.title}
           </h3>
         </div>
-        <ValidationBadge status={mod.validation_status} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          <VisibilityBadge visibility={mod.visibility} />
+          <ValidationBadge status={mod.validation_status} />
+        </div>
       </div>
 
       {mod.description && (
@@ -103,17 +122,32 @@ function ModuleCard({ mod, onClick }: { mod: VaultModuleSummary; onClick: () => 
 
 export function VaultListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const [activeDomain, setActiveDomain] = useState<VaultDomain | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
 
+  // Derive scope from route path
+  const scope: VaultScope = useMemo(() => {
+    if (location.pathname === "/vault/shared") return "shared_with_me";
+    if (location.pathname === "/vault/global") return "global";
+    return "owned";
+  }, [location.pathname]);
+
+  const pageTitle = useMemo(() => {
+    if (scope === "shared_with_me") return t("vault.sharedWithMe");
+    if (scope === "global") return t("vault.globalVaultTitle");
+    return t("vault.title");
+  }, [scope, t]);
+
   const { data: modules, isLoading } = useVaultModules({
+    scope,
     domain: activeDomain,
     query: searchQuery || undefined,
   });
 
-  const { data: allModules } = useVaultModules();
+  const { data: allModules } = useVaultModules({ scope });
   const domainCounts = (allModules ?? []).reduce<Record<string, number>>((acc, m) => {
     acc[m.domain] = (acc[m.domain] ?? 0) + 1;
     return acc;
@@ -123,14 +157,16 @@ export function VaultListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("vault.title")}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{pageTitle}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {t("vault.moduleCount", { count: allModules?.length ?? 0 })}
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> {t("vault.newModule")}
-        </Button>
+        {scope === "owned" && (
+          <Button onClick={() => setCreateOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" /> {t("vault.newModule")}
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -189,7 +225,7 @@ export function VaultListPage() {
               {searchQuery || activeDomain ? t("vault.tryOtherFilters") : t("vault.createFirstModule")}
             </p>
           </div>
-          {!searchQuery && !activeDomain && (
+          {!searchQuery && !activeDomain && scope === "owned" && (
             <Button onClick={() => setCreateOpen(true)} variant="outline" className="gap-2">
               <Plus className="h-4 w-4" /> {t("vault.createFirst")}
             </Button>

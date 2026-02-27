@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Loader2, Save, Lock, Users, Globe } from "lucide-react";
 import { useUpdateVaultModule } from "@/modules/vault/hooks/useVaultModule";
-import type { VaultModule, VaultDomain } from "@/modules/vault/types";
+import type { VaultModule, VaultDomain, VisibilityLevel } from "@/modules/vault/types";
 
 const DOMAINS: VaultDomain[] = ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"];
 
@@ -28,6 +29,7 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
   const [contextMarkdown, setContextMarkdown] = useState(module.context_markdown ?? "");
   const [dependencies, setDependencies] = useState(module.dependencies ?? "");
   const [tagsInput, setTagsInput] = useState(module.tags.join(", "));
+  const [visibility, setVisibility] = useState<VisibilityLevel>(module.visibility);
 
   useEffect(() => {
     setTitle(module.title);
@@ -38,6 +40,7 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
     setContextMarkdown(module.context_markdown ?? "");
     setDependencies(module.dependencies ?? "");
     setTagsInput(module.tags.join(", "));
+    setVisibility(module.visibility);
   }, [module]);
 
   const updateMutation = useUpdateVaultModule(module.id, () => onOpenChange(false));
@@ -54,6 +57,7 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
       context_markdown: contextMarkdown || null,
       dependencies: dependencies || null,
       tags,
+      visibility,
     });
   };
 
@@ -105,6 +109,29 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
             <Label>{t("editModule.tagsSeparated")}</Label>
             <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} />
           </div>
+
+          {/* Visibility */}
+          <div className="space-y-2 p-3 rounded-lg border border-border">
+            <Label className="text-sm font-medium">{t("editModule.visibility")}</Label>
+            <RadioGroup value={visibility} onValueChange={(v) => setVisibility(v as VisibilityLevel)} className="space-y-1.5">
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <RadioGroupItem value="private" />
+                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                {t("visibility.private")}
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <RadioGroupItem value="shared" />
+                <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                {t("visibility.shared")}
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <RadioGroupItem value="global" />
+                <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                {t("visibility.global")}
+              </label>
+            </RadioGroup>
+          </div>
+
           <Button type="submit" className="w-full gap-2" disabled={updateMutation.isPending}>
             {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {t("editModule.saveChanges")}

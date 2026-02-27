@@ -54,6 +54,9 @@
     "globalSearch": "Busca Global",
     "yourProjects": "Seus Projetos",
     "allProjects": "Todos os Projetos",
+    "vault": "Cofre",
+    "myModules": "Meus Módulos",
+    "sharedWithMe": "Compartilhados Comigo",
     "globalVault": "Cofre Global",
     "tools": "Ferramentas",
     "bugDiary": "Diário de Bugs",
@@ -150,8 +153,10 @@
   },
 
   "vault": {
-    "title": "Biblioteca de Conhecimento",
-    "moduleCount": "{{count}} módulos · padrões validados em produção",
+    "title": "Meus Módulos",
+    "sharedWithMe": "Compartilhados Comigo",
+    "globalVaultTitle": "Cofre Global",
+    "moduleCount": "{{count}} módulos",
     "newModule": "Novo Módulo",
     "noModules": "Nenhum módulo encontrado",
     "tryOtherFilters": "Tente outros filtros ou busca",
@@ -166,6 +171,15 @@
     "validated": "Validado",
     "deprecated": "Depreciado",
     "draft": "Rascunho"
+  },
+
+  "visibility": {
+    "private": "Privado",
+    "privateHint": "Somente você pode ver este módulo",
+    "shared": "Compartilhado",
+    "sharedHint": "Visível para usuários específicos que você convidar",
+    "global": "Global",
+    "globalHint": "Visível para todos os usuários via API"
   },
 
   "createModule": {
@@ -198,8 +212,7 @@
     "sourceProject": "Projeto de Origem",
     "sourceProjectPlaceholder": "risecheckout, devvault...",
     "validationStatus": "Status de Validação",
-    "publicModule": "Módulo Público",
-    "publicHint": "Visível para outros usuários via API",
+    "visibility": "Visibilidade",
     "createModule": "Criar Módulo"
   },
 
@@ -213,6 +226,7 @@
     "context": "Contexto (Markdown)",
     "dependencies": "Dependências",
     "tagsSeparated": "Tags (separadas por vírgula)",
+    "visibility": "Visibilidade",
     "saveChanges": "Salvar Alterações"
   },
 
@@ -300,7 +314,8 @@
     "paramTagsConstraints": "Máximo 10 itens",
     "paramDependencies": "Dependências externas necessárias (texto livre)",
     "paramContextMarkdown": "Contexto adicional em Markdown (instruções de uso, notas, etc.)",
-    "paramIsPublic": "Se o módulo deve ser público. Padrão: false",
+    "paramVisibility": "Nível de visibilidade do módulo. Padrão: \"private\"",
+    "paramVisibilityConstraints": "\"private\" | \"shared\" | \"global\"",
     "response201": "Módulo criado com sucesso",
     "response400": "JSON inválido no corpo da requisição",
     "response401": "API key ausente, inválida ou revogada",
@@ -358,6 +373,8 @@
     "moduleCreated": "Módulo criado com sucesso!",
     "moduleUpdated": "Módulo atualizado!",
     "moduleDeleted": "Módulo excluído.",
+    "moduleShared": "Módulo compartilhado com sucesso!",
+    "moduleUnshared": "Compartilhamento removido.",
     "createError": "Erro ao criar módulo",
     "updateError": "Erro ao atualizar",
     "deleteError": "Erro",

@@ -2,6 +2,8 @@
 // DevVault — Knowledge System Types
 // =============================================================================
 
+export type VisibilityLevel = "private" | "shared" | "global";
+
 export type VaultDomain =
   | "security"
   | "backend"
@@ -23,9 +25,6 @@ export type VaultValidationStatus =
   | "validated"
   | "deprecated";
 
-// Kept for backward compatibility with vault_category enum
-export type VaultCategory = "frontend" | "backend" | "devops" | "security";
-
 export interface VaultModule {
   id: string;
   user_id: string;
@@ -34,6 +33,7 @@ export interface VaultModule {
   domain: VaultDomain;
   module_type: VaultModuleType;
   validation_status: VaultValidationStatus;
+  visibility: VisibilityLevel;
   saas_phase: number | null;
   phase_title: string | null;
   why_it_matters: string | null;
@@ -45,13 +45,15 @@ export interface VaultModule {
   context_markdown: string | null;
   dependencies: string | null;
   tags: string[];
-  is_public: boolean;
   created_at: string;
   updated_at: string;
 }
 
 // Summary type for listings (excludes heavy fields)
 export type VaultModuleSummary = Omit<VaultModule, "code" | "context_markdown" | "dependencies">;
+
+// Scope for listing modules
+export type VaultScope = "owned" | "shared_with_me" | "global" | "all";
 
 // Visual style mappings (not labels — labels come from i18n)
 export const DOMAIN_COLORS: Record<VaultDomain, string> = {
@@ -67,4 +69,10 @@ export const VALIDATION_COLORS: Record<VaultValidationStatus, string> = {
   validated: "text-green-400 bg-green-400/10 border-green-400/20",
   draft: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
   deprecated: "text-gray-400 bg-gray-400/10 border-gray-400/20",
+};
+
+export const VISIBILITY_COLORS: Record<VisibilityLevel, string> = {
+  private: "text-gray-400 bg-gray-400/10 border-gray-400/20",
+  shared: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  global: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
 };
