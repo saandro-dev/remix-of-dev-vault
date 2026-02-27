@@ -412,6 +412,45 @@ export type Database = {
         }
         Relationships: []
       }
+      vault_module_dependencies: {
+        Row: {
+          created_at: string
+          dependency_type: string
+          depends_on_id: string
+          id: string
+          module_id: string
+        }
+        Insert: {
+          created_at?: string
+          dependency_type?: string
+          depends_on_id: string
+          id?: string
+          module_id: string
+        }
+        Update: {
+          created_at?: string
+          dependency_type?: string
+          depends_on_id?: string
+          id?: string
+          module_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_module_dependencies_depends_on_id_fkey"
+            columns: ["depends_on_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_module_dependencies_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vault_module_shares: {
         Row: {
           created_at: string
@@ -454,7 +493,9 @@ export type Database = {
           id: string
           language: string
           module_type: Database["public"]["Enums"]["vault_module_type"] | null
+          next_steps: Json[] | null
           phase_title: string | null
+          prerequisites: Json[] | null
           related_modules: string[] | null
           saas_phase: number | null
           search_vector: unknown
@@ -483,7 +524,9 @@ export type Database = {
           id?: string
           language?: string
           module_type?: Database["public"]["Enums"]["vault_module_type"] | null
+          next_steps?: Json[] | null
           phase_title?: string | null
+          prerequisites?: Json[] | null
           related_modules?: string[] | null
           saas_phase?: number | null
           search_vector?: unknown
@@ -512,7 +555,9 @@ export type Database = {
           id?: string
           language?: string
           module_type?: Database["public"]["Enums"]["vault_module_type"] | null
+          next_steps?: Json[] | null
           phase_title?: string | null
+          prerequisites?: Json[] | null
           related_modules?: string[] | null
           saas_phase?: number | null
           search_vector?: unknown

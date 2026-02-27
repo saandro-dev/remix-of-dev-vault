@@ -144,7 +144,38 @@ Deno.serve(withSentry("vault-query", async (req: Request) => {
         return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Module not found.", 404);
       }
 
-      return createSuccessResponse(req, { module: data[0] });
+      const mod = data[0] as Record<string, unknown>;
+
+      // Enrich with dependencies (HATEOAS links)
+      const { data: deps } = await supabase
+        .from("vault_module_dependencies")
+        .select("id, depends_on_id, dependency_type")
+        .eq("module_id", mod.id);
+
+      const depIds = (deps ?? []).map((d: Record<string, unknown>) => d.depends_on_id as string);
+      let depMods: Record<string, { title: string; slug: string | null }> = {};
+      if (depIds.length > 0) {
+        const { data: mods } = await supabase
+          .from("vault_modules")
+          .select("id, title, slug")
+          .in("id", depIds);
+        for (const m of mods ?? []) {
+          depMods[(m as Record<string, unknown>).id as string] = {
+            title: (m as Record<string, unknown>).title as string,
+            slug: (m as Record<string, unknown>).slug as string | null,
+          };
+        }
+      }
+
+      const dependencies = (deps ?? []).map((d: Record<string, unknown>) => ({
+        id: d.id,
+        module_id: d.depends_on_id,
+        title: depMods[d.depends_on_id as string]?.title ?? "Unknown",
+        dependency_type: d.dependency_type,
+        fetch_url: `/rest/v1/rpc/get_vault_module?p_id=${d.depends_on_id}`,
+      }));
+
+      return createSuccessResponse(req, { module: { ...mod, dependencies } });
     }
 
     // ── LIST: list modules with filters (no text search) ─────────────────

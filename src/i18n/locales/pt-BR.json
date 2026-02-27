@@ -168,9 +168,19 @@
     "whyAndHow": "Porquê e Como",
     "dependencies": "Dependências",
     "code": "Código",
+    "prerequisites": "Pré-requisitos",
+    "noPrerequisites": "Nenhum pré-requisito definido.",
     "validated": "Validado",
     "deprecated": "Depreciado",
     "draft": "Rascunho"
+  },
+
+  "dependencies": {
+    "required": "Obrigatório",
+    "recommended": "Recomendado",
+    "addDependency": "Dependências / Pré-requisitos",
+    "searchModules": "Buscar módulos...",
+    "type": "Tipo"
   },
 
   "visibility": {
@@ -395,7 +405,9 @@
     "apiKeyRemoved": "API Key removida.",
     "apiKeyRemovedDesc": "O secret foi apagado do Vault.",
     "apiKeyAddError": "Erro ao adicionar key",
-    "apiKeyRemoveError": "Erro ao remover key"
+    "apiKeyRemoveError": "Erro ao remover key",
+    "dependencyAdded": "Dependência adicionada!",
+    "dependencyRemoved": "Dependência removida."
   },
 
   "share": {

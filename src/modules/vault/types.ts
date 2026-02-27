@@ -25,6 +25,17 @@ export type VaultValidationStatus =
   | "validated"
   | "deprecated";
 
+export type DependencyType = "required" | "recommended";
+
+export interface ModuleDependency {
+  id: string;
+  depends_on_id: string;
+  title: string;
+  slug: string | null;
+  dependency_type: DependencyType;
+  fetch_url: string;
+}
+
 export interface VaultModule {
   id: string;
   user_id: string;
@@ -45,6 +56,7 @@ export interface VaultModule {
   context_markdown: string | null;
   dependencies: string | null;
   tags: string[];
+  module_dependencies?: ModuleDependency[];
   created_at: string;
   updated_at: string;
 }
