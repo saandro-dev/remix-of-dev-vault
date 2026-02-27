@@ -24,6 +24,7 @@ export type Database = {
           label: string
           project_id: string
           user_id: string
+          vault_secret_id: string | null
         }
         Insert: {
           created_at?: string
@@ -34,6 +35,7 @@ export type Database = {
           label: string
           project_id: string
           user_id: string
+          vault_secret_id?: string | null
         }
         Update: {
           created_at?: string
@@ -44,6 +46,7 @@ export type Database = {
           label?: string
           project_id?: string
           user_id?: string
+          vault_secret_id?: string | null
         }
         Relationships: [
           {
@@ -466,6 +469,10 @@ export type Database = {
         Args: { p_key_name: string; p_raw_key: string; p_user_id: string }
         Returns: string
       }
+      delete_project_api_key: {
+        Args: { p_key_id: string; p_user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -473,9 +480,24 @@ export type Database = {
         }
         Returns: boolean
       }
+      read_project_api_key: {
+        Args: { p_key_id: string; p_user_id: string }
+        Returns: string
+      }
       revoke_devvault_api_key: {
         Args: { p_key_id: string; p_user_id: string }
         Returns: boolean
+      }
+      store_project_api_key: {
+        Args: {
+          p_environment?: string
+          p_folder_id: string
+          p_key_value: string
+          p_label: string
+          p_project_id: string
+          p_user_id: string
+        }
+        Returns: string
       }
       validate_devvault_api_key: {
         Args: { p_raw_key: string }
