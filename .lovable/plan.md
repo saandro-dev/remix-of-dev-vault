@@ -1,47 +1,41 @@
 
 
-# Diagnostico: Por que os modulos somem (0 modules)
+## Diagnostico
 
-## Duas causas raiz encontradas
-
-### Causa 1 (CRITICA): `vault-crud` nao consegue inicializar
-
-Os logs do Supabase mostram:
+Os logs da Edge Function `vault-crud` mostram repetidamente:
 
 ```
-worker boot error: The requested module '../_shared/dependency-helpers.ts'
-does not provide an export named 'handleAddDependency'
+"column vm.usage_hint does not exist"
 ```
 
-O arquivo `dependency-helpers.ts` exporta apenas `enrichModuleDependencies` e `batchInsertDependencies`. Porem `vault-crud/index.ts` linha 7-12 importa tres funcoes que **nao existem**: `handleAddDependency`, `handleRemoveDependency`, `handleListDependencies`.
+A tabela `vault_modules` **nao possui** a coluna `usage_hint`. Porem, tres funcoes SQL do banco a referenciam:
 
-Como a Edge Function crasha no boot, **TODAS** as operacoes do vault (list, get, create, update, delete) falham. O frontend recebe erro, interpreta como lista vazia, e mostra "0 modules".
+1. `get_visible_modules` — usada pelo `vault-crud` action `list`
+2. `query_vault_modules` — usada pelo MCP list/search
+3. `get_vault_module` — usada pelo MCP get
 
-### Causa 2: `supabase-config.ts` ainda usa chave `sb_publishable_`
+Quando o frontend chama `vault-crud` com `action: "list"`, a RPC `get_visible_modules` falha com erro 500 porque tenta fazer `SELECT ... vm.usage_hint ...` em uma coluna inexistente. Resultado: 0 modulos.
 
-O `client.ts` importa de `supabase-config.ts` que forca a chave `sb_publishable_XlH73lxriQdgud9WSQZ6Eg_paORcfoT`. Mesmo com as legacy keys reativadas, essa chave nao e um JWT valido e pode causar falhas de autenticacao intermitentes.
+## Causa Raiz
 
----
+Desalinhamento entre o schema da tabela e as funcoes SQL. As funcoes foram criadas/atualizadas referenciando `usage_hint`, mas a migration para adicionar essa coluna nunca foi executada.
 
-## Plano de correcao
+## Correcao
 
-### 1. Criar as 3 funcoes faltantes em `dependency-helpers.ts`
+**Uma unica migration SQL** que adiciona a coluna faltante:
 
-Adicionar `handleAddDependency`, `handleRemoveDependency`, e `handleListDependencies` ao arquivo. Estas funcoes ja sao chamadas no `vault-crud/index.ts` (linhas 255-261), entao a assinatura deve receber `(req, client, userId/body)` e retornar `Response`.
+```sql
+ALTER TABLE public.vault_modules
+  ADD COLUMN IF NOT EXISTS usage_hint TEXT DEFAULT NULL;
+```
 
-### 2. Remover `supabase-config.ts` e restaurar `client.ts`
+Isso resolve imediatamente o erro nas tres funcoes SQL sem necessidade de alterar nenhum codigo no frontend ou nas Edge Functions.
 
-- Deletar `src/lib/supabase-config.ts`
-- Restaurar `client.ts` para usar as variaveis de ambiente padrao do Lovable (`import.meta.env.VITE_SUPABASE_URL` e `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY`)
-- Atualizar comentarios para ingles (Protocolo V2 §8.1)
-
-### 3. Re-deploy da Edge Function
-
-O deploy e automatico apos editar o arquivo.
+### Arvore de arquivos
 
 ```text
-MODIFY  supabase/functions/_shared/dependency-helpers.ts  — add 3 missing handler functions
-DELETE  src/lib/supabase-config.ts                         — remove sb_publishable_ override
-MODIFY  src/integrations/supabase/client.ts                — use Lovable env vars + English comments
+MIGRATE  ADD COLUMN usage_hint TO vault_modules
 ```
+
+Nenhum arquivo de codigo precisa ser alterado — o problema e exclusivamente no schema do banco.
 
