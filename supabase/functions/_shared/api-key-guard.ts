@@ -1,11 +1,11 @@
 /**
- * api-key-guard.ts — Guard de autenticação por API Key.
+ * api-key-guard.ts — API Key authentication guard.
  *
- * Valida API Keys externas usando a função SQL vault-backed
- * validate_devvault_api_key, que compara a chave contra o hash
- * armazenado no Supabase Vault sem expor o valor real.
+ * Validates external API Keys using the vault-backed SQL function
+ * validate_devvault_api_key, which compares the key against the
+ * stored hash in Supabase Vault without exposing the raw value.
  *
- * Atualizado para usar getSupabaseClient("admin") do multi-keys.
+ * Updated to use getSupabaseClient("admin") from multi-keys.
  */
 
 import { getSupabaseClient } from "./supabase-client.ts";
@@ -16,13 +16,13 @@ export interface ApiKeyAuthResult {
 }
 
 /**
- * Valida uma API Key do header Authorization (Bearer) ou X-API-Key.
- * Retorna o keyId e userId do proprietário se válida, null caso contrário.
+ * Validates an API Key from the Authorization (Bearer) or X-API-Key header.
+ * Returns the keyId and owner userId if valid, null otherwise.
  */
 export async function requireApiKeyAuth(
   req: Request,
 ): Promise<ApiKeyAuthResult | null> {
-  // Suporta tanto Bearer token quanto header X-API-Key
+  // Supports both Bearer token and X-API-Key header
   const rawKey =
     req.headers.get("x-api-key") ??
     req.headers.get("Authorization")?.replace("Bearer ", "").trim();
