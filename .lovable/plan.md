@@ -1,46 +1,55 @@
 
-# DevVault — Project State (Updated 2026-02-27)
 
-## Architecture Overview
+# Fix: devvault-mcp tool registration API mismatch
 
-DevVault is a SaaS "second brain" for developers. The backend runs entirely on Supabase Edge Functions (zero direct DB access from frontend).
+## Root Cause
 
-## Implemented Features
+The `mcp-lite` library's `McpServer.tool()` method signature is:
+```typescript
+server.tool("toolName", {
+  description: "...",
+  inputSchema: { ... },
+  handler: async (args) => { ... }
+});
+```
 
-### MCP Server (`devvault-mcp`)
-- Universal MCP endpoint for AI agents via Streamable HTTP + mcp-lite
-- 6 tools: `devvault_bootstrap`, `devvault_search`, `devvault_get`, `devvault_list`, `devvault_domains`, `devvault_ingest`
-- Authentication: `X-DevVault-Key` header → `validateApiKey()` from `api-key-guard.ts`
-- Rate limiting: 120 req/min via `checkRateLimit()` from `rate-limit-guard.ts`
-- HATEOAS dependency enrichment via `enrichModuleDependencies()` from `dependency-helpers.ts`
+Our code incorrectly passes a single object:
+```typescript
+server.tool({
+  name: "devvault_bootstrap",  // ← name inside object = WRONG
+  ...
+});
+```
 
-### Public API (`vault-query`)
-- Read-only query endpoint for external consumers
-- Actions: `search`, `get`, `list`, `list_domains`, `bootstrap`
-- Same auth pattern as MCP (`X-DevVault-Key`)
+The library treats the first argument as the tool name (string), and the second as options. When it receives an object as the first arg, the second arg is `undefined`, causing `Cannot read properties of undefined (reading 'inputSchema')`.
 
-### Write API (`vault-ingest`)
-- Write endpoint for AI agents
-- Actions: `ingest` (batch up to 50), `update`, `delete`
-- Same auth pattern as MCP (`X-DevVault-Key`)
+## Fix
 
-### Internal CRUD (`vault-crud`)
-- JWT-authenticated CRUD for the frontend
-- Actions: `list`, `get`, `create`, `update`, `delete`, `search`, `get_playbook`, `share`, `unshare`, `list_shares`, `add_dependency`, `remove_dependency`, `list_dependencies`
+Refactor all 6 `server.tool()` calls in `supabase/functions/devvault-mcp/index.ts` from:
+```typescript
+server.tool({
+  name: "tool_name",
+  description: "...",
+  inputSchema: { ... },
+  handler: async (params) => { ... }
+});
+```
+To:
+```typescript
+server.tool("tool_name", {
+  description: "...",
+  inputSchema: { ... },
+  handler: async (params) => { ... }
+});
+```
 
-### Shared Modules (`_shared/`)
-- `api-key-guard.ts` — `validateApiKey(client, rawKey)` + `requireApiKeyAuth(req)`
-- `rate-limit-guard.ts` — `checkRateLimit(identifier, action, config?)` → `{ blocked, retryAfterSeconds? }`
-- `dependency-helpers.ts` — `enrichModuleDependencies`, `handleAddDependency`, `handleRemoveDependency`, `handleListDependencies`
-- `logger.ts` — `createLogger(fnName)` → `{ debug, info, warn, error }`
-- `cors-v2.ts`, `auth.ts`, `sentry.ts`, `supabase-client.ts`, `api-helpers.ts`, `api-audit-logger.ts`, `role-validator.ts`
+All 6 tools affected: `devvault_bootstrap`, `devvault_search`, `devvault_get`, `devvault_list`, `devvault_domains`, `devvault_ingest`.
 
-## Bug Fixes Applied (2026-02-27)
-1. `vault-crud`: Replaced broken `import { log }` with `createLogger("vault-crud")`
-2. `vault-query`: Fixed `checkRateLimit` signature to use `RateLimitConfig` object
-3. `vault-query`: Fixed `rateLimit.allowed` → `rateLimit.blocked`
-4. `vault-query`: Replaced inline dependency logic with `enrichModuleDependencies()`
-5. `vault-ingest`: Removed non-existent `RATE_LIMIT_CONFIGS` import
-6. `vault-ingest`: Fixed `checkRateLimit` signature to use `RateLimitConfig` object
-7. `vault-ingest`: Fixed `rateLimit.allowed` → `rateLimit.blocked`
-8. `vault-ingest`: Fixed `keyValidation.user_id` → `keyValidation.userId`
+## Files
+
+```text
+MODIFY  supabase/functions/devvault-mcp/index.ts  (fix all 6 tool registrations)
+```
+
+After fix, redeploy and test via curl to confirm `initialize` + `tools/list` return correctly.
+
