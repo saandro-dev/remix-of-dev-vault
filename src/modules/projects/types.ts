@@ -24,10 +24,8 @@ export type ProjectEnvironment = "dev" | "staging" | "prod";
 export interface ProjectApiKey {
   id: string;
   label: string;
-  key_value: string;
+  /** key_value nunca é retornado pela API — usar useRevealApiKey para obter o valor real */
+  has_value: boolean;
   environment: ProjectEnvironment;
-  project_id: string;
-  folder_id: string | null;
-  user_id: string;
   created_at: string;
 }
