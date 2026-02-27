@@ -43,7 +43,6 @@ serve(withSentry("vault-crud", async (req: Request) => {
         const { id } = body;
         if (!id) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
 
-        // Use RPC for global modules, direct query for owned/shared
         const { data, error } = await client
           .from("vault_modules")
           .select("*")
@@ -52,11 +51,9 @@ serve(withSentry("vault-crud", async (req: Request) => {
         if (error) throw error;
         if (!data) return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Module not found", 404);
 
-        // Access control: owner, global, or shared with user
         const isOwner = data.user_id === user.id;
         const isGlobal = data.visibility === "global";
         if (!isOwner && !isGlobal) {
-          // Check if shared with user
           const { data: share } = await client
             .from("vault_module_shares")
             .select("module_id")
@@ -67,7 +64,38 @@ serve(withSentry("vault-crud", async (req: Request) => {
             return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Module not found", 404);
           }
         }
-        return createSuccessResponse(req, data);
+
+        // Enrich with module dependencies (HATEOAS)
+        const { data: deps } = await client
+          .from("vault_module_dependencies")
+          .select("id, depends_on_id, dependency_type, created_at")
+          .eq("module_id", id);
+
+        const depModuleIds = (deps ?? []).map((d: Record<string, unknown>) => d.depends_on_id as string);
+        let depModules: Record<string, { title: string; slug: string | null }> = {};
+        if (depModuleIds.length > 0) {
+          const { data: mods } = await client
+            .from("vault_modules")
+            .select("id, title, slug")
+            .in("id", depModuleIds);
+          for (const m of mods ?? []) {
+            depModules[(m as Record<string, unknown>).id as string] = {
+              title: (m as Record<string, unknown>).title as string,
+              slug: (m as Record<string, unknown>).slug as string | null,
+            };
+          }
+        }
+
+        const module_dependencies = (deps ?? []).map((d: Record<string, unknown>) => ({
+          id: d.id,
+          depends_on_id: d.depends_on_id,
+          dependency_type: d.dependency_type,
+          title: depModules[d.depends_on_id as string]?.title ?? "Unknown",
+          slug: depModules[d.depends_on_id as string]?.slug ?? null,
+          fetch_url: `/rest/v1/rpc/get_vault_module?p_id=${d.depends_on_id}`,
+        }));
+
+        return createSuccessResponse(req, { ...data, module_dependencies });
       }
 
       case "create": {
@@ -274,6 +302,87 @@ serve(withSentry("vault-crud", async (req: Request) => {
         if (error) throw error;
 
         return createSuccessResponse(req, { shares: data ?? [] });
+      }
+
+      // -- Add a dependency between modules --
+      case "add_dependency": {
+        const { module_id, depends_on_id, dependency_type = "required" } = body;
+        if (!module_id || !depends_on_id) {
+          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id or depends_on_id", 422);
+        }
+
+        // Ownership validated by RLS INSERT policy
+        const { data, error } = await client
+          .from("vault_module_dependencies")
+          .insert({
+            module_id,
+            depends_on_id,
+            dependency_type,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+
+        log("info", "vault-crud", `added dependency module=${module_id} depends_on=${depends_on_id}`);
+        return createSuccessResponse(req, data, 201);
+      }
+
+      // -- Remove a dependency --
+      case "remove_dependency": {
+        const { module_id, depends_on_id } = body;
+        if (!module_id || !depends_on_id) {
+          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id or depends_on_id", 422);
+        }
+
+        // Ownership validated by RLS DELETE policy
+        const { error } = await client
+          .from("vault_module_dependencies")
+          .delete()
+          .eq("module_id", module_id)
+          .eq("depends_on_id", depends_on_id);
+        if (error) throw error;
+
+        return createSuccessResponse(req, { removed: true });
+      }
+
+      // -- List dependencies for a module --
+      case "list_dependencies": {
+        const { module_id } = body;
+        if (!module_id) {
+          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing module_id", 422);
+        }
+
+        const { data: deps, error } = await client
+          .from("vault_module_dependencies")
+          .select("id, depends_on_id, dependency_type, created_at")
+          .eq("module_id", module_id);
+        if (error) throw error;
+
+        const depIds = (deps ?? []).map((d: Record<string, unknown>) => d.depends_on_id as string);
+        let depMods: Record<string, { title: string; slug: string | null }> = {};
+        if (depIds.length > 0) {
+          const { data: mods } = await client
+            .from("vault_modules")
+            .select("id, title, slug")
+            .in("id", depIds);
+          for (const m of mods ?? []) {
+            depMods[(m as Record<string, unknown>).id as string] = {
+              title: (m as Record<string, unknown>).title as string,
+              slug: (m as Record<string, unknown>).slug as string | null,
+            };
+          }
+        }
+
+        const dependencies = (deps ?? []).map((d: Record<string, unknown>) => ({
+          id: d.id,
+          depends_on_id: d.depends_on_id,
+          dependency_type: d.dependency_type,
+          title: depMods[d.depends_on_id as string]?.title ?? "Unknown",
+          slug: depMods[d.depends_on_id as string]?.slug ?? null,
+          fetch_url: `/rest/v1/rpc/get_vault_module?p_id=${d.depends_on_id}`,
+        }));
+
+        return createSuccessResponse(req, { dependencies });
       }
 
       default:

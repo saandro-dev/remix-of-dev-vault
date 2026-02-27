@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Save, Lock, Users, Globe } from "lucide-react";
 import { useUpdateVaultModule } from "@/modules/vault/hooks/useVaultModule";
+import { useModuleDependencies, useAddDependency, useRemoveDependency } from "@/modules/vault/hooks/useModuleDependencies";
+import { DependencySelector, type PendingDependency } from "./DependencySelector";
 import type { VaultModule, VaultDomain, VisibilityLevel } from "@/modules/vault/types";
 
 const DOMAINS: VaultDomain[] = ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"];
@@ -30,6 +32,11 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
   const [dependencies, setDependencies] = useState(module.dependencies ?? "");
   const [tagsInput, setTagsInput] = useState(module.tags.join(", "));
   const [visibility, setVisibility] = useState<VisibilityLevel>(module.visibility);
+  const [pendingDeps, setPendingDeps] = useState<PendingDependency[]>([]);
+
+  const { data: existingDeps } = useModuleDependencies(module.id);
+  const addDep = useAddDependency(module.id);
+  const removeDep = useRemoveDependency(module.id);
 
   useEffect(() => {
     setTitle(module.title);
@@ -41,9 +48,40 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
     setDependencies(module.dependencies ?? "");
     setTagsInput(module.tags.join(", "));
     setVisibility(module.visibility);
+    setPendingDeps([]);
   }, [module]);
 
-  const updateMutation = useUpdateVaultModule(module.id, () => onOpenChange(false));
+  // Sync existing deps when loaded
+  useEffect(() => {
+    if (existingDeps) {
+      setPendingDeps(existingDeps.map((d) => ({
+        depends_on_id: d.depends_on_id,
+        title: d.title,
+        dependency_type: d.dependency_type,
+      })));
+    }
+  }, [existingDeps]);
+
+  const updateMutation = useUpdateVaultModule(module.id, async () => {
+    // Sync dependencies: compute diff between existing and pending
+    const existingIds = new Set((existingDeps ?? []).map((d) => d.depends_on_id));
+    const pendingIds = new Set(pendingDeps.map((d) => d.depends_on_id));
+
+    // Add new deps
+    for (const dep of pendingDeps) {
+      if (!existingIds.has(dep.depends_on_id)) {
+        addDep.mutate({ depends_on_id: dep.depends_on_id, dependency_type: dep.dependency_type });
+      }
+    }
+    // Remove old deps
+    for (const dep of existingDeps ?? []) {
+      if (!pendingIds.has(dep.depends_on_id)) {
+        removeDep.mutate(dep.depends_on_id);
+      }
+    }
+
+    onOpenChange(false);
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +147,13 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
             <Label>{t("editModule.tagsSeparated")}</Label>
             <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} />
           </div>
+
+          {/* Module Dependencies Selector */}
+          <DependencySelector
+            moduleId={module.id}
+            selected={pendingDeps}
+            onChange={setPendingDeps}
+          />
 
           {/* Visibility */}
           <div className="space-y-2 p-3 rounded-lg border border-border">

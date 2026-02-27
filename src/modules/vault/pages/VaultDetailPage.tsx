@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { EditModuleSheet } from "@/modules/vault/components/EditModuleSheet";
 import { ShareModuleDialog } from "@/modules/vault/components/ShareModuleDialog";
+import { DependencyCard } from "@/modules/vault/components/DependencyCard";
 import { useVaultModule, useDeleteVaultModule } from "@/modules/vault/hooks/useVaultModule";
+import { useRemoveDependency } from "@/modules/vault/hooks/useModuleDependencies";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { ArrowLeft, Trash2, Copy, Check, Loader2, Pencil, Lock, Users, Globe } from "lucide-react";
 import { VISIBILITY_COLORS } from "../types";
@@ -30,6 +32,7 @@ export function VaultDetailPage() {
 
   const { data: mod, isLoading } = useVaultModule(moduleId);
   const deleteMutation = useDeleteVaultModule();
+  const removeDep = useRemoveDependency(moduleId ?? "");
 
   const isOwner = mod?.user_id === user?.id;
 
@@ -109,6 +112,25 @@ export function VaultDetailPage() {
       </div>
 
       <TagCloud tags={mod.tags} />
+
+      {/* Prerequisites / Dependencies Section */}
+      {(mod.module_dependencies && mod.module_dependencies.length > 0) && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+            {t("vault.prerequisites")}
+          </h2>
+          <div className="space-y-2">
+            {mod.module_dependencies.map((dep) => (
+              <DependencyCard
+                key={dep.id}
+                dependency={dep}
+                isOwner={isOwner}
+                onRemove={() => removeDep.mutate(dep.depends_on_id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {mod.context_markdown && (
         <div className="space-y-2">
