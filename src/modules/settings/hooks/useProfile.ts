@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
+import i18n from "@/i18n/config";
 
 export interface Profile {
   id: string;
@@ -42,10 +43,10 @@ export function useUpdateProfile() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
-      toast({ title: "Perfil atualizado!" });
+      toast({ title: i18n.t("toast.profileUpdated") });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }

@@ -31,7 +31,14 @@
     "fetching": "Buscando...",
     "noValue": "Sem valor",
     "addSecurely": "Adicionar com segurança",
-    "phase": "Fase"
+    "phase": "Fase",
+    "field": "Campo",
+    "type": "Tipo",
+    "required": "Obrigatório",
+    "yes": "Sim",
+    "no": "Não",
+    "noResults": "Nenhum resultado para \"{{query}}\"",
+    "typeToSearch": "Digite para buscar..."
   },
 
   "confirmDelete": {
@@ -299,7 +306,20 @@
     "response405": "Método HTTP diferente de POST",
     "response422": "Payload válido como JSON mas com campos inválidos",
     "response429": "Rate limit excedido (60 req/min). IP bloqueado por 5 minutos",
-    "response500": "Erro interno ao inserir no banco de dados"
+    "response500": "Erro interno ao inserir no banco de dados",
+    "bodyParams": "Parâmetros do Body (JSON)",
+    "responses": "Respostas",
+    "usageExamples": "Exemplos de Uso"
+  },
+
+  "search": {
+    "title": "Busca Global",
+    "subtitle": "Encontre módulos, projetos e bugs.",
+    "modules": "Módulos",
+    "projects": "Projetos",
+    "bugs": "Bugs",
+    "searchError": "Erro na busca",
+    "unknownError": "Erro desconhecido na busca"
   },
 
   "domains": {
@@ -341,6 +361,22 @@
     "updateError": "Erro ao atualizar",
     "deleteError": "Erro",
     "error": "Erro",
-    "unknownError": "Erro desconhecido"
+    "unknownError": "Erro desconhecido",
+    "keyCreated": "Chave criada com sucesso!",
+    "keyRevoked": "Chave revogada!",
+    "projectCreated": "Projeto criado!",
+    "projectUpdated": "Projeto atualizado!",
+    "projectDeleted": "Projeto excluído.",
+    "folderCreated": "Pasta criada!",
+    "folderDeleted": "Pasta removida.",
+    "bugRegistered": "Bug registrado!",
+    "bugDeleted": "Bug removido.",
+    "profileUpdated": "Perfil atualizado!",
+    "apiKeyAdded": "API Key adicionada com segurança!",
+    "apiKeyAddedDesc": "O valor foi criptografado no Vault.",
+    "apiKeyRemoved": "API Key removida.",
+    "apiKeyRemovedDesc": "O secret foi apagado do Vault.",
+    "apiKeyAddError": "Erro ao adicionar key",
+    "apiKeyRemoveError": "Erro ao remover key"
   }
 }

@@ -3,6 +3,7 @@ import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
 import { supabase } from "@/integrations/supabase/client";
+import i18n from "@/i18n/config";
 
 export interface DevVaultApiKey {
   id: string;
@@ -41,10 +42,10 @@ export function useCreateDevVaultKey() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devvault-api-keys"] });
-      toast({ title: "Chave criada com sucesso!" });
+      toast({ title: i18n.t("toast.keyCreated") });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }
@@ -64,10 +65,10 @@ export function useRevokeDevVaultKey() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devvault-api-keys"] });
-      toast({ title: "Chave revogada!" });
+      toast({ title: i18n.t("toast.keyRevoked") });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }

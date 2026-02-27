@@ -24,7 +24,7 @@ export type ProjectEnvironment = "dev" | "staging" | "prod";
 export interface ProjectApiKey {
   id: string;
   label: string;
-  /** key_value nunca é retornado pela API — usar useRevealApiKey para obter o valor real */
+  /** key_value is never returned by the API — use useRevealApiKey to get the actual value */
   has_value: boolean;
   environment: ProjectEnvironment;
   created_at: string;

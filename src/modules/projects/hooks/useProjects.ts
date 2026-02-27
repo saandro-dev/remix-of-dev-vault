@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
+import i18n from "@/i18n/config";
 import type { Project } from "../types";
 
 export function useProjects() {
@@ -35,11 +36,11 @@ export function useUpsertProject(onSuccess?: () => void) {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast({ title: variables.id ? "Projeto atualizado!" : "Projeto criado!" });
+      toast({ title: variables.id ? i18n.t("toast.projectUpdated") : i18n.t("toast.projectCreated") });
       onSuccess?.();
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }
@@ -53,10 +54,10 @@ export function useDeleteProject() {
       invokeEdgeFunction("projects-crud", { action: "delete", id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast({ title: "Projeto excluído." });
+      toast({ title: i18n.t("toast.projectDeleted") });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.error"), description: err.message });
     },
   });
 }

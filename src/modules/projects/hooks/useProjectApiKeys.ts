@@ -2,12 +2,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
+import i18n from "@/i18n/config";
 import type { ProjectApiKey, ProjectEnvironment } from "../types";
 
-// ---------------------------------------------------------------------------
-// useProjectApiKeys — Lista as chaves de uma pasta SEM o valor real.
-// O campo has_value indica se a chave possui um secret armazenado no Vault.
-// ---------------------------------------------------------------------------
+// Lists keys for a folder WITHOUT the actual value.
+// The has_value field indicates whether the key has a Vault secret.
 export function useProjectApiKeys(folderId: string | undefined) {
   const { user } = useAuth();
 
@@ -22,11 +21,9 @@ export function useProjectApiKeys(folderId: string | undefined) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// useRevealApiKey — Busca o valor decriptado de uma chave sob demanda.
-// Só faz a chamada quando enabled=true (usuário clicou em "Revelar").
-// O valor é cacheado por 30 segundos para evitar chamadas repetidas.
-// ---------------------------------------------------------------------------
+// Fetches the decrypted value of a key on demand.
+// Only calls when enabled=true (user clicked "Reveal").
+// Cached for 30 seconds to avoid repeated calls.
 export function useRevealApiKey(keyId: string | null) {
   const { user } = useAuth();
 
@@ -38,15 +35,13 @@ export function useRevealApiKey(keyId: string | null) {
         id: keyId,
       }).then((d) => d.value),
     enabled: !!keyId && !!user,
-    staleTime: 30_000, // Cache por 30s — evita chamadas repetidas ao Vault
-    gcTime: 60_000,    // Remove do cache após 60s sem uso
-    retry: false,      // Não tentar novamente em caso de erro (ex: acesso negado)
+    staleTime: 30_000,
+    gcTime: 60_000,
+    retry: false,
   });
 }
 
-// ---------------------------------------------------------------------------
-// useCreateProjectApiKey — Cria uma nova chave via store_project_api_key().
-// ---------------------------------------------------------------------------
+// Creates a new key via store_project_api_key().
 interface CreateApiKeyInput {
   project_id: string;
   folder_id: string;
@@ -64,18 +59,16 @@ export function useCreateProjectApiKey(folderId: string | undefined, onSuccess?:
       invokeEdgeFunction("project-api-keys-crud", { action: "create", ...input }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["api_keys", folderId] });
-      toast({ title: "API Key adicionada com segurança!", description: "O valor foi criptografado no Vault." });
+      toast({ title: i18n.t("toast.apiKeyAdded"), description: i18n.t("toast.apiKeyAddedDesc") });
       onSuccess?.();
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro ao adicionar key", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.apiKeyAddError"), description: err.message });
     },
   });
 }
 
-// ---------------------------------------------------------------------------
-// useDeleteProjectApiKey — Remove a chave da tabela E do Vault atomicamente.
-// ---------------------------------------------------------------------------
+// Removes the key from the table AND the Vault atomically.
 export function useDeleteProjectApiKey(folderId: string | undefined) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -85,10 +78,10 @@ export function useDeleteProjectApiKey(folderId: string | undefined) {
       invokeEdgeFunction("project-api-keys-crud", { action: "delete", id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["api_keys", folderId] });
-      toast({ title: "API Key removida.", description: "O secret foi apagado do Vault." });
+      toast({ title: i18n.t("toast.apiKeyRemoved"), description: i18n.t("toast.apiKeyRemovedDesc") });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Erro ao remover key", description: err.message });
+      toast({ variant: "destructive", title: i18n.t("toast.apiKeyRemoveError"), description: err.message });
     },
   });
 }
