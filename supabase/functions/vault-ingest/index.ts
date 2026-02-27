@@ -1,189 +1,89 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { withSentry } from "../_shared/sentry.ts";
-import { handleCorsV2, createSuccessResponse, createErrorResponse, ERROR_CODES, getClientIp } from "../_shared/api-helpers.ts";
-import { requireApiKeyAuth } from "../_shared/api-key-guard.ts";
-import { logApiCall } from "../_shared/api-audit-logger.ts";
-import { checkRateLimit } from "../_shared/rate-limit-guard.ts";
+import { handleCorsV2 } from "../_shared/cors-v2.ts";
+import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
-import { createLogger } from "../_shared/logger.ts";
+import { validateApiKey } from "../_shared/api-key-guard.ts";
+import { withSentry } from "../_shared/sentry.ts";
+import { log } from "../_shared/logger.ts";
 
-const VALID_CATEGORIES = ["frontend", "backend", "devops", "security"] as const;
+// vault-ingest: endpoint público para ingestão de módulos via API Key
+// Usado por agentes de IA para popular a biblioteca automaticamente
+serve(withSentry("vault-ingest", async (req: Request) => {
+  const corsResponse = handleCorsV2(req);
+  if (corsResponse) return corsResponse;
 
-interface IngestPayload {
-  title: string;
-  code: string;
-  language: string;
-  category: (typeof VALID_CATEGORIES)[number];
-  description?: string;
-  tags?: string[];
-  dependencies?: string;
-  context_markdown?: string;
-  is_public?: boolean;
-}
+  if (req.method !== "POST") {
+    return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
+  }
 
-function validatePayload(body: unknown): { valid: true; data: IngestPayload } | { valid: false; message: string } {
-  if (!body || typeof body !== "object") {
-    return { valid: false, message: "Request body must be a JSON object" };
+  // Autenticação via API Key (não JWT)
+  const apiKeyHeader = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!apiKeyHeader) {
+    return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Missing API key", 401);
   }
-  const b = body as Record<string, unknown>;
-  if (typeof b.title !== "string" || b.title.length < 5 || b.title.length > 150) {
-    return { valid: false, message: "title must be a string between 5-150 characters" };
-  }
-  if (typeof b.code !== "string" || b.code.length < 10) {
-    return { valid: false, message: "code must be a string with at least 10 characters" };
-  }
-  if (typeof b.language !== "string" || b.language.length < 1) {
-    return { valid: false, message: "language is required" };
-  }
-  if (!VALID_CATEGORIES.includes(b.category as typeof VALID_CATEGORIES[number])) {
-    return { valid: false, message: `category must be one of: ${VALID_CATEGORIES.join(", ")}` };
-  }
-  if (b.description !== undefined && typeof b.description !== "string") {
-    return { valid: false, message: "description must be a string" };
-  }
-  if (b.tags !== undefined) {
-    if (!Array.isArray(b.tags) || b.tags.length > 10 || !b.tags.every((t) => typeof t === "string")) {
-      return { valid: false, message: "tags must be an array of strings (max 10)" };
-    }
-  }
-  if (b.dependencies !== undefined && typeof b.dependencies !== "string") {
-    return { valid: false, message: "dependencies must be a string" };
-  }
-  if (b.context_markdown !== undefined && typeof b.context_markdown !== "string") {
-    return { valid: false, message: "context_markdown must be a string" };
-  }
-  return {
-    valid: true,
-    data: {
-      title: b.title as string,
-      code: b.code as string,
-      language: b.language as string,
-      category: b.category as IngestPayload["category"],
-      description: (b.description as string) ?? null,
-      tags: (b.tags as string[]) ?? [],
-      dependencies: (b.dependencies as string) ?? null,
-      context_markdown: (b.context_markdown as string) ?? null,
-      is_public: b.is_public === true,
-    },
-  };
-}
 
-serve(
-  withSentry("vault-ingest", async (req) => {
-    const log = createLogger("vault-ingest");
+  const client = getSupabaseClient("general");
+  const keyValidation = await validateApiKey(client, apiKeyHeader);
+  if (!keyValidation.valid) {
+    log("warn", "vault-ingest", `Invalid API key attempt`);
+    return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Invalid API key", 401);
+  }
 
-    // 1. CORS preflight
-    const corsResponse = handleCorsV2(req);
-    if (corsResponse) return corsResponse;
+  const { user_id: userId } = keyValidation;
 
-    if (req.method !== "POST") {
-      return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
+  try {
+    const body = await req.json();
+
+    // Suporte a ingestão em batch (array) ou individual (objeto)
+    const modules = Array.isArray(body) ? body : [body];
+
+    if (modules.length === 0) {
+      return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Empty payload", 422);
     }
 
-    const startTime = Date.now();
-    const clientIp = getClientIp(req);
-
-    // 2. Rate limiting por IP
-    const rl = await checkRateLimit(clientIp, "vault-ingest");
-    if (rl.blocked) {
-      log.warn("Rate limit exceeded", { ip: clientIp });
-      return createErrorResponse(
-        req,
-        ERROR_CODES.RATE_LIMITED,
-        `Too many requests. Retry after ${rl.retryAfterSeconds}s`,
-        429,
-      );
+    if (modules.length > 50) {
+      return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Max 50 modules per request", 422);
     }
 
-    // 3. Autenticação por API Key (Vault-backed)
-    const auth = await requireApiKeyAuth(req);
-    if (!auth) {
-      logApiCall({
-        userId: "unknown",
-        ipAddress: clientIp,
-        action: "vault-ingest",
-        success: false,
-        httpStatus: 401,
-        errorCode: ERROR_CODES.INVALID_API_KEY,
-        errorMessage: "Invalid or missing API key",
-      });
-      return createErrorResponse(req, ERROR_CODES.INVALID_API_KEY, "Invalid or missing API key", 401);
-    }
-
-    // 4. Validação do payload
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Invalid JSON body", 400);
-    }
-
-    const validation = validatePayload(body);
-    if (!validation.valid) {
-      logApiCall({
-        apiKeyId: auth.keyId,
-        userId: auth.userId,
-        ipAddress: clientIp,
-        action: "vault-ingest",
-        success: false,
-        httpStatus: 422,
-        errorCode: ERROR_CODES.VALIDATION_ERROR,
-        errorMessage: validation.message,
-        requestBody: body,
-        processingTimeMs: Date.now() - startTime,
-      });
-      return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, validation.message, 422);
-    }
-
-    // 5. Inserir módulo no banco usando cliente "general"
-    const { data } = validation;
-    const generalClient = getSupabaseClient("general");
-
-    const { data: inserted, error } = await generalClient
-      .from("vault_modules")
-      .insert({
-        user_id: auth.userId,
-        title: data.title,
-        code: data.code,
-        language: data.language,
-        category: data.category,
-        description: data.description,
-        tags: data.tags ?? [],
-        dependencies: data.dependencies,
-        context_markdown: data.context_markdown,
-        is_public: data.is_public ?? false,
-      })
-      .select("id, title, category, created_at")
-      .single();
-
-    if (error) {
-      log.error("Failed to insert module", { userId: auth.userId, error: error.message });
-      logApiCall({
-        apiKeyId: auth.keyId,
-        userId: auth.userId,
-        ipAddress: clientIp,
-        action: "vault-ingest",
-        success: false,
-        httpStatus: 500,
-        errorCode: ERROR_CODES.INTERNAL_ERROR,
-        errorMessage: error.message,
-        processingTimeMs: Date.now() - startTime,
-      });
-      throw error;
-    }
-
-    logApiCall({
-      apiKeyId: auth.keyId,
-      userId: auth.userId,
-      ipAddress: clientIp,
-      action: "vault-ingest",
-      success: true,
-      httpStatus: 201,
-      requestBody: { title: data.title, category: data.category },
-      processingTimeMs: Date.now() - startTime,
+    const toInsert = modules.map((mod) => {
+      if (!mod.title) throw new Error(`Module missing required field: title`);
+      return {
+        user_id: userId,
+        title: mod.title,
+        description: mod.description || null,
+        domain: mod.domain || mod.category || "backend",
+        module_type: mod.module_type || "code_snippet",
+        language: mod.language || "typescript",
+        code: mod.code || "",
+        context_markdown: mod.context_markdown || null,
+        dependencies: mod.dependencies || null,
+        tags: mod.tags || [],
+        saas_phase: mod.saas_phase || null,
+        phase_title: mod.phase_title || null,
+        why_it_matters: mod.why_it_matters || null,
+        code_example: mod.code_example || null,
+        source_project: mod.source_project || null,
+        validation_status: mod.validation_status || "draft",
+        related_modules: mod.related_modules || [],
+        is_public: mod.is_public ?? false,
+      };
     });
 
-    log.info("Module ingested", { userId: auth.userId, moduleId: inserted.id });
-    return createSuccessResponse(req, { module: inserted }, 201);
-  }),
-);
+    const { data, error } = await client
+      .from("vault_modules")
+      .insert(toInsert)
+      .select("id, title, domain, module_type, validation_status");
+
+    if (error) throw error;
+
+    log("info", "vault-ingest", `Ingested ${data.length} modules for user=${userId}`);
+    return createSuccessResponse({
+      ingested: data.length,
+      modules: data,
+    }, 201);
+
+  } catch (err) {
+    log("error", "vault-ingest", err.message);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
+  }
+}));
