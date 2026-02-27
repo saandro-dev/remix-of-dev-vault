@@ -507,6 +507,7 @@ export type Database = {
           tags: string[]
           title: string
           updated_at: string
+          usage_hint: string | null
           user_id: string
           validation_status:
             | Database["public"]["Enums"]["vault_validation_status"]
@@ -540,6 +541,7 @@ export type Database = {
           tags?: string[]
           title: string
           updated_at?: string
+          usage_hint?: string | null
           user_id: string
           validation_status?:
             | Database["public"]["Enums"]["vault_validation_status"]
@@ -573,6 +575,7 @@ export type Database = {
           tags?: string[]
           title?: string
           updated_at?: string
+          usage_hint?: string | null
           user_id?: string
           validation_status?:
             | Database["public"]["Enums"]["vault_validation_status"]
