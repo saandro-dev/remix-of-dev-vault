@@ -1,58 +1,47 @@
 
-# DevVault MCP v2.2 — Implementation Status
 
-## Status: COMPLETE ✅
+# Diagnostico: Por que os modulos somem (0 modules)
 
-All 8 DB functions updated, `usage_hint` column added, frontend types aligned.
+## Duas causas raiz encontradas
+
+### Causa 1 (CRITICA): `vault-crud` nao consegue inicializar
+
+Os logs do Supabase mostram:
+
+```
+worker boot error: The requested module '../_shared/dependency-helpers.ts'
+does not provide an export named 'handleAddDependency'
+```
+
+O arquivo `dependency-helpers.ts` exporta apenas `enrichModuleDependencies` e `batchInsertDependencies`. Porem `vault-crud/index.ts` linha 7-12 importa tres funcoes que **nao existem**: `handleAddDependency`, `handleRemoveDependency`, `handleListDependencies`.
+
+Como a Edge Function crasha no boot, **TODAS** as operacoes do vault (list, get, create, update, delete) falham. O frontend recebe erro, interpreta como lista vazia, e mostra "0 modules".
+
+### Causa 2: `supabase-config.ts` ainda usa chave `sb_publishable_`
+
+O `client.ts` importa de `supabase-config.ts` que forca a chave `sb_publishable_XlH73lxriQdgud9WSQZ6Eg_paORcfoT`. Mesmo com as legacy keys reativadas, essa chave nao e um JWT valido e pode causar falhas de autenticacao intermitentes.
 
 ---
 
-## DB Functions (All Updated)
+## Plano de correcao
 
-| Function | Status | Details |
-|---|---|---|
-| `update_vault_module_search_vector` (PT) | ✅ | `usage_hint` in tsvector |
-| `update_vault_module_search_vector_en` (EN) | ✅ | `usage_hint` in tsvector |
-| `bootstrap_vault_context` | ✅ | `usage_hint` in playbook_phases + top_modules; ORDER BY `saas_phase NULLS LAST, updated_at DESC` |
-| `get_vault_module` | ✅ | `usage_hint` in SELECT (DROP + recreate for return type change) |
-| `vault_module_completeness` | ✅ | 11 fields checked (added `usage_hint`) |
-| `get_visible_modules` | ✅ | `usage_hint` in SELECT (DROP + recreate for return type change) |
-| `query_vault_modules` | ✅ | ILIKE fallback + `usage_hint` in results |
-| `search_vault_modules` | ✅ | No changes needed (frontend-facing, no `usage_hint` in return) |
+### 1. Criar as 3 funcoes faltantes em `dependency-helpers.ts`
 
-## MCP Tools (All Correct)
+Adicionar `handleAddDependency`, `handleRemoveDependency`, e `handleListDependencies` ao arquivo. Estas funcoes ja sao chamadas no `vault-crud/index.ts` (linhas 255-261), entao a assinatura deve receber `(req, client, userId/body)` e retornar `Response`.
 
-| Tool File | Version | Status |
-|---|---|---|
-| `get.ts` | 2.2 | UUID auto-detection via regex |
-| `ingest.ts` | 2.2 | `usage_hint` field + completeness warning |
-| `update.ts` | 2.2 | `usage_hint` in ALLOWED_UPDATE_FIELDS |
-| `search.ts` | 2.2 | Description updated |
-| `bootstrap.ts` | 2.2 | Calls updated `bootstrap_vault_context` |
-| `completeness.ts` | 2.2 | Calls updated `vault_module_completeness` |
-| `list.ts` | 2.2 | No changes needed |
-| `domains.ts` | 2.2 | No changes needed |
-| `get-group.ts` | 2.2 | No changes needed |
-| `auth.ts` | 2.2 | No changes needed |
-| `register.ts` | 2.2 | Central wiring, no changes needed |
-| `types.ts` | 2.2 | Shared interface, no changes needed |
+### 2. Remover `supabase-config.ts` e restaurar `client.ts`
 
-## Frontend Types
+- Deletar `src/lib/supabase-config.ts`
+- Restaurar `client.ts` para usar as variaveis de ambiente padrao do Lovable (`import.meta.env.VITE_SUPABASE_URL` e `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY`)
+- Atualizar comentarios para ingles (Protocolo V2 §8.1)
 
-| File | Status |
-|---|---|
-| `src/modules/vault/types.ts` | ✅ `usage_hint`, `slug`, `module_group`, `implementation_order` added to `VaultModule` |
+### 3. Re-deploy da Edge Function
 
-## Code Quality
+O deploy e automatico apos editar o arquivo.
 
-- All MCP tool files under 300 lines ✅
-- Single Responsibility across all files ✅
-- No dead code, no legacy patterns ✅
-- Structured logging consistent ✅
-- No try-catch suppression ✅
-- Comments and docstrings accurate ✅
+```text
+MODIFY  supabase/functions/_shared/dependency-helpers.ts  — add 3 missing handler functions
+DELETE  src/lib/supabase-config.ts                         — remove sb_publishable_ override
+MODIFY  src/integrations/supabase/client.ts                — use Lovable env vars + English comments
+```
 
-## Config
-
-- `supabase/config.toml`: all functions `verify_jwt = false` ✅
-- `devvault-mcp/index.ts`: version `2.2.0` ✅
