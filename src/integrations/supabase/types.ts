@@ -618,6 +618,7 @@ export type Database = {
           tags: string[]
           title: string
           updated_at: string
+          usage_hint: string
           validation_status: string
           why_it_matters: string
         }[]
@@ -647,6 +648,7 @@ export type Database = {
           tags: string[]
           title: string
           updated_at: string
+          usage_hint: string
           validation_status: string
           visibility: string
           why_it_matters: string

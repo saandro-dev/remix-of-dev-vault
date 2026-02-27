@@ -79,8 +79,8 @@ serve(withSentry("vault-crud", async (req: Request) => {
         const {
           title, description, domain, module_type, language, code,
           context_markdown, dependencies, tags, saas_phase, phase_title,
-          why_it_matters, code_example, source_project, validation_status,
-          related_modules, visibility,
+          why_it_matters, usage_hint, code_example, source_project,
+          validation_status, related_modules, visibility,
         } = body;
         if (!title) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing title", 422);
 
@@ -99,6 +99,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
             saas_phase: saas_phase || null,
             phase_title: phase_title || null,
             why_it_matters: why_it_matters || null,
+            usage_hint: usage_hint || null,
             code_example: code_example || null,
             source_project: source_project || null,
             validation_status: validation_status || "draft",
@@ -118,8 +119,8 @@ serve(withSentry("vault-crud", async (req: Request) => {
         const allowed = [
           "title", "description", "domain", "module_type", "language",
           "code", "context_markdown", "dependencies", "tags", "saas_phase",
-          "phase_title", "why_it_matters", "code_example", "source_project",
-          "validation_status", "related_modules", "visibility",
+          "phase_title", "why_it_matters", "usage_hint", "code_example",
+          "source_project", "validation_status", "related_modules", "visibility",
         ];
         const updateFields: Record<string, unknown> = {};
         for (const key of allowed) {
