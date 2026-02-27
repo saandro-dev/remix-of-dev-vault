@@ -367,18 +367,20 @@ function createMcpServer(auth: AuthContext): McpServer {
 
 const app = new Hono();
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "content-type, accept, authorization, x-devvault-key, x-api-key, " +
+    "mcp-session-id, mcp-protocol-version, " +
+    "x-client-info, apikey, x-supabase-client-platform, x-supabase-client-platform-version, " +
+    "x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+};
+
 app.all("/*", async (c) => {
-  // CORS for browser-based MCP clients
   if (c.req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "content-type, x-devvault-key, x-api-key, authorization",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Max-Age": "86400",
-      },
-    });
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
   // Authenticate before MCP processing
@@ -389,8 +391,9 @@ app.all("/*", async (c) => {
 
   const mcpServer = createMcpServer(authResult);
   const transport = new StreamableHttpTransport();
+  const handler = transport.bind(mcpServer);
 
-  return await transport.handleRequest(c.req.raw, mcpServer);
+  return await handler(c.req.raw);
 });
 
 Deno.serve(app.fetch);
