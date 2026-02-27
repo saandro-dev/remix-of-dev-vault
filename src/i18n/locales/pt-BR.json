@@ -60,7 +60,8 @@
     "account": "Conta",
     "settings": "Configurações",
     "apiIntegrations": "API & Integrações",
-    "apiDocs": "API Docs"
+    "apiDocs": "API Docs",
+    "admin": "Painel Admin"
   },
 
   "topbar": {
@@ -378,5 +379,23 @@
     "apiKeyRemovedDesc": "O secret foi apagado do Vault.",
     "apiKeyAddError": "Erro ao adicionar key",
     "apiKeyRemoveError": "Erro ao remover key"
+  },
+
+  "admin": {
+    "title": "Administração",
+    "subtitle": "Gerencie usuários e permissões.",
+    "users": "Usuários",
+    "role": "Papel",
+    "changeRole": "Alterar Papel",
+    "confirmRoleChange": "Tem certeza que deseja alterar o papel de {{name}} para {{role}}?",
+    "roleChanged": "Papel atualizado com sucesso!",
+    "roleChangeError": "Erro ao alterar papel",
+    "noUsers": "Nenhum usuário encontrado.",
+    "owner": "Proprietário",
+    "admin": "Admin",
+    "moderator": "Moderador",
+    "user": "Usuário",
+    "joined": "Entrou em",
+    "actions": "Ações"
   }
 }

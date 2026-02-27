@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.vault-query]
 verify_jwt = false
+
+[functions.admin-crud]
+verify_jwt = false

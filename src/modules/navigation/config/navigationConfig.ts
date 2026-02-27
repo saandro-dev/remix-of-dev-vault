@@ -7,6 +7,7 @@ import {
   BookOpen,
   Settings,
   KeyRound,
+  Shield,
   type LucideIcon,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ export interface NavigationItem {
   labelKey: string;
   icon: LucideIcon;
   path: string;
+  requiredRole?: "admin" | "owner";
 }
 
 export interface NavigationGroup {
@@ -66,6 +68,7 @@ export const navigationConfig: NavigationGroup[] = [
       { id: "settings", labelKey: "nav.settings", icon: Settings, path: "/settings" },
       { id: "api-keys", labelKey: "nav.apiIntegrations", icon: KeyRound, path: "/settings/api-keys" },
       { id: "api-docs", labelKey: "nav.apiDocs", icon: BookOpen, path: "/docs/api" },
+      { id: "admin", labelKey: "nav.admin", icon: Shield, path: "/admin", requiredRole: "admin" },
     ],
   },
 ];

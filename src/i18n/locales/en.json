@@ -60,7 +60,8 @@
     "account": "Account",
     "settings": "Settings",
     "apiIntegrations": "API & Integrations",
-    "apiDocs": "API Docs"
+    "apiDocs": "API Docs",
+    "admin": "Admin Panel"
   },
 
   "topbar": {
@@ -378,5 +379,23 @@
     "apiKeyRemovedDesc": "The secret was deleted from Vault.",
     "apiKeyAddError": "Error adding key",
     "apiKeyRemoveError": "Error removing key"
+  },
+
+  "admin": {
+    "title": "Administration",
+    "subtitle": "Manage users and roles.",
+    "users": "Users",
+    "role": "Role",
+    "changeRole": "Change Role",
+    "confirmRoleChange": "Are you sure you want to change the role of {{name}} to {{role}}?",
+    "roleChanged": "Role updated successfully!",
+    "roleChangeError": "Error changing role",
+    "noUsers": "No users found.",
+    "owner": "Owner",
+    "admin": "Admin",
+    "moderator": "Moderator",
+    "user": "User",
+    "joined": "Joined",
+    "actions": "Actions"
   }
 }
