@@ -1,55 +1,63 @@
 
+## Análise de Soluções
 
-# Fix: devvault-mcp tool registration API mismatch
+### Solução A: Patch mínimo (apenas bind do transport)
+- Manutenibilidade: 8.2/10
+- Zero DT: 7.8/10
+- Arquitetura: 8.0/10
+- Escalabilidade: 7.9/10
+- Segurança: 8.8/10
+- **NOTA FINAL: 8.1/10**
 
-## Root Cause
+### Solução B: Correção estrutural (bind + hardening de handshake/CORS + validação ponta a ponta)
+- Manutenibilidade: 9.4/10
+- Zero DT: 9.2/10
+- Arquitetura: 9.5/10
+- Escalabilidade: 9.1/10
+- Segurança: 9.3/10
+- **NOTA FINAL: 9.3/10**
 
-The `mcp-lite` library's `McpServer.tool()` method signature is:
-```typescript
-server.tool("toolName", {
-  description: "...",
-  inputSchema: { ... },
-  handler: async (args) => { ... }
-});
-```
+### DECISÃO: Solução B (Nota 9.3)
 
-Our code incorrectly passes a single object:
-```typescript
-server.tool({
-  name: "devvault_bootstrap",  // ← name inside object = WRONG
-  ...
-});
-```
-
-The library treats the first argument as the tool name (string), and the second as options. When it receives an object as the first arg, the second arg is `undefined`, causing `Cannot read properties of undefined (reading 'inputSchema')`.
-
-## Fix
-
-Refactor all 6 `server.tool()` calls in `supabase/functions/devvault-mcp/index.ts` from:
-```typescript
-server.tool({
-  name: "tool_name",
-  description: "...",
-  inputSchema: { ... },
-  handler: async (params) => { ... }
-});
-```
-To:
-```typescript
-server.tool("tool_name", {
-  description: "...",
-  inputSchema: { ... },
-  handler: async (params) => { ... }
-});
-```
-
-All 6 tools affected: `devvault_bootstrap`, `devvault_search`, `devvault_get`, `devvault_list`, `devvault_domains`, `devvault_ingest`.
-
-## Files
+## Plano de implementação
 
 ```text
-MODIFY  supabase/functions/devvault-mcp/index.ts  (fix all 6 tool registrations)
+MODIFY  supabase/functions/devvault-mcp/index.ts
+MODIFY  .lovable/plan.md
 ```
 
-After fix, redeploy and test via curl to confirm `initialize` + `tools/list` return correctly.
+1) Em `devvault-mcp/index.ts`, corrigir o fluxo de transporte:
+- Manter autenticação antes do MCP.
+- Criar `transport`.
+- Fazer `const handler = transport.bind(mcpServer)`.
+- Trocar `transport.handleRequest(c.req.raw, mcpServer)` por `handler(c.req.raw)`.
 
+2) Harden de compatibilidade de conexão MCP:
+- Ajustar `Access-Control-Allow-Headers` para incluir headers comuns do handshake MCP/Lovable (`authorization`, `content-type`, `accept`, `x-devvault-key`, `x-api-key`, `mcp-session-id`, `mcp-protocol-version`, e headers Supabase client quando aplicável).
+
+3) Preservar modelo de segurança atual:
+- Continuar aceitando API key por `x-devvault-key`, `x-api-key` ou `Authorization: Bearer`.
+- Não alterar validação de chave nem rate-limit.
+
+4) Atualizar `.lovable/plan.md` com:
+- causa raiz final: `StreamableHttpTransport` sem `bind`.
+- correção aplicada.
+- checklist de testes iniciais de conexão MCP.
+
+## Validação inicial (após deploy)
+
+1) Teste handshake:
+- `initialize` (JSON-RPC) com `Authorization: Bearer dvlt_...` **ou** `X-DevVault-Key`.
+2) Teste descoberta:
+- `tools/list` deve retornar 6 tools.
+3) Teste funcional:
+- `devvault_bootstrap` e `devvault_domains`.
+4) Teste no Lovable (outra conta):
+- reconectar servidor custom MCP e confirmar ausência de “Connection failed”.
+5) Conferir logs:
+- sem `Transport not bound to a server`.
+
+## Detalhes técnicos
+
+- Erro atual confirmado em log: `Transport not bound to a server`.
+- O problema de `server.tool(...)` já foi corrigido; o bloqueio remanescente está no ciclo de binding do transport.
