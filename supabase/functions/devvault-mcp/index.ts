@@ -87,8 +87,7 @@ function createMcpServer(auth: AuthContext): McpServer {
   });
 
   // ── devvault_bootstrap ──────────────────────────────────────────────────
-  server.tool({
-    name: "devvault_bootstrap",
+  server.tool("devvault_bootstrap", {
     description:
       "ALWAYS call this first. Returns the full index of the DevVault Knowledge Graph: " +
       "domains, playbook phases, and top validated modules. Use this to understand what " +
@@ -105,8 +104,7 @@ function createMcpServer(auth: AuthContext): McpServer {
   });
 
   // ── devvault_search ─────────────────────────────────────────────────────
-  server.tool({
-    name: "devvault_search",
+  server.tool("devvault_search", {
     description:
       "Search the Knowledge Graph by intent. Returns modules matching your query " +
       "with relevance scoring. Use filters to narrow by domain or type. " +
@@ -162,8 +160,7 @@ function createMcpServer(auth: AuthContext): McpServer {
   });
 
   // ── devvault_get ────────────────────────────────────────────────────────
-  server.tool({
-    name: "devvault_get",
+  server.tool("devvault_get", {
     description:
       "Fetch a specific module by ID or slug. Returns full code, context, and a " +
       "dependencies array. CRITICAL: If any dependency has dependency_type='required', " +
@@ -222,8 +219,7 @@ function createMcpServer(auth: AuthContext): McpServer {
   });
 
   // ── devvault_list ───────────────────────────────────────────────────────
-  server.tool({
-    name: "devvault_list",
+  server.tool("devvault_list", {
     description:
       "List modules with optional filters. No text search — use devvault_search " +
       "for that. Good for browsing a specific domain or type.",
@@ -273,8 +269,7 @@ function createMcpServer(auth: AuthContext): McpServer {
   });
 
   // ── devvault_domains ────────────────────────────────────────────────────
-  server.tool({
-    name: "devvault_domains",
+  server.tool("devvault_domains", {
     description:
       "List all available knowledge domains with module counts and types. " +
       "Use this to discover what areas of knowledge are available.",
@@ -290,8 +285,7 @@ function createMcpServer(auth: AuthContext): McpServer {
   });
 
   // ── devvault_ingest ─────────────────────────────────────────────────────
-  server.tool({
-    name: "devvault_ingest",
+  server.tool("devvault_ingest", {
     description:
       "Save a new knowledge module to the vault. Use after successfully implementing " +
       "a pattern worth preserving. The module will be created with visibility='global' " +
