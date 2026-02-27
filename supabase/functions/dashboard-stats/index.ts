@@ -1,13 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { handleCors, createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
+import { handleCorsV2, createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 import { authenticateRequest, isResponse } from "../_shared/auth.ts";
 
 serve(async (req) => {
-  const corsResponse = handleCors(req);
+  const corsResponse = handleCorsV2(req);
   if (corsResponse) return corsResponse;
 
   if (req.method !== "POST") {
-    return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
+    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
   }
 
   const auth = await authenticateRequest(req);
@@ -23,7 +23,7 @@ serve(async (req) => {
       client.from("projects").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(5),
     ]);
 
-    return createSuccessResponse({
+    return createSuccessResponse(req, {
       stats: {
         projects: projectsRes.count ?? 0,
         modules: modulesRes.count ?? 0,
@@ -34,6 +34,6 @@ serve(async (req) => {
     });
   } catch (err) {
     console.error("[dashboard-stats]", err.message);
-    return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
+    return createErrorResponse(req, ERROR_CODES.INTERNAL_ERROR, err.message, 500);
   }
 });

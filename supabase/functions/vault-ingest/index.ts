@@ -1,16 +1,16 @@
 /**
- * vault-ingest — Endpoint de escrita no Knowledge OS do DevVault
+ * vault-ingest — Write endpoint for the DevVault Knowledge OS.
  *
- * Permite que agentes de IA criem, atualizem e deletem módulos
- * sem precisar de JWT, GitHub ou acesso direto ao Supabase.
+ * Allows AI agents to create, update, and delete modules
+ * without requiring JWT, GitHub, or direct Supabase access.
  *
- * Autenticação: API Key do DevVault (header X-DevVault-Key ou x-api-key)
+ * Authentication: DevVault API Key (header X-DevVault-Key or x-api-key)
  *
  * Actions:
- *   POST {"action": "ingest", "modules": [...]}   — criar módulos (batch até 50)
- *   POST {"action": "ingest", "title": "..."}     — criar módulo único
- *   POST {"action": "update", "id": "uuid", ...}  — atualizar módulo existente
- *   POST {"action": "delete", "id": "uuid"}       — deletar módulo
+ *   POST {"action": "ingest", "modules": [...]}   — create modules (batch up to 50)
+ *   POST {"action": "ingest", "title": "..."}     — create single module
+ *   POST {"action": "update", "id": "uuid", ...}  — update existing module
+ *   POST {"action": "delete", "id": "uuid"}       — delete module
  */
 
 import { withSentry } from "../_shared/sentry.ts";
@@ -23,23 +23,23 @@ import { createLogger } from "../_shared/logger.ts";
 
 const logger = createLogger("vault-ingest");
 
-Deno.serve(withSentry(async (req: Request) => {
+Deno.serve(withSentry("vault-ingest", async (req: Request) => {
   // 1. CORS
   const corsResponse = handleCorsV2(req);
   if (corsResponse) return corsResponse;
 
   if (req.method !== "POST") {
-    return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Apenas POST é aceito.", 405);
+    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST is accepted.", 405);
   }
 
   // 2. Rate Limiting
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const rateLimit = await checkRateLimit(clientIp, "vault-ingest", RATE_LIMIT_CONFIGS.create.max, RATE_LIMIT_CONFIGS.create.window);
   if (!rateLimit.allowed) {
-    return createErrorResponse(ERROR_CODES.RATE_LIMITED, "Rate limit excedido.", 429);
+    return createErrorResponse(req, ERROR_CODES.RATE_LIMITED, "Rate limit exceeded.", 429);
   }
 
-  // 3. Autenticação via API Key
+  // 3. API Key Authentication
   const apiKeyHeader =
     req.headers.get("X-DevVault-Key") ??
     req.headers.get("x-devvault-key") ??
@@ -48,8 +48,9 @@ Deno.serve(withSentry(async (req: Request) => {
 
   if (!apiKeyHeader) {
     return createErrorResponse(
+      req,
       ERROR_CODES.UNAUTHORIZED,
-      "API Key obrigatória. Envie o header X-DevVault-Key com sua chave dvlt_...",
+      "API Key required. Send the X-DevVault-Key header with your dvlt_... key.",
       401
     );
   }
@@ -57,32 +58,32 @@ Deno.serve(withSentry(async (req: Request) => {
   const supabase = getSupabaseClient("general");
   const keyValidation = await validateApiKey(supabase, apiKeyHeader);
   if (!keyValidation.valid) {
-    logger.warn("API key inválida", { ip: clientIp, prefix: apiKeyHeader.substring(0, 8) });
-    return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "API Key inválida ou revogada.", 401);
+    logger.warn("Invalid API key", { ip: clientIp, prefix: apiKeyHeader.substring(0, 8) });
+    return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Invalid or revoked API Key.", 401);
   }
 
   const userId = keyValidation.user_id;
 
-  // 4. Parse do body
+  // 4. Parse body
   let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
-    return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Body JSON inválido.", 400);
+    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Invalid JSON body.", 400);
   }
 
-  // Detectar action — compatibilidade retroativa: se não tiver action, assume ingest
+  // Detect action — backward compatibility: defaults to ingest if missing
   const action = (body.action as string) ?? "ingest";
 
   logger.info("vault-ingest request", { action, ip: clientIp, userId });
 
-  // 5. Roteamento por action
+  // 5. Route by action
   switch (action) {
 
-    // ── INGEST: criar módulos (individual ou batch) ──────────────────────
+    // ── INGEST: create modules (individual or batch) ─────────────────────
     case "ingest": {
-      // Suporte a: {"action":"ingest","modules":[...]} ou {"action":"ingest","title":"..."}
-      // ou retrocompatibilidade: array direto ou objeto direto sem action
+      // Supports: {"action":"ingest","modules":[...]} or {"action":"ingest","title":"..."}
+      // or backward compatibility: direct array or direct object without action
       let rawModules: unknown[];
       if (Array.isArray(body.modules)) {
         rawModules = body.modules;
@@ -92,22 +93,23 @@ Deno.serve(withSentry(async (req: Request) => {
         rawModules = [body];
       } else {
         return createErrorResponse(
+          req,
           ERROR_CODES.VALIDATION_ERROR,
-          "Informe 'modules' (array) ou os campos do módulo diretamente.",
+          "Provide 'modules' (array) or module fields directly.",
           422
         );
       }
 
       if (rawModules.length === 0) {
-        return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Payload vazio.", 422);
+        return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Empty payload.", 422);
       }
       if (rawModules.length > 50) {
-        return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Máximo 50 módulos por requisição.", 422);
+        return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Maximum 50 modules per request.", 422);
       }
 
       const toInsert = rawModules.map((mod: unknown) => {
         const m = mod as Record<string, unknown>;
-        if (!m.title) throw new Error(`Módulo sem campo obrigatório: title`);
+        if (!m.title) throw new Error("Module missing required field: title");
         return {
           user_id:          userId,
           title:            m.title,
@@ -137,22 +139,22 @@ Deno.serve(withSentry(async (req: Request) => {
         .select("id, slug, title, domain, module_type, validation_status");
 
       if (error) {
-        logger.error("Erro ao inserir módulos", { error: error.message });
+        logger.error("Failed to insert modules", { error: error.message });
         throw error;
       }
 
-      logger.info(`Ingestão concluída`, { count: data.length, userId });
-      return createSuccessResponse({ ingested: data.length, modules: data }, 201);
+      logger.info("Ingestion completed", { count: data.length, userId });
+      return createSuccessResponse(req, { ingested: data.length, modules: data }, 201);
     }
 
-    // ── UPDATE: atualizar módulo existente ───────────────────────────────
+    // ── UPDATE: update existing module ───────────────────────────────────
     case "update": {
       const id = body.id as string;
       if (!id) {
-        return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Campo 'id' obrigatório para update.", 400);
+        return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Field 'id' is required for update.", 400);
       }
 
-      // Verificar se o módulo pertence ao usuário
+      // Verify the module belongs to the user
       const { data: existing, error: fetchError } = await supabase
         .from("vault_modules")
         .select("id, user_id")
@@ -160,14 +162,14 @@ Deno.serve(withSentry(async (req: Request) => {
         .single();
 
       if (fetchError || !existing) {
-        return createErrorResponse(ERROR_CODES.NOT_FOUND, "Módulo não encontrado.", 404);
+        return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Module not found.", 404);
       }
 
       if (existing.user_id !== userId) {
-        return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Sem permissão para editar este módulo.", 403);
+        return createErrorResponse(req, ERROR_CODES.FORBIDDEN, "No permission to edit this module.", 403);
       }
 
-      // Campos permitidos para atualização
+      // Allowed fields for update
       const allowedFields = [
         "title", "description", "domain", "module_type", "language",
         "code", "context_markdown", "dependencies", "tags",
@@ -184,7 +186,7 @@ Deno.serve(withSentry(async (req: Request) => {
       }
 
       if (Object.keys(updates).length === 0) {
-        return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Nenhum campo para atualizar.", 400);
+        return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "No fields to update.", 400);
       }
 
       const { data, error } = await supabase
@@ -195,22 +197,22 @@ Deno.serve(withSentry(async (req: Request) => {
         .single();
 
       if (error) {
-        logger.error("Erro ao atualizar módulo", { error: error.message, id });
+        logger.error("Failed to update module", { error: error.message, id });
         throw error;
       }
 
-      logger.info("Módulo atualizado", { id, userId, fields: Object.keys(updates) });
-      return createSuccessResponse({ updated: true, module: data });
+      logger.info("Module updated", { id, userId, fields: Object.keys(updates) });
+      return createSuccessResponse(req, { updated: true, module: data });
     }
 
-    // ── DELETE: deletar módulo ───────────────────────────────────────────
+    // ── DELETE: delete module ────────────────────────────────────────────
     case "delete": {
       const id = body.id as string;
       if (!id) {
-        return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Campo 'id' obrigatório para delete.", 400);
+        return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Field 'id' is required for delete.", 400);
       }
 
-      // Verificar se o módulo pertence ao usuário
+      // Verify the module belongs to the user
       const { data: existing, error: fetchError } = await supabase
         .from("vault_modules")
         .select("id, user_id, title")
@@ -218,11 +220,11 @@ Deno.serve(withSentry(async (req: Request) => {
         .single();
 
       if (fetchError || !existing) {
-        return createErrorResponse(ERROR_CODES.NOT_FOUND, "Módulo não encontrado.", 404);
+        return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Module not found.", 404);
       }
 
       if (existing.user_id !== userId) {
-        return createErrorResponse(ERROR_CODES.UNAUTHORIZED, "Sem permissão para deletar este módulo.", 403);
+        return createErrorResponse(req, ERROR_CODES.FORBIDDEN, "No permission to delete this module.", 403);
       }
 
       const { error } = await supabase
@@ -231,19 +233,20 @@ Deno.serve(withSentry(async (req: Request) => {
         .eq("id", id);
 
       if (error) {
-        logger.error("Erro ao deletar módulo", { error: error.message, id });
+        logger.error("Failed to delete module", { error: error.message, id });
         throw error;
       }
 
-      logger.info("Módulo deletado", { id, title: existing.title, userId });
-      return createSuccessResponse({ deleted: true, id, title: existing.title });
+      logger.info("Module deleted", { id, title: existing.title, userId });
+      return createSuccessResponse(req, { deleted: true, id, title: existing.title });
     }
 
     // ── DEFAULT ──────────────────────────────────────────────────────────
     default:
       return createErrorResponse(
+        req,
         ERROR_CODES.VALIDATION_ERROR,
-        `Action '${action}' inválida. Valores aceitos: ingest | update | delete`,
+        `Invalid action '${action}'. Accepted values: ingest | update | delete`,
         400
       );
   }

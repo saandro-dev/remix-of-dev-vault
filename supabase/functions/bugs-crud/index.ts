@@ -1,13 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { handleCors, createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
+import { handleCorsV2, createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 import { authenticateRequest, isResponse } from "../_shared/auth.ts";
 
 serve(async (req) => {
-  const corsResponse = handleCors(req);
+  const corsResponse = handleCorsV2(req);
   if (corsResponse) return corsResponse;
 
   if (req.method !== "POST") {
-    return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
+    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
   }
 
   const auth = await authenticateRequest(req);
@@ -26,13 +26,13 @@ serve(async (req) => {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
         if (error) throw error;
-        return createSuccessResponse({ items: data });
+        return createSuccessResponse(req, { items: data });
       }
 
       case "create": {
         const { title, symptom, cause_code, solution, project_id, vault_module_id, tags } = body;
         if (!title || !symptom) {
-          return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing title or symptom", 422);
+          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing title or symptom", 422);
         }
         const { data, error } = await client
           .from("bugs")
@@ -50,12 +50,12 @@ serve(async (req) => {
           .select()
           .single();
         if (error) throw error;
-        return createSuccessResponse(data, 201);
+        return createSuccessResponse(req, data, 201);
       }
 
       case "update": {
         const { id, status, title, symptom, cause_code, solution, tags } = body;
-        if (!id) return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
+        if (!id) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
         const updateFields: Record<string, unknown> = {};
         if (status !== undefined) updateFields.status = status;
         if (title !== undefined) updateFields.title = title;
@@ -72,26 +72,26 @@ serve(async (req) => {
           .select()
           .single();
         if (error) throw error;
-        return createSuccessResponse(data);
+        return createSuccessResponse(req, data);
       }
 
       case "delete": {
         const { id } = body;
-        if (!id) return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
+        if (!id) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
         const { error } = await client
           .from("bugs")
           .delete()
           .eq("id", id)
           .eq("user_id", user.id);
         if (error) throw error;
-        return createSuccessResponse({ success: true });
+        return createSuccessResponse(req, { success: true });
       }
 
       default:
-        return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, `Unknown action: ${action}`, 422);
+        return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, `Unknown action: ${action}`, 422);
     }
   } catch (err) {
     console.error("[bugs-crud]", err.message);
-    return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
+    return createErrorResponse(req, ERROR_CODES.INTERNAL_ERROR, err.message, 500);
   }
 });

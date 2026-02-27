@@ -1,22 +1,20 @@
 /**
- * project-api-keys-crud — CRUD de API Keys de Projetos (Vault-backed)
+ * project-api-keys-crud — CRUD for Project API Keys (Vault-backed).
  *
- * Todas as chaves são armazenadas criptografadas no Supabase Vault.
- * O campo key_value na tabela api_keys contém apenas '***' como placeholder.
- * O valor real só é retornado sob demanda via action "read".
+ * All keys are stored encrypted in Supabase Vault.
+ * The key_value field in the api_keys table contains only '***' as a placeholder.
+ * The real value is only returned on demand via the "read" action.
  *
- * Actions disponíveis:
- *   - list:   Lista as chaves de uma pasta (sem o valor real)
- *   - create: Armazena nova chave no Vault via store_project_api_key()
- *   - read:   Retorna o valor decriptado de uma chave via read_project_api_key()
- *   - delete: Remove a chave da tabela E do Vault via delete_project_api_key()
- *
- * Padrão: RiseCheckout gateway-credentials + devvault_api_keys (validado em produção)
+ * Available actions:
+ *   - list:   Lists keys in a folder (without the real value)
+ *   - create: Stores a new key in Vault via store_project_api_key()
+ *   - read:   Returns the decrypted value of a key via read_project_api_key()
+ *   - delete: Removes the key from the table AND from Vault via delete_project_api_key()
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
-  handleCors,
+  handleCorsV2,
   createSuccessResponse,
   createErrorResponse,
   ERROR_CODES,
@@ -24,11 +22,11 @@ import {
 import { authenticateRequest, isResponse } from "../_shared/auth.ts";
 
 serve(async (req) => {
-  const corsResponse = handleCors(req);
+  const corsResponse = handleCorsV2(req);
   if (corsResponse) return corsResponse;
 
   if (req.method !== "POST") {
-    return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
+    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
   }
 
   const auth = await authenticateRequest(req);
@@ -41,12 +39,12 @@ serve(async (req) => {
 
     switch (action) {
       // ------------------------------------------------------------------
-      // LIST — Retorna chaves de uma pasta SEM o valor real
+      // LIST — Returns keys in a folder WITHOUT the real value
       // ------------------------------------------------------------------
       case "list": {
         const { folder_id } = body;
         if (!folder_id) {
-          return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing folder_id", 422);
+          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing folder_id", 422);
         }
 
         const { data, error } = await client
@@ -58,7 +56,7 @@ serve(async (req) => {
 
         if (error) throw error;
 
-        // Nunca retornar key_value — apenas indicar se tem referência no Vault
+        // Never return key_value — only indicate if a Vault reference exists
         const items = (data ?? []).map((k: Record<string, unknown>) => ({
           id: k.id,
           label: k.label,
@@ -67,17 +65,18 @@ serve(async (req) => {
           has_value: k.vault_secret_id !== null,
         }));
 
-        return createSuccessResponse({ items });
+        return createSuccessResponse(req, { items });
       }
 
       // ------------------------------------------------------------------
-      // CREATE — Armazena nova chave no Vault via store_project_api_key()
+      // CREATE — Stores a new key in Vault via store_project_api_key()
       // ------------------------------------------------------------------
       case "create": {
         const { project_id, folder_id, label, key_value, environment } = body;
 
         if (!project_id || !folder_id || !label || !key_value) {
           return createErrorResponse(
+            req,
             ERROR_CODES.VALIDATION_ERROR,
             "Missing required fields: project_id, folder_id, label, key_value",
             422
@@ -95,16 +94,16 @@ serve(async (req) => {
 
         if (error) throw error;
 
-        return createSuccessResponse({ id: data }, 201);
+        return createSuccessResponse(req, { id: data }, 201);
       }
 
       // ------------------------------------------------------------------
-      // READ — Retorna o valor decriptado sob demanda (uma chave por vez)
+      // READ — Returns the decrypted value on demand (one key at a time)
       // ------------------------------------------------------------------
       case "read": {
         const { id } = body;
         if (!id) {
-          return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
+          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
         }
 
         const { data, error } = await client.rpc("read_project_api_key", {
@@ -114,19 +113,19 @@ serve(async (req) => {
 
         if (error) throw error;
         if (!data) {
-          return createErrorResponse(ERROR_CODES.NOT_FOUND, "Key not found or access denied", 404);
+          return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Key not found or access denied", 404);
         }
 
-        return createSuccessResponse({ value: data });
+        return createSuccessResponse(req, { value: data });
       }
 
       // ------------------------------------------------------------------
-      // DELETE — Remove da tabela E do Vault atomicamente
+      // DELETE — Removes from the table AND from Vault atomically
       // ------------------------------------------------------------------
       case "delete": {
         const { id } = body;
         if (!id) {
-          return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
+          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
         }
 
         const { data, error } = await client.rpc("delete_project_api_key", {
@@ -136,14 +135,15 @@ serve(async (req) => {
 
         if (error) throw error;
         if (!data) {
-          return createErrorResponse(ERROR_CODES.NOT_FOUND, "Key not found or access denied", 404);
+          return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Key not found or access denied", 404);
         }
 
-        return createSuccessResponse({ success: true });
+        return createSuccessResponse(req, { success: true });
       }
 
       default:
         return createErrorResponse(
+          req,
           ERROR_CODES.VALIDATION_ERROR,
           `Unknown action: ${action}. Valid: list, create, read, delete`,
           422
@@ -151,6 +151,6 @@ serve(async (req) => {
     }
   } catch (err) {
     console.error("[project-api-keys-crud]", err.message);
-    return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
+    return createErrorResponse(req, ERROR_CODES.INTERNAL_ERROR, err.message, 500);
   }
 });

@@ -1,102 +1,82 @@
 
+# RBAC + Admin Panel — Implementation Report
 
-# Relatório de Auditoria: RBAC + Admin Panel
-
-## Status: PARCIALMENTE COMPLETO — Correções Necessárias
-
----
-
-## 1. O QUE FOI IMPLEMENTADO CORRETAMENTE
-
-| Componente | Status | Detalhe |
-|------------|--------|---------|
-| Database migration (owner enum, functions, RLS) | PASS | `is_admin_or_owner`, `get_user_role` criados corretamente |
-| `role-validator.ts` (backend) | PASS | Hierarquia correta, `requireRole` com throw |
-| `admin-crud/index.ts` | PASS | 3 actions, usa `handleCorsV2`, `createSuccessResponse(req, ...)` |
-| `usePermissions.ts` | PASS | Usa `invokeEdgeFunction` (Regra 5.5 OK) |
-| `RoleProtectedRoute.tsx` | PASS | Hierarquia numérica, loading spinner, redirect |
-| `appRoutes.tsx` | PASS | `/admin` com `RoleProtectedRoute` |
-| `navigationConfig.ts` | PASS | Item `admin` com `requiredRole: "admin"` |
-| `AppSidebar.tsx` | PASS | Filtra nav por role |
-| `AdminProvider.tsx` | PASS | React Query + Context, i18n nos toasts |
-| `UsersTable.tsx` | PASS | Tabela com avatar, role badge, actions (owner only) |
-| `RoleChangeDialog.tsx` | PASS | Select com 3 roles, confirmacao, disabled state |
-| i18n keys (en + pt-BR) | PASS | Admin keys completas incluindo `moderator` |
-| `ProtectedRoute.tsx` | PASS | `t("common.loading")` em vez de PT hardcoded |
+## Status: COMPLETE ✅
 
 ---
 
-## 2. VIOLACOES ENCONTRADAS
+## Architecture Overview
 
-### 2.1 CRITICA: `auth.ts` usa signature legada de `createErrorResponse`
+### Role Hierarchy
+`owner > admin > moderator > user`
 
-**Arquivo:** `supabase/functions/_shared/auth.ts` (linhas 14 e 28)
-
-Chama `createErrorResponse(ERROR_CODES.UNAUTHORIZED, "...", 401)` sem `req`, resultando em CORS `*` wildcard em vez do CORS seguro com allowlist. Enquanto `admin-crud` usa corretamente `createErrorResponse(req, ...)`, o `auth.ts` compartilhado usa a forma insegura.
-
-**Impacto:** Toda Edge Function que usa `authenticateRequest()` retorna erros de auth com CORS `*`.
-
-**Correcao:** Alterar `authenticateRequest` para receber `req` e usar a signature segura.
-
-### 2.2 CRITICA: Comentarios em portugues nos shared helpers
-
-**Arquivos afetados:**
-- `supabase/functions/_shared/api-helpers.ts` — 15+ comentarios em PT ("Cria uma resposta", "Sobrecarga legada", "Mantido para compatibilidade", "Extrai o IP", "Trata requisicoes")
-- `supabase/functions/_shared/cors-v2.ts` — 6+ comentarios em PT ("Trata requisicoes OPTIONS", "Retorna null", "Origem nao permitida")
-- `supabase/functions/_shared/sentry.ts` — 5+ comentarios em PT ("Envolve o handler", "Garante que nenhum erro")
-
-**Violacao:** Regra 5.4 — Nomenclatura em ingles tecnico.
-
-### 2.3 MEDIA: Funcoes legadas dead code em `api-helpers.ts`
-
-- `handleCors()` esta marcado como `@deprecated` mas ainda existe no arquivo
-- `corsHeaders` wildcard `*` exportado e usado pelo `auth.ts` e possivelmente outros
-- Comentario "Mantido para compatibilidade retroativa durante a migração" — viola Regra 3.5 ("Nada e temporario")
-
-### 2.4 MEDIA: `vault-ingest/index.ts` tem strings de erro em portugues
-
-Pelo menos 12 mensagens de erro hardcoded em PT: "Apenas POST é aceito", "Rate limit excedido", "API Key inválida", "Body JSON inválido", "Payload vazio", "Máximo 50 módulos", etc.
-
-### 2.5 BAIXA: `.lovable/plan.md` desatualizado
-
-O plano menciona XState como dependencia e lista arquivos `machines/adminMachine.ts` e `machines/adminMachine.types.ts` que nunca foram criados. A implementacao real usa React Query + Context (decisao correta), mas o plano nao foi atualizado para refletir isso.
-
-### 2.6 BAIXA: `AdminUser.email` removido da interface mas presente no plano
-
-O plano original listava `AdminUser { id, displayName, avatarUrl, email, role, createdAt }` com `email`. A interface final nao tem `email` (correto, ja que `profiles` nao tem email). O plano esta desatualizado.
+### Stack
+- **Database:** PostgreSQL with `app_role` enum, `get_user_role()` and `is_admin_or_owner()` SECURITY DEFINER functions, RLS policies on `user_roles` and `profiles`
+- **Backend:** Edge Function `admin-crud` with 3 actions (`get-my-role`, `list-users`, `change-role`), shared `role-validator.ts` for hierarchy enforcement
+- **Frontend State:** React Query + Context pattern via `AdminProvider.tsx` (no XState)
+- **Auth Hook:** `usePermissions.ts` invokes `admin-crud` Edge Function via `invokeEdgeFunction` (Rule 5.5 compliant)
+- **Route Protection:** `RoleProtectedRoute.tsx` with numeric hierarchy comparison
+- **UI:** `UsersTable.tsx` + `RoleChangeDialog.tsx` with full i18n support (en + pt-BR)
 
 ---
 
-## 3. PLANO DE REMEDIACAO
+## Module Structure
 
-### Step 1: Corrigir `auth.ts` para usar CORS seguro
-- Alterar `authenticateRequest(req)` para propagar `req` nas chamadas de `createErrorResponse`
-- Usar signature `createErrorResponse(req, code, message, status)` em vez da legada
-
-### Step 2: Traduzir todos os comentarios dos shared helpers para ingles
-- `api-helpers.ts` — todos os JSDoc e inline comments
-- `cors-v2.ts` — todos os JSDoc e inline comments
-- `sentry.ts` — todos os JSDoc e inline comments
-
-### Step 3: Remover dead code legado de `api-helpers.ts`
-- Deletar `corsHeaders` wildcard (apos migrar `auth.ts`)
-- Deletar funcao `handleCors()` deprecated
-- Verificar que nenhum outro arquivo importa esses exports
-
-### Step 4: Traduzir strings de erro em `vault-ingest/index.ts`
-- Substituir todas as mensagens PT por equivalentes em ingles
-
-### Step 5: Atualizar `.lovable/plan.md`
-- Remover referencias a XState/machines
-- Refletir a arquitetura real (React Query + Context)
-
-### Arquivos a modificar:
 ```text
-supabase/functions/_shared/auth.ts
-supabase/functions/_shared/api-helpers.ts
-supabase/functions/_shared/cors-v2.ts
-supabase/functions/_shared/sentry.ts
-supabase/functions/vault-ingest/index.ts
-.lovable/plan.md
+src/modules/admin/
+├── types/admin.types.ts        — AdminUser interface
+├── context/
+│   ├── adminFetchers.ts        — fetchUsers() via invokeEdgeFunction
+│   ├── adminHandlers.ts        — changeUserRole() via invokeEdgeFunction
+│   └── AdminProvider.tsx       — React Query + Context provider
+├── hooks/useAdmin.ts           — Hook consuming AdminContext
+├── components/
+│   ├── UsersTable.tsx          — User list with avatar, role badge, actions
+│   └── RoleChangeDialog.tsx    — Role change confirmation dialog
+└── pages/AdminPage.tsx         — Page component with i18n
+
+src/modules/auth/
+├── hooks/usePermissions.ts     — Role fetching via Edge Function
+└── components/
+    └── RoleProtectedRoute.tsx  — Route guard with role hierarchy
 ```
 
+---
+
+## Backend Files
+
+```text
+supabase/functions/
+├── _shared/
+│   ├── auth.ts                 — authenticateRequest with secure CORS
+│   ├── api-helpers.ts          — createSuccessResponse/createErrorResponse (req-based only)
+│   ├── cors-v2.ts              — Origin allowlist CORS handler
+│   ├── sentry.ts               — Error reporting wrapper
+│   └── role-validator.ts       — getUserRole, requireRole, isValidRole
+└── admin-crud/index.ts         — Admin panel Edge Function
+```
+
+---
+
+## Security Model
+
+- All CORS responses use origin-validated allowlist (no wildcard `*`)
+- Frontend never accesses database directly (Rule 5.5)
+- Role changes restricted to `owner` role only
+- Self-demotion prevented in `change-role` action
+- All comments and error messages in English (Rule 5.4)
+
+---
+
+## Remediation Log (2026-02-27)
+
+| Issue | Resolution |
+|-------|-----------|
+| `auth.ts` used legacy `createErrorResponse` without `req` (wildcard CORS) | Fixed: now passes `req` for secure CORS |
+| Portuguese comments in shared helpers | Translated all to English |
+| Dead code: `corsHeaders` wildcard + `handleCors()` deprecated | Removed entirely |
+| Legacy overloaded signatures in `createSuccessResponse`/`createErrorResponse` | Removed: single clean `req`-based signature only |
+| 6 Edge Functions using `handleCors` + legacy signatures | Migrated all to `handleCorsV2` + `req`-based signatures |
+| `profiles-crud` using nonexistent `ERROR_CODES.INTERNAL`/`BAD_REQUEST` | Fixed to `INTERNAL_ERROR`/`VALIDATION_ERROR` |
+| `vault-ingest` with 12+ Portuguese error messages | Translated all to English |
+| Plan referencing XState (never implemented) | Updated to reflect React Query + Context |

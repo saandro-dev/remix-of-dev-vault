@@ -1,13 +1,9 @@
 import { authenticateRequest, isResponse } from "../_shared/auth.ts";
-import { createErrorResponse, createSuccessResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
-import { getCorsHeaders } from "../_shared/cors-v2.ts";
+import { handleCorsV2, createErrorResponse, createSuccessResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 
 Deno.serve(async (req) => {
-  const cors = getCorsHeaders(req);
-
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: cors });
-  }
+  const corsResponse = handleCorsV2(req);
+  if (corsResponse) return corsResponse;
 
   const authResult = await authenticateRequest(req);
   if (isResponse(authResult)) return authResult;
@@ -25,15 +21,15 @@ Deno.serve(async (req) => {
           .eq("id", user.id)
           .single();
 
-        if (error) return createErrorResponse(ERROR_CODES.INTERNAL, error.message, 500);
-        return createSuccessResponse(data, cors);
+        if (error) return createErrorResponse(req, ERROR_CODES.INTERNAL_ERROR, error.message, 500);
+        return createSuccessResponse(req, data);
       }
 
       case "update": {
         const { display_name, bio, avatar_url } = payload ?? {};
 
         if (!display_name || typeof display_name !== "string" || display_name.trim().length === 0) {
-          return createErrorResponse(ERROR_CODES.BAD_REQUEST, "display_name is required", 400);
+          return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "display_name is required", 400);
         }
 
         const { data, error } = await client
@@ -47,15 +43,15 @@ Deno.serve(async (req) => {
           .select()
           .single();
 
-        if (error) return createErrorResponse(ERROR_CODES.INTERNAL, error.message, 500);
-        return createSuccessResponse(data, cors);
+        if (error) return createErrorResponse(req, ERROR_CODES.INTERNAL_ERROR, error.message, 500);
+        return createSuccessResponse(req, data);
       }
 
       default:
-        return createErrorResponse(ERROR_CODES.BAD_REQUEST, `Unknown action: ${action}`, 400);
+        return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, `Unknown action: ${action}`, 400);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return createErrorResponse(ERROR_CODES.INTERNAL, message, 500);
+    return createErrorResponse(req, ERROR_CODES.INTERNAL_ERROR, message, 500);
   }
 });
