@@ -1,21 +1,19 @@
 /**
- * cors-v2.ts — CORS handler com allowlist de origens seguras.
+ * cors-v2.ts — CORS handler with origin allowlist.
  *
- * Diferente do cors simples com "*", este módulo valida a origem
- * da requisição contra uma lista de domínios permitidos, bloqueando
- * requisições de origens desconhecidas.
- *
- * Padrão extraído do RiseCheckout (validado em produção).
+ * Unlike a simple wildcard CORS ("*"), this module validates the request
+ * origin against a list of allowed domains, blocking requests from
+ * unknown origins.
  */
 
 const ALLOWED_ORIGINS_RAW = Deno.env.get("ALLOWED_ORIGINS") ?? "";
 
 /**
- * Origens permitidas. Em produção, configure a variável de ambiente
- * ALLOWED_ORIGINS com os domínios separados por vírgula.
- * Ex: "https://devvault.app,https://www.devvault.app"
+ * Allowed origins. In production, set the ALLOWED_ORIGINS environment
+ * variable with comma-separated domains.
+ * E.g.: "https://devvault.app,https://www.devvault.app"
  *
- * Em desenvolvimento (variável não configurada), permite localhost.
+ * In development (variable not set), localhost is allowed by default.
  */
 const ALLOWED_ORIGINS: string[] = ALLOWED_ORIGINS_RAW
   ? ALLOWED_ORIGINS_RAW.split(",").map((o) => o.trim()).filter(Boolean)
@@ -33,8 +31,9 @@ const BASE_CORS_HEADERS = {
 };
 
 /**
- * Retorna os headers CORS corretos para a origem da requisição.
- * Se a origem não for permitida, retorna headers sem Allow-Origin.
+ * Returns the correct CORS headers for the request origin.
+ * If the origin is not in the allowlist, returns headers without Allow-Origin,
+ * causing the browser to block the response.
  */
 export function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin") ?? "";
@@ -50,13 +49,13 @@ export function getCorsHeaders(req: Request): Record<string, string> {
     };
   }
 
-  // Origem não permitida — retorna sem Allow-Origin para bloquear o browser
+  // Origin not allowed — return without Allow-Origin to let the browser block it
   return BASE_CORS_HEADERS;
 }
 
 /**
- * Trata requisições OPTIONS (preflight CORS).
- * Retorna null se não for OPTIONS, ou uma Response 204 se for.
+ * Handles OPTIONS preflight CORS requests.
+ * Returns null if not OPTIONS, or a 204 Response if it is.
  */
 export function handleCorsV2(req: Request): Response | null {
   if (req.method !== "OPTIONS") return null;

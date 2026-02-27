@@ -1,14 +1,12 @@
 /**
- * sentry.ts — Wrapper de error reporting para Edge Functions.
+ * sentry.ts — Error reporting wrapper for Edge Functions.
  *
- * Envolve o handler principal de cada Edge Function para capturar
- * erros não tratados, registrá-los de forma estruturada e retornar
- * uma resposta 500 padronizada em vez de deixar a função travar.
+ * Wraps the main handler of each Edge Function to capture unhandled
+ * errors, log them in a structured format, and return a standardized
+ * 500 response instead of letting the function crash.
  *
- * Em produção, configure SENTRY_DSN para enviar erros ao Sentry.
- * Sem a variável configurada, os erros são apenas logados no console.
- *
- * Padrão extraído do RiseCheckout (validado em produção).
+ * In production, set SENTRY_DSN to send errors to Sentry.
+ * Without the variable set, errors are only logged to the console.
  */
 
 import { createLogger } from "./logger.ts";
@@ -17,12 +15,12 @@ import { getCorsHeaders } from "./cors-v2.ts";
 export type EdgeHandler = (req: Request) => Promise<Response>;
 
 /**
- * Envolve um handler de Edge Function com captura de erros global.
- * Garante que nenhum erro não tratado cause uma resposta vazia ou
- * um timeout silencioso.
+ * Wraps an Edge Function handler with global error capture.
+ * Ensures that no unhandled error causes an empty response or
+ * a silent timeout.
  *
- * @param fnName - Nome da função para identificação nos logs
- * @param handler - O handler principal da Edge Function
+ * @param fnName  - Function name for log identification
+ * @param handler - The main Edge Function handler
  */
 export function withSentry(fnName: string, handler: EdgeHandler): EdgeHandler {
   return async (req: Request): Promise<Response> => {
@@ -47,14 +45,14 @@ export function withSentry(fnName: string, handler: EdgeHandler): EdgeHandler {
         stack: error.stack,
       });
 
-      // Enviar para Sentry se DSN configurado
+      // Send to Sentry if DSN is configured
       const sentryDsn = Deno.env.get("SENTRY_DSN");
       if (sentryDsn) {
-        // Fire-and-forget: não bloqueia a resposta
+        // Fire-and-forget: does not block the response
         reportToSentry(sentryDsn, fnName, error, correlationId).catch(() => {});
       }
 
-      const corsHeaders = getCorsHeaders(req);
+      const headers = getCorsHeaders(req);
       return new Response(
         JSON.stringify({
           error: {
@@ -65,7 +63,7 @@ export function withSentry(fnName: string, handler: EdgeHandler): EdgeHandler {
         }),
         {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...headers, "Content-Type": "application/json" },
         },
       );
     }
@@ -79,7 +77,6 @@ async function reportToSentry(
   correlationId: string,
 ): Promise<void> {
   try {
-    // Parsear o DSN do Sentry para extrair a URL de ingestão
     const url = new URL(dsn);
     const projectId = url.pathname.replace("/", "");
     const key = url.username;
@@ -117,6 +114,6 @@ async function reportToSentry(
       }),
     });
   } catch {
-    // Silencioso — não queremos que o error reporting cause outro erro
+    // Silent — error reporting must never cause another error
   }
 }

@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { handleCorsV2 } from "../_shared/cors-v2.ts";
-import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
+import { handleCorsV2, createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 import { authenticateRequest, isResponse } from "../_shared/auth.ts";
 import { withSentry } from "../_shared/sentry.ts";
 import { log } from "../_shared/logger.ts";
@@ -10,7 +9,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
   if (corsResponse) return corsResponse;
 
   if (req.method !== "POST") {
-    return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
+    return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
   }
 
   const auth = await authenticateRequest(req);
@@ -45,12 +44,12 @@ serve(withSentry("vault-crud", async (req: Request) => {
 
         const { data, error } = await q;
         if (error) throw error;
-        return createSuccessResponse({ items: data, total: data.length });
+        return createSuccessResponse(req, { items: data, total: data.length });
       }
 
       case "get": {
         const { id } = body;
-        if (!id) return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
+        if (!id) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
         const { data, error } = await client
           .from("vault_modules")
           .select("*")
@@ -58,13 +57,13 @@ serve(withSentry("vault-crud", async (req: Request) => {
           .eq("id", id)
           .maybeSingle();
         if (error) throw error;
-        if (!data) return createErrorResponse(ERROR_CODES.NOT_FOUND, "Module not found", 404);
-        return createSuccessResponse(data);
+        if (!data) return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Module not found", 404);
+        return createSuccessResponse(req, data);
       }
 
       case "create": {
         const { title, description, category, domain, module_type, language, code, context_markdown, dependencies, tags, saas_phase, phase_title, why_it_matters, code_example, source_project, validation_status, related_modules, is_public } = body;
-        if (!title) return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing title", 422);
+        if (!title) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing title", 422);
         const { data, error } = await client
           .from("vault_modules")
           .insert({
@@ -91,18 +90,18 @@ serve(withSentry("vault-crud", async (req: Request) => {
           .single();
         if (error) throw error;
         log("info", "vault-crud", `created module=${data.id} domain=${data.domain}`);
-        return createSuccessResponse(data, 201);
+        return createSuccessResponse(req, data, 201);
       }
 
       case "update": {
         const { id, ...fields } = body;
-        if (!id) return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
+        if (!id) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
         const allowed = ["title","description","domain","module_type","language","code","context_markdown","dependencies","tags","saas_phase","phase_title","why_it_matters","code_example","source_project","validation_status","related_modules","is_public"];
         const updateFields: Record<string, unknown> = {};
         for (const key of allowed) {
           if (fields[key] !== undefined) updateFields[key] = fields[key];
         }
-        if (Object.keys(updateFields).length === 0) return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "No fields to update", 422);
+        if (Object.keys(updateFields).length === 0) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "No fields to update", 422);
         const { data, error } = await client
           .from("vault_modules")
           .update(updateFields)
@@ -111,19 +110,19 @@ serve(withSentry("vault-crud", async (req: Request) => {
           .select()
           .single();
         if (error) throw error;
-        return createSuccessResponse(data);
+        return createSuccessResponse(req, data);
       }
 
       case "delete": {
         const { id } = body;
-        if (!id) return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
+        if (!id) return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Missing id", 422);
         const { error } = await client
           .from("vault_modules")
           .delete()
           .eq("id", id)
           .eq("user_id", user.id);
         if (error) throw error;
-        return createSuccessResponse({ success: true });
+        return createSuccessResponse(req, { success: true });
       }
 
       case "search": {
@@ -140,7 +139,7 @@ serve(withSentry("vault-crud", async (req: Request) => {
           p_offset:      offset,
         });
         if (error) throw error;
-        return createSuccessResponse({ items: data, total: data.length });
+        return createSuccessResponse(req, { items: data, total: data.length });
       }
 
       case "get_playbook": {
@@ -157,14 +156,14 @@ serve(withSentry("vault-crud", async (req: Request) => {
           if (!phases[phase]) phases[phase] = [];
           phases[phase].push(mod);
         }
-        return createSuccessResponse({ phases, total: data?.length ?? 0 });
+        return createSuccessResponse(req, { phases, total: data?.length ?? 0 });
       }
 
       default:
-        return createErrorResponse(ERROR_CODES.VALIDATION_ERROR, `Unknown action: ${action}`, 422);
+        return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, `Unknown action: ${action}`, 422);
     }
   } catch (err) {
     log("error", "vault-crud", err.message);
-    return createErrorResponse(ERROR_CODES.INTERNAL_ERROR, err.message, 500);
+    return createErrorResponse(req, ERROR_CODES.INTERNAL_ERROR, err.message, 500);
   }
 }));
