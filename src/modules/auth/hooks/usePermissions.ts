@@ -1,12 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
-import { invokeEdgeFunction } from "@/lib/edge-function-client";
+/**
+ * usePermissions — Reads the user's role from JWT app_metadata.
+ *
+ * The role is synced into `auth.users.raw_app_meta_data` via a
+ * SECURITY DEFINER trigger on `public.user_roles`. This eliminates
+ * the need for a network call on every page load.
+ *
+ * The `get-my-role` action in `admin-crud` is kept for external
+ * API consumers but is no longer used by the frontend.
+ */
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 
 type AppRole = "owner" | "admin" | "moderator" | "user";
-
-interface RoleResponse {
-  role: AppRole;
-}
 
 const ROLE_HIERARCHY: Record<AppRole, number> = {
   owner: 1,
@@ -15,22 +19,18 @@ const ROLE_HIERARCHY: Record<AppRole, number> = {
   user: 4,
 };
 
+function parseAppRole(value: unknown): AppRole {
+  if (typeof value === "string" && value in ROLE_HIERARCHY) {
+    return value as AppRole;
+  }
+  return "user";
+}
+
 export function usePermissions() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["user-role", user?.id],
-    queryFn: () =>
-      invokeEdgeFunction<RoleResponse>("admin-crud", {
-        action: "get-my-role",
-      }),
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: true,
-  });
-
-  const role: AppRole = data?.role ?? "user";
-  const level = ROLE_HIERARCHY[role] ?? 99;
+  const role: AppRole = parseAppRole(user?.app_metadata?.app_role);
+  const level = ROLE_HIERARCHY[role];
 
   return {
     role,
