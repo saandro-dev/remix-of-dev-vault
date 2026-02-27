@@ -13,7 +13,7 @@ serve(
     const corsResponse = handleCorsV2(req);
     if (corsResponse) return corsResponse;
 
-    // 2. Rate limiting por IP (limite generoso para não prejudicar UX)
+    // 2. IP-based rate limiting (generous limit to preserve UX)
     const clientIp = getClientIp(req);
     const rl = await checkRateLimit(clientIp, "global-search");
     if (rl.blocked) {
@@ -26,7 +26,7 @@ serve(
       );
     }
 
-    // 3. Autenticação do usuário via JWT
+    // 3. User authentication via JWT
     const token = extractBearerToken(req);
     if (!token) {
       return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Missing authorization", 401);
@@ -37,7 +37,7 @@ serve(
       return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
     }
 
-    // 4. Validação do payload
+    // 4. Payload validation
     let body: { query?: unknown };
     try {
       body = await req.json();
@@ -50,7 +50,7 @@ serve(
       return createSuccessResponse(req, { results: [] });
     }
 
-    // 5. Executar busca em paralelo usando cliente "general"
+    // 5. Execute parallel search using "general" client
     const generalClient = getSupabaseClient("general");
     const searchTerm = `%${query.trim()}%`;
 

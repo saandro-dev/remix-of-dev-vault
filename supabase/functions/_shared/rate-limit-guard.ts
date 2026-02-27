@@ -1,25 +1,25 @@
 /**
- * rate-limit-guard.ts — Rate limiting configurável por ação.
+ * rate-limit-guard.ts — Configurable rate limiting per action.
  *
- * Implementa rate limiting baseado em banco de dados com janelas
- * de tempo configuráveis por tipo de ação. Usa upsert atômico para
- * evitar race conditions em ambientes de alta concorrência.
+ * Implements database-backed rate limiting with configurable time
+ * windows per action type. Uses atomic upsert to prevent race
+ * conditions in high-concurrency environments.
  *
- * Padrão extraído do RiseCheckout (validado em produção).
+ * Pattern extracted from RiseCheckout (production-validated).
  */
 
 import { getSupabaseClient } from "./supabase-client.ts";
 
 export interface RateLimitConfig {
-  /** Número máximo de tentativas na janela de tempo */
+  /** Maximum number of attempts within the time window */
   maxAttempts: number;
-  /** Duração da janela de tempo em segundos */
+  /** Time window duration in seconds */
   windowSeconds: number;
-  /** Duração do bloqueio após exceder o limite, em segundos */
+  /** Block duration after exceeding the limit, in seconds */
   blockSeconds: number;
 }
 
-/** Configurações padrão por tipo de ação */
+/** Default configurations per action type */
 const ACTION_CONFIGS: Record<string, RateLimitConfig> = {
   "create-api-key": { maxAttempts: 5, windowSeconds: 300, blockSeconds: 3600 },
   "vault-ingest":   { maxAttempts: 60, windowSeconds: 60, blockSeconds: 300 },

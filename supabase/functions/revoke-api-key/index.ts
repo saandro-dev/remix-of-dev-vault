@@ -17,7 +17,7 @@ serve(
       return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
     }
 
-    // 2. Rate limiting por IP
+    // 2. IP-based rate limiting
     const clientIp = getClientIp(req);
     const rl = await checkRateLimit(clientIp, "revoke-api-key");
     if (rl.blocked) {
@@ -30,7 +30,7 @@ serve(
       );
     }
 
-    // 3. Autenticação do usuário via JWT
+    // 3. User authentication via JWT
     const token = extractBearerToken(req);
     if (!token) {
       return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Missing authorization", 401);
@@ -42,7 +42,7 @@ serve(
       return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
     }
 
-    // 4. Validação do payload
+    // 4. Payload validation
     let body: { key_id?: unknown };
     try {
       body = await req.json();
@@ -55,7 +55,7 @@ serve(
       return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "key_id is required", 422);
     }
 
-    // 5. Revogar a chave via função SQL vault-backed (remove do Vault também)
+    // 5. Revoke key via vault-backed SQL function (also removes from Vault)
     const adminClient = getSupabaseClient("admin");
     const { data: revoked, error } = await adminClient.rpc("revoke_devvault_api_key", {
       p_key_id: key_id,

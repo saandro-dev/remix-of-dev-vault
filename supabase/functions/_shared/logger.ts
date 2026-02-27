@@ -1,11 +1,11 @@
 /**
- * logger.ts — Logger estruturado para Edge Functions.
+ * logger.ts — Structured logger for Edge Functions.
  *
- * Emite logs em formato JSON estruturado, facilitando a ingestão
- * por ferramentas de observabilidade (Sentry, Datadog, etc.).
- * Inclui correlation-id para rastreamento de requisições.
+ * Emits logs in structured JSON format, facilitating ingestion
+ * by observability tools (Sentry, Datadog, etc.).
+ * Includes correlation-id for request tracing.
  *
- * Padrão extraído do RiseCheckout (validado em produção).
+ * Pattern extracted from RiseCheckout (production-validated).
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -20,10 +20,10 @@ export interface LogEntry {
 }
 
 /**
- * Cria um logger contextualizado para uma Edge Function específica.
+ * Creates a contextualized logger for a specific Edge Function.
  *
- * @param fnName - Nome da Edge Function (ex: "create-api-key")
- * @param correlationId - ID de rastreamento da requisição (opcional)
+ * @param fnName - Edge Function name (e.g. "create-api-key")
+ * @param correlationId - Request tracing ID (optional)
  */
 export function createLogger(fnName: string, correlationId?: string) {
   const log = (level: LogLevel, message: string, extra?: Record<string, unknown>) => {

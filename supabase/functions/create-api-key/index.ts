@@ -26,7 +26,7 @@ serve(
       return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "Only POST allowed", 405);
     }
 
-    // 2. Rate limiting por IP (proteção contra abuso)
+    // 2. IP-based rate limiting (abuse protection)
     const clientIp = getClientIp(req);
     const rl = await checkRateLimit(clientIp, "create-api-key");
     if (rl.blocked) {
@@ -39,7 +39,7 @@ serve(
       );
     }
 
-    // 3. Autenticação do usuário via JWT
+    // 3. User authentication via JWT
     const token = extractBearerToken(req);
     if (!token) {
       return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Missing authorization", 401);
@@ -51,7 +51,7 @@ serve(
       return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Invalid token", 401);
     }
 
-    // 4. Validação do payload
+    // 4. Payload validation
     let body: { key_name?: unknown };
     try {
       body = await req.json();
@@ -69,7 +69,7 @@ serve(
       );
     }
 
-    // 5. Criar a chave via função SQL vault-backed
+    // 5. Create key via vault-backed SQL function
     const adminClient = getSupabaseClient("admin");
     const rawKey = generateApiKey();
 
