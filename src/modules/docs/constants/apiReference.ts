@@ -5,123 +5,123 @@ export const API_BASE_URL =
 
 export const authSection: ApiSection = {
   id: "authentication",
-  title: "Autenticação",
-  content: `Todas as requisições à API devem incluir uma chave válida gerada em **Configurações → API & Integrações**.
+  title: "Authentication",
+  content: `All API requests must include a valid key generated in **Settings → API & Integrations**.
 
-A chave (prefixo \`dvlt_\`) deve ser enviada em **um** dos headers:
+The key (prefix \`dvlt_\`) must be sent in **one** of the following headers:
 
-| Header | Formato |
-|--------|---------|
+| Header | Format |
+|--------|--------|
 | \`x-api-key\` | \`dvlt_xxxxxxxxxxxxxxxx\` |
 | \`Authorization\` | \`Bearer dvlt_xxxxxxxxxxxxxxxx\` |
 
-As chaves são armazenadas criptografadas via **Supabase Vault (pgsodium)**. Após a criação, o valor completo é exibido **uma única vez** — copie e guarde em local seguro.`,
+Keys are stored encrypted via **Supabase Vault (pgsodium)**. After creation, the full value is shown **only once** — copy and store it securely.`,
 };
 
 export const rateLimitSection: ApiSection = {
   id: "rate-limiting",
   title: "Rate Limiting",
-  content: `A API impõe limite de **60 requisições por minuto** por endereço IP.
+  content: `The API enforces a limit of **60 requests per minute** per IP address.
 
-Ao exceder o limite, todas as requisições subsequentes retornam **429 Too Many Requests** e o IP fica bloqueado por **5 minutos**.
+When the limit is exceeded, all subsequent requests return **429 Too Many Requests** and the IP is blocked for **5 minutes**.
 
-O header de resposta incluirá \`retryAfterSeconds\` indicando o tempo restante de bloqueio.`,
+The response header will include \`retryAfterSeconds\` indicating the remaining block time.`,
 };
 
 export const auditSection: ApiSection = {
   id: "audit-log",
   title: "Audit Log",
-  content: `Todas as chamadas à API são registradas automaticamente na tabela \`devvault_api_audit_log\`, incluindo:
+  content: `All API calls are automatically logged in the \`devvault_api_audit_log\` table, including:
 
-- **user_id** — dono da API key usada
-- **api_key_id** — referência à chave utilizada
-- **ip_address** — IP de origem
-- **action** — nome da edge function invocada
-- **success** — booleano de sucesso/falha
-- **http_status** — código HTTP retornado
-- **error_code / error_message** — detalhes em caso de falha
-- **processing_time_ms** — tempo de processamento
-- **request_body** — payload parcial (título e categoria apenas, sem código)`,
+- **user_id** — owner of the API key used
+- **api_key_id** — reference to the key used
+- **ip_address** — source IP
+- **action** — edge function name invoked
+- **success** — success/failure boolean
+- **http_status** — HTTP status code returned
+- **error_code / error_message** — details on failure
+- **processing_time_ms** — processing time
+- **request_body** — partial payload (title and category only, no code)`,
 };
 
 export const vaultIngestEndpoint: ApiEndpoint = {
   id: "vault-ingest",
   method: "POST",
   path: "/vault-ingest",
-  summary: "Ingerir módulo no Cofre Global",
+  summary: "Ingest module into the Global Vault",
   description:
-    "Cria um novo módulo de código no Cofre Global do usuário autenticado via API key. Ideal para automações, scripts de CI/CD e agentes de IA que precisam salvar snippets programaticamente.",
+    "Creates a new code module in the authenticated user's Global Vault via API key. Ideal for automations, CI/CD scripts, and AI agents that need to save snippets programmatically.",
   params: [
     {
       name: "title",
       type: "string",
       required: true,
-      description: "Título descritivo do módulo",
-      constraints: "5–150 caracteres",
+      description: "Descriptive title of the module",
+      constraints: "5–150 characters",
     },
     {
       name: "code",
       type: "string",
       required: true,
-      description: "Código-fonte do snippet",
-      constraints: "Mínimo 10 caracteres",
+      description: "Source code of the snippet",
+      constraints: "Minimum 10 characters",
     },
     {
       name: "language",
       type: "string",
       required: true,
-      description: 'Linguagem de programação (ex: "typescript", "python", "bash")',
+      description: 'Programming language (e.g. "typescript", "python", "bash")',
     },
     {
       name: "category",
       type: "string",
       required: true,
-      description: "Categoria do módulo",
+      description: "Module category",
       constraints: '"frontend" | "backend" | "devops" | "security"',
     },
     {
       name: "description",
       type: "string",
       required: false,
-      description: "Descrição curta do propósito do módulo",
+      description: "Short description of the module's purpose",
     },
     {
       name: "tags",
       type: "string[]",
       required: false,
-      description: "Array de tags para busca e organização",
-      constraints: "Máximo 10 itens",
+      description: "Array of tags for search and organization",
+      constraints: "Maximum 10 items",
     },
     {
       name: "dependencies",
       type: "string",
       required: false,
-      description: "Dependências externas necessárias (texto livre)",
+      description: "External dependencies required (free text)",
     },
     {
       name: "context_markdown",
       type: "string",
       required: false,
-      description: "Contexto adicional em Markdown (instruções de uso, notas, etc.)",
+      description: "Additional context in Markdown (usage instructions, notes, etc.)",
     },
     {
       name: "is_public",
       type: "boolean",
       required: false,
-      description: "Se o módulo deve ser público. Padrão: false",
+      description: "Whether the module should be public. Default: false",
     },
   ],
   responses: [
     {
       status: 201,
       label: "Created",
-      description: "Módulo criado com sucesso",
+      description: "Module created successfully",
       body: JSON.stringify(
         {
           success: true,
           data: {
             module: {
-              id: "uuid-do-modulo",
+              id: "uuid-of-module",
               title: "Hook useDebounce",
               category: "frontend",
               created_at: "2026-02-27T12:00:00.000Z",
@@ -135,7 +135,7 @@ export const vaultIngestEndpoint: ApiEndpoint = {
     {
       status: 400,
       label: "Bad Request",
-      description: "JSON inválido no corpo da requisição",
+      description: "Invalid JSON in request body",
       body: JSON.stringify(
         { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid JSON body" } },
         null,
@@ -145,7 +145,7 @@ export const vaultIngestEndpoint: ApiEndpoint = {
     {
       status: 401,
       label: "Unauthorized",
-      description: "API key ausente, inválida ou revogada",
+      description: "API key missing, invalid, or revoked",
       body: JSON.stringify(
         { success: false, error: { code: "INVALID_API_KEY", message: "Invalid or missing API key" } },
         null,
@@ -155,7 +155,7 @@ export const vaultIngestEndpoint: ApiEndpoint = {
     {
       status: 405,
       label: "Method Not Allowed",
-      description: "Método HTTP diferente de POST",
+      description: "HTTP method other than POST",
       body: JSON.stringify(
         { success: false, error: { code: "VALIDATION_ERROR", message: "Only POST allowed" } },
         null,
@@ -165,13 +165,13 @@ export const vaultIngestEndpoint: ApiEndpoint = {
     {
       status: 422,
       label: "Unprocessable Entity",
-      description: "Payload válido como JSON mas com campos inválidos",
+      description: "Valid JSON payload but with invalid fields",
       body: JSON.stringify(
         {
           success: false,
           error: {
             code: "VALIDATION_ERROR",
-            message: 'title must be a string between 5-150 characters',
+            message: "title must be a string between 5-150 characters",
           },
         },
         null,
@@ -181,7 +181,7 @@ export const vaultIngestEndpoint: ApiEndpoint = {
     {
       status: 429,
       label: "Too Many Requests",
-      description: "Rate limit excedido (60 req/min). IP bloqueado por 5 minutos",
+      description: "Rate limit exceeded (60 req/min). IP blocked for 5 minutes",
       body: JSON.stringify(
         {
           success: false,
@@ -197,7 +197,7 @@ export const vaultIngestEndpoint: ApiEndpoint = {
     {
       status: 500,
       label: "Internal Server Error",
-      description: "Erro interno ao inserir no banco de dados",
+      description: "Internal error during database insertion",
       body: JSON.stringify(
         { success: false, error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
         null,
@@ -218,7 +218,7 @@ export const vaultIngestEndpoint: ApiEndpoint = {
     "code": "export function useDebounce<T>(value: T, delay: number): T {\\n  const [debounced, setDebounced] = useState(value);\\n  useEffect(() => {\\n    const timer = setTimeout(() => setDebounced(value), delay);\\n    return () => clearTimeout(timer);\\n  }, [value, delay]);\\n  return debounced;\\n}",
     "language": "typescript",
     "category": "frontend",
-    "description": "Custom hook para debounce de valores reativos",
+    "description": "Custom hook for debouncing reactive values",
     "tags": ["react", "hooks", "debounce"],
     "is_public": false
   }'`,
@@ -246,7 +246,7 @@ export const vaultIngestEndpoint: ApiEndpoint = {
 }\`,
       language: "typescript",
       category: "frontend",
-      description: "Custom hook para debounce de valores reativos",
+      description: "Custom hook for debouncing reactive values",
       tags: ["react", "hooks", "debounce"],
     }),
   }
@@ -278,7 +278,7 @@ response = requests.post(
 }""",
         "language": "typescript",
         "category": "frontend",
-        "description": "Custom hook para debounce de valores reativos",
+        "description": "Custom hook for debouncing reactive values",
         "tags": ["react", "hooks", "debounce"],
     },
 )
@@ -289,6 +289,224 @@ print(response.json())`,
   ],
 };
 
-export const allEndpoints: ApiEndpoint[] = [vaultIngestEndpoint];
+export const vaultQueryBootstrapEndpoint: ApiEndpoint = {
+  id: "vault-query-bootstrap",
+  method: "POST",
+  path: "/vault-query",
+  summary: "Bootstrap Vault Context (for AI Agents)",
+  description:
+    "Returns all available domains, playbook phases, and top validated modules in a single call. Designed for AI agents to bootstrap their context before interacting with the Knowledge OS.",
+  params: [
+    {
+      name: "action",
+      type: "string",
+      required: true,
+      description: 'Must be "bootstrap"',
+      constraints: '"bootstrap"',
+    },
+  ],
+  responses: [
+    {
+      status: 200,
+      label: "OK",
+      description: "Full context returned successfully",
+      body: JSON.stringify(
+        {
+          success: true,
+          data: {
+            domains: [
+              { domain: "backend", total: 12, module_types: ["code_snippet", "full_module"] },
+              { domain: "security", total: 5, module_types: ["pattern_guide"] },
+            ],
+            playbook_phases: [
+              {
+                id: "uuid",
+                slug: "phase-1-foundation",
+                title: "Phase 1 — Foundation",
+                saas_phase: 1,
+                phase_title: "Foundation",
+                why_it_matters: "Sets up the core architecture...",
+                tags: ["foundation", "setup"],
+                validation_status: "validated",
+              },
+            ],
+            top_modules: [
+              {
+                id: "uuid",
+                slug: "supabase-vault-encrypt",
+                title: "Supabase Vault Encryption",
+                domain: "security",
+                module_type: "pattern_guide",
+                language: "sql",
+                tags: ["vault", "encryption"],
+                validation_status: "validated",
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+    },
+    {
+      status: 401,
+      label: "Unauthorized",
+      description: "API key missing, invalid, or revoked",
+      body: JSON.stringify(
+        { success: false, error: { code: "INVALID_API_KEY", message: "Invalid or missing API key" } },
+        null,
+        2,
+      ),
+    },
+  ],
+  examples: [
+    {
+      language: "bash",
+      label: "cURL",
+      code: `curl -X POST \\
+  "${API_BASE_URL}/vault-query" \\
+  -H "Content-Type: application/json" \\
+  -H "X-DevVault-Key: dvlt_YOUR_KEY_HERE" \\
+  -d '{"action": "bootstrap"}'`,
+    },
+    {
+      language: "javascript",
+      label: "JavaScript (fetch)",
+      code: `const response = await fetch(
+  "${API_BASE_URL}/vault-query",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-DevVault-Key": "dvlt_YOUR_KEY_HERE",
+    },
+    body: JSON.stringify({ action: "bootstrap" }),
+  }
+);
+
+const { data } = await response.json();
+console.log(data.domains);
+console.log(data.playbook_phases);
+console.log(data.top_modules);`,
+    },
+    {
+      language: "python",
+      label: "Python (requests)",
+      code: `import requests
+
+response = requests.post(
+    "${API_BASE_URL}/vault-query",
+    headers={
+        "Content-Type": "application/json",
+        "X-DevVault-Key": "dvlt_YOUR_KEY_HERE",
+    },
+    json={"action": "bootstrap"},
+)
+
+data = response.json()["data"]
+print(data["domains"])
+print(data["playbook_phases"])
+print(data["top_modules"])`,
+    },
+  ],
+};
+
+export const vaultQuerySearchEndpoint: ApiEndpoint = {
+  id: "vault-query-search",
+  method: "POST",
+  path: "/vault-query",
+  summary: "Search Modules (Bilingual PT + EN)",
+  description:
+    "Full-text bilingual search across all public modules. Queries are matched against both Portuguese and English search vectors, returning the highest relevance score.",
+  params: [
+    {
+      name: "action",
+      type: "string",
+      required: true,
+      description: 'Must be "search"',
+      constraints: '"search"',
+    },
+    {
+      name: "query",
+      type: "string",
+      required: false,
+      description: "Search query (works in both Portuguese and English)",
+    },
+    {
+      name: "domain",
+      type: "string",
+      required: false,
+      description: "Filter by domain",
+      constraints: '"security" | "backend" | "frontend" | "architecture" | "devops" | "saas_playbook"',
+    },
+    {
+      name: "module_type",
+      type: "string",
+      required: false,
+      description: "Filter by module type",
+      constraints: '"code_snippet" | "full_module" | "sql_migration" | "architecture_doc" | "playbook_phase" | "pattern_guide"',
+    },
+    {
+      name: "tags",
+      type: "string[]",
+      required: false,
+      description: "Filter by tags (AND match)",
+    },
+    {
+      name: "saas_phase",
+      type: "number",
+      required: false,
+      description: "Filter by SaaS playbook phase number",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: "Max results to return. Default: 10, Max: 50",
+    },
+    {
+      name: "offset",
+      type: "number",
+      required: false,
+      description: "Offset for pagination. Default: 0",
+    },
+  ],
+  responses: [
+    {
+      status: 200,
+      label: "OK",
+      description: "Search results returned",
+      body: JSON.stringify(
+        {
+          success: true,
+          data: {
+            modules: [{ id: "uuid", title: "Module Title", relevance_score: 0.85, "...": "..." }],
+            total: 1,
+            query: { query: "encryption", domain: null, limit: 10, offset: 0 },
+          },
+        },
+        null,
+        2,
+      ),
+    },
+  ],
+  examples: [
+    {
+      language: "bash",
+      label: "cURL",
+      code: `curl -X POST \\
+  "${API_BASE_URL}/vault-query" \\
+  -H "Content-Type: application/json" \\
+  -H "X-DevVault-Key: dvlt_YOUR_KEY_HERE" \\
+  -d '{"action": "search", "query": "encryption vault", "domain": "security"}'`,
+    },
+  ],
+};
+
+export const allEndpoints: ApiEndpoint[] = [
+  vaultIngestEndpoint,
+  vaultQueryBootstrapEndpoint,
+  vaultQuerySearchEndpoint,
+];
 
 export const allSections: ApiSection[] = [authSection, rateLimitSection, auditSection];

@@ -1,21 +1,22 @@
 /**
- * vault-query — Endpoint público de busca no Knowledge OS do DevVault
+ * vault-query — Public query endpoint for the DevVault Knowledge OS
  *
- * Permite que qualquer agente de IA consulte a biblioteca de módulos
- * sem precisar de JWT, GitHub ou acesso direto ao Supabase.
+ * Allows any AI agent to query the module library
+ * without needing JWT, GitHub or direct Supabase access.
  *
- * Autenticação: API Key do DevVault (header X-DevVault-Key)
+ * Authentication: DevVault API Key (header X-DevVault-Key)
  *
- * Endpoints:
- *   POST {"action": "search", "query": "vault criptografia", "domain": "security"}
- *   POST {"action": "get", "id": "uuid"} ou {"action": "get", "slug": "supabase-vault-..."}
+ * Actions:
+ *   POST {"action": "search", "query": "vault encryption", "domain": "security"}
+ *   POST {"action": "get", "id": "uuid"} or {"action": "get", "slug": "supabase-vault-..."}
  *   POST {"action": "list_domains"}
  *   POST {"action": "list", "domain": "architecture", "module_type": "playbook_phase"}
+ *   POST {"action": "bootstrap"}
  */
 
 import { withSentry } from "../_shared/sentry.ts";
 import { handleCorsV2 } from "../_shared/cors-v2.ts";
-import { checkRateLimit, RATE_LIMIT_CONFIGS } from "../_shared/rate-limit-guard.ts";
+import { checkRateLimit } from "../_shared/rate-limit-guard.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import { createSuccessResponse, createErrorResponse } from "../_shared/api-helpers.ts";
 import { validateApiKey } from "../_shared/api-key-guard.ts";
@@ -28,18 +29,18 @@ Deno.serve(withSentry(async (req: Request) => {
   const corsResponse = handleCorsV2(req);
   if (corsResponse) return corsResponse;
 
-  // 2. Rate Limiting (mais permissivo para leitura)
+  // 2. Rate Limiting
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const rateLimit = await checkRateLimit(clientIp, "vault-query", 60, 60);
   if (!rateLimit.allowed) {
-    return createErrorResponse("Rate limit excedido. Máximo 60 requisições por minuto.", 429);
+    return createErrorResponse("Rate limit exceeded. Maximum 60 requests per minute.", 429);
   }
 
-  // 3. Autenticação via API Key do DevVault
+  // 3. Authentication via DevVault API Key
   const apiKeyHeader = req.headers.get("X-DevVault-Key") ?? req.headers.get("x-devvault-key");
   if (!apiKeyHeader) {
     return createErrorResponse(
-      "API Key obrigatória. Envie o header X-DevVault-Key com sua chave dvlt_...",
+      "API Key required. Send header X-DevVault-Key with your dvlt_... key.",
       401
     );
   }
@@ -47,32 +48,44 @@ Deno.serve(withSentry(async (req: Request) => {
   const supabase = getSupabaseClient("general");
   const keyValidation = await validateApiKey(supabase, apiKeyHeader);
   if (!keyValidation.valid) {
-    logger.warn("API key inválida", { ip: clientIp, prefix: apiKeyHeader.substring(0, 8) });
-    return createErrorResponse("API Key inválida ou revogada.", 401);
+    logger.warn("Invalid API key", { ip: clientIp, prefix: apiKeyHeader.substring(0, 8) });
+    return createErrorResponse("Invalid or revoked API Key.", 401);
   }
 
-  // 4. Parse do body
+  // 4. Parse body
   let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
-    return createErrorResponse("Body JSON inválido.", 400);
+    return createErrorResponse("Invalid JSON body.", 400);
   }
 
   const action = body.action as string;
   if (!action) {
     return createErrorResponse(
-      "Campo 'action' obrigatório. Valores: search | get | list | list_domains",
+      "Field 'action' is required. Values: search | get | list | list_domains | bootstrap",
       400
     );
   }
 
   logger.info("vault-query request", { action, ip: clientIp });
 
-  // 5. Roteamento por action
+  // 5. Route by action
   switch (action) {
 
-    // ── SEARCH: busca full-text com filtros ──────────────────────────────
+    // ── BOOTSTRAP: full context for AI agents in one call ────────────────
+    case "bootstrap": {
+      const { data, error } = await supabase.rpc("bootstrap_vault_context");
+
+      if (error) {
+        logger.error("Bootstrap error", { error: error.message });
+        return createErrorResponse("Error bootstrapping vault context.", 500);
+      }
+
+      return createSuccessResponse(data ?? { domains: [], playbook_phases: [], top_modules: [] });
+    }
+
+    // ── SEARCH: full-text bilingual search with filters ──────────────────
     case "search": {
       const query       = (body.query as string) ?? null;
       const domain      = (body.domain as string) ?? null;
@@ -93,8 +106,8 @@ Deno.serve(withSentry(async (req: Request) => {
       });
 
       if (error) {
-        logger.error("Erro na busca", { error: error.message });
-        return createErrorResponse("Erro ao buscar módulos.", 500);
+        logger.error("Search error", { error: error.message });
+        return createErrorResponse("Error searching modules.", 500);
       }
 
       return createSuccessResponse({
@@ -104,13 +117,13 @@ Deno.serve(withSentry(async (req: Request) => {
       });
     }
 
-    // ── GET: buscar módulo por ID ou slug ────────────────────────────────
+    // ── GET: fetch module by ID or slug ──────────────────────────────────
     case "get": {
       const id   = (body.id as string) ?? null;
       const slug = (body.slug as string) ?? null;
 
       if (!id && !slug) {
-        return createErrorResponse("Informe 'id' (UUID) ou 'slug' do módulo.", 400);
+        return createErrorResponse("Provide 'id' (UUID) or 'slug' of the module.", 400);
       }
 
       const { data, error } = await supabase.rpc("get_vault_module", {
@@ -119,18 +132,18 @@ Deno.serve(withSentry(async (req: Request) => {
       });
 
       if (error) {
-        logger.error("Erro ao buscar módulo", { error: error.message });
-        return createErrorResponse("Erro ao buscar módulo.", 500);
+        logger.error("Get module error", { error: error.message });
+        return createErrorResponse("Error fetching module.", 500);
       }
 
       if (!data || data.length === 0) {
-        return createErrorResponse("Módulo não encontrado.", 404);
+        return createErrorResponse("Module not found.", 404);
       }
 
       return createSuccessResponse({ module: data[0] });
     }
 
-    // ── LIST: listar módulos com filtros (sem busca textual) ─────────────
+    // ── LIST: list modules with filters (no text search) ─────────────────
     case "list": {
       const domain      = (body.domain as string) ?? null;
       const moduleType  = (body.module_type as string) ?? null;
@@ -150,8 +163,8 @@ Deno.serve(withSentry(async (req: Request) => {
       });
 
       if (error) {
-        logger.error("Erro ao listar módulos", { error: error.message });
-        return createErrorResponse("Erro ao listar módulos.", 500);
+        logger.error("List modules error", { error: error.message });
+        return createErrorResponse("Error listing modules.", 500);
       }
 
       return createSuccessResponse({
@@ -161,13 +174,13 @@ Deno.serve(withSentry(async (req: Request) => {
       });
     }
 
-    // ── LIST_DOMAINS: listar domínios disponíveis com contagem ───────────
+    // ── LIST_DOMAINS: list available domains with counts ─────────────────
     case "list_domains": {
       const { data, error } = await supabase.rpc("list_vault_domains");
 
       if (error) {
-        logger.error("Erro ao listar domínios", { error: error.message });
-        return createErrorResponse("Erro ao listar domínios.", 500);
+        logger.error("List domains error", { error: error.message });
+        return createErrorResponse("Error listing domains.", 500);
       }
 
       return createSuccessResponse({ domains: data ?? [] });
@@ -176,7 +189,7 @@ Deno.serve(withSentry(async (req: Request) => {
     // ── DEFAULT ──────────────────────────────────────────────────────────
     default:
       return createErrorResponse(
-        `Action '${action}' inválida. Valores aceitos: search | get | list | list_domains`,
+        `Invalid action '${action}'. Accepted values: search | get | list | list_domains | bootstrap`,
         400
       );
   }
