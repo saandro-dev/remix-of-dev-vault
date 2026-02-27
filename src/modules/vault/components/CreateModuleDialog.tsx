@@ -10,6 +10,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Lock, Users, Globe } from "lucide-react";
 import { useCreateVaultModule } from "../hooks/useVaultModules";
+import { invokeEdgeFunction } from "@/lib/edge-function-client";
+import { DependencySelector, type PendingDependency } from "./DependencySelector";
 import type { VaultDomain, VaultModuleType, VaultValidationStatus, VisibilityLevel } from "../types";
 
 interface Props {
@@ -24,7 +26,25 @@ const LANGUAGES = ["typescript", "sql", "bash", "json", "yaml", "markdown", "jav
 export function CreateModuleDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState("basic");
-  const create = useCreateVaultModule(() => onOpenChange(false));
+  const [pendingDeps, setPendingDeps] = useState<PendingDependency[]>([]);
+
+  const create = useCreateVaultModule(async (createdModule) => {
+    // Chain dependency mutations after successful module creation
+    if (pendingDeps.length > 0) {
+      await Promise.all(
+        pendingDeps.map((dep) =>
+          invokeEdgeFunction("vault-crud", {
+            action: "add_dependency",
+            module_id: createdModule.id,
+            depends_on_id: dep.depends_on_id,
+            dependency_type: dep.dependency_type,
+          })
+        )
+      );
+    }
+    setPendingDeps([]);
+    onOpenChange(false);
+  });
 
   const [form, setForm] = useState({
     title: "",
@@ -178,6 +198,13 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
                 </Select>
               </div>
             </div>
+
+            {/* Dependencies / Prerequisites selector */}
+            <DependencySelector
+              moduleId=""
+              selected={pendingDeps}
+              onChange={setPendingDeps}
+            />
 
             {/* Visibility selector */}
             <div className="space-y-3 p-4 rounded-lg border border-border">
