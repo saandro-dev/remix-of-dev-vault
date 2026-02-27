@@ -16,7 +16,8 @@
 
 import { withSentry } from "../_shared/sentry.ts";
 import { handleCorsV2 } from "../_shared/cors-v2.ts";
-import { checkRateLimit } from "../_shared/rate-limit-guard.ts";
+import { checkRateLimit, type RateLimitConfig } from "../_shared/rate-limit-guard.ts";
+import { enrichModuleDependencies } from "../_shared/dependency-helpers.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 import { validateApiKey } from "../_shared/api-key-guard.ts";
@@ -31,8 +32,9 @@ Deno.serve(withSentry("vault-query", async (req: Request) => {
 
   // 2. Rate Limiting
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const rateLimit = await checkRateLimit(clientIp, "vault-query", 60, 60);
-  if (!rateLimit.allowed) {
+  const rateLimitConfig: RateLimitConfig = { maxAttempts: 60, windowSeconds: 60, blockSeconds: 300 };
+  const rateLimit = await checkRateLimit(clientIp, "vault-query", rateLimitConfig);
+  if (rateLimit.blocked) {
     return createErrorResponse(req, ERROR_CODES.RATE_LIMITED, "Rate limit exceeded. Maximum 60 requests per minute.", 429);
   }
 
@@ -146,34 +148,8 @@ Deno.serve(withSentry("vault-query", async (req: Request) => {
 
       const mod = data[0] as Record<string, unknown>;
 
-      // Enrich with dependencies (HATEOAS links)
-      const { data: deps } = await supabase
-        .from("vault_module_dependencies")
-        .select("id, depends_on_id, dependency_type")
-        .eq("module_id", mod.id);
-
-      const depIds = (deps ?? []).map((d: Record<string, unknown>) => d.depends_on_id as string);
-      let depMods: Record<string, { title: string; slug: string | null }> = {};
-      if (depIds.length > 0) {
-        const { data: mods } = await supabase
-          .from("vault_modules")
-          .select("id, title, slug")
-          .in("id", depIds);
-        for (const m of mods ?? []) {
-          depMods[(m as Record<string, unknown>).id as string] = {
-            title: (m as Record<string, unknown>).title as string,
-            slug: (m as Record<string, unknown>).slug as string | null,
-          };
-        }
-      }
-
-      const dependencies = (deps ?? []).map((d: Record<string, unknown>) => ({
-        id: d.id,
-        module_id: d.depends_on_id,
-        title: depMods[d.depends_on_id as string]?.title ?? "Unknown",
-        dependency_type: d.dependency_type,
-        fetch_url: `/rest/v1/rpc/get_vault_module?p_id=${d.depends_on_id}`,
-      }));
+      // Enrich with dependencies (HATEOAS links) — delegated to shared helper
+      const dependencies = await enrichModuleDependencies(supabase, mod.id as string);
 
       return createSuccessResponse(req, { module: { ...mod, dependencies } });
     }

@@ -15,7 +15,7 @@
 
 import { withSentry } from "../_shared/sentry.ts";
 import { handleCorsV2 } from "../_shared/cors-v2.ts";
-import { checkRateLimit, RATE_LIMIT_CONFIGS } from "../_shared/rate-limit-guard.ts";
+import { checkRateLimit, type RateLimitConfig } from "../_shared/rate-limit-guard.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 import { validateApiKey } from "../_shared/api-key-guard.ts";
@@ -34,8 +34,9 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
 
   // 2. Rate Limiting
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const rateLimit = await checkRateLimit(clientIp, "vault-ingest", RATE_LIMIT_CONFIGS.create.max, RATE_LIMIT_CONFIGS.create.window);
-  if (!rateLimit.allowed) {
+  const rateLimitConfig: RateLimitConfig = { maxAttempts: 60, windowSeconds: 60, blockSeconds: 300 };
+  const rateLimit = await checkRateLimit(clientIp, "vault-ingest", rateLimitConfig);
+  if (rateLimit.blocked) {
     return createErrorResponse(req, ERROR_CODES.RATE_LIMITED, "Rate limit exceeded.", 429);
   }
 
@@ -62,7 +63,7 @@ Deno.serve(withSentry("vault-ingest", async (req: Request) => {
     return createErrorResponse(req, ERROR_CODES.UNAUTHORIZED, "Invalid or revoked API Key.", 401);
   }
 
-  const userId = keyValidation.user_id;
+  const userId = keyValidation.userId;
 
   // 4. Parse body
   let body: Record<string, unknown>;
