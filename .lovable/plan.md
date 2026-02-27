@@ -1,94 +1,199 @@
 
 
-# Audit Report: DevVault Post-Implementation Validation
+# Plano: Sistema RBAC + Painel Admin
 
-## Status: ISSUES FOUND — Requires Remediation
+## Resumo
 
----
-
-## 1. PROTOCOL VIOLATIONS DETECTED
-
-### 1.1 Hardcoded Portuguese Strings (i18n Migration INCOMPLETE)
-
-The i18n migration was supposed to convert ALL 146+ strings to `t()` calls with EN as default. **Multiple files were missed:**
-
-| File | Issue |
-|------|-------|
-| `src/modules/vault/hooks/useVaultModules.ts` | Toast messages in PT: "Módulo criado com sucesso!", "Erro ao criar módulo", "Módulo atualizado!", "Erro ao atualizar" |
-| `src/modules/vault/hooks/useVaultModule.ts` | Toast messages in PT: "Módulo atualizado!", "Erro", "Módulo excluído." |
-| `src/modules/settings/hooks/useDevVaultKeys.ts` | Toast messages in PT: "Chave criada com sucesso!", "Chave revogada!", "Erro" |
-| `src/modules/projects/hooks/useProjects.ts` | Toast: "Erro" |
-| `src/modules/projects/hooks/useProjectDetail.ts` | Toast: "Erro" |
-| `src/modules/projects/hooks/useProjectApiKeys.ts` | Toast: "Erro ao adicionar key", "Erro ao remover key" |
-| `src/modules/bugs/hooks/useBugs.ts` | Toast: "Erro" |
-| `src/modules/settings/hooks/useProfile.ts` | Toast: "Erro" |
-| `src/modules/search/pages/SearchPage.tsx` | Labels in PT: "Módulos", "Projetos", "Erro na busca", "Erro desconhecido" |
-| `src/modules/docs/components/EndpointCard.tsx` | Section headers in PT: "Parâmetros do Body (JSON)", "Respostas", "Exemplos de Uso" |
-| `src/modules/docs/components/ParamTable.tsx` | Table headers in PT: "Campo", "Tipo", "Obrigatório", "Descrição"; Badge text: "Sim"/"Não" |
-
-### 1.2 Dead/Legacy Code (DOMAIN_LABELS, MODULE_TYPE_LABELS, VALIDATION_STATUS_LABELS)
-
-`src/modules/vault/types.ts` lines 58-81 contain hardcoded Portuguese label maps (`DOMAIN_LABELS`, `MODULE_TYPE_LABELS`, `VALIDATION_STATUS_LABELS`). These are **dead code** — the UI now uses `t('domains.security')` etc. via i18n. These maps should be removed.
-
-Similarly, `src/modules/vault/constants.ts` contains a hardcoded `CATEGORY_LABELS` map with "Segurança & Criptografia" — also dead code since the UI uses i18n keys.
-
-### 1.3 Comments/Documentation in Portuguese
-
-`src/modules/vault/types.ts` has all comments in Portuguese ("Labels amigáveis para exibição", "Versão resumida para listagens", "Novos campos estruturais", etc.). Per Protocol 5.4, nomenclature must use technical English.
-
-`src/modules/vault/hooks/useVaultModules.ts` has section comments in Portuguese ("Filtros para listagem de módulos").
+Implementar controle de acesso baseado em roles (owner > admin > user) com painel administrativo usando XState. Adaptado do relatório da Manus com correções para conformidade com o Protocolo DevVault V1.
 
 ---
 
-## 2. PROTOCOL COMPLIANCE CHECK
+## Correções vs Relatório Manus
 
-| Rule | Status | Detail |
-|------|--------|--------|
-| 5.5 Zero DB from Frontend | PASS | No `supabase.from()` calls found in `src/` |
-| 5.4 File < 300 lines | PASS | All files under 300 lines |
-| 5.3 SOLID / SRP | PASS | Components are well-separated (ParamTable, CodeExample, EndpointCard) |
-| 5.4 English nomenclature | FAIL | Portuguese comments in types.ts, constants.ts, hooks |
-| i18n EN default | PASS | Config correctly sets `fallbackLng: "en"` |
-| Edge Functions documented | PASS | vault-query has proper JSDoc header |
-| apiReference.ts data | PASS | All 3 endpoints documented with examples |
+| Problema no Relatório | Correção |
+|---|---|
+| `usePermissions` usa `supabase.rpc()` direto (viola Regra 5.5) | Usar `invokeEdgeFunction("admin-crud", { action: "get-my-role" })` |
+| `admin-crud` não usa helpers existentes (`handleCorsV2`, `createSuccessResponse`) | Seguir padrão de `bugs-crud/index.ts` com helpers corretos |
+| Comentários em português | Tudo em inglês técnico |
+| XState `fromPromise` com API incorreta para v5 | Usar import correto de `xstate` |
+| RLS policies fazem DROP sem verificar existentes | Adicionar novas policies sem dropar as de service-role |
 
 ---
 
-## 3. REMEDIATION PLAN
+## Etapa 1 — Migration SQL
 
-### Step 1: Complete i18n migration in hooks (8 files)
-Add missing translation keys to `en.json` and `pt-BR.json`, then replace all hardcoded toast strings in hooks with `t()` calls. Since hooks don't have direct access to `useTranslation`, the proper architectural solution is to pass translated strings from the component layer OR use `i18n.t()` directly from the i18n instance (which is importable without hooks).
+**1 arquivo de migração** com:
+- `ALTER TYPE public.app_role ADD VALUE 'owner'`
+- `CREATE OR REPLACE FUNCTION public.is_admin_or_owner(uuid)` — SECURITY DEFINER
+- `CREATE OR REPLACE FUNCTION public.get_user_role(uuid)` — retorna role ou 'user' como fallback
+- Novas RLS policies em `user_roles`: admin/owner SELECT, individual SELECT, admin/owner ALL
+- Novas RLS policies em `profiles`: public SELECT (para listar users no admin panel), individual UPDATE
 
-### Step 2: Complete i18n migration in docs components (2 files)
-Replace hardcoded PT strings in `EndpointCard.tsx` and `ParamTable.tsx` with `t()` calls.
+---
 
-### Step 3: Complete i18n migration in SearchPage (1 file)
-Replace hardcoded PT labels and error messages.
+## Etapa 2 — Backend (Edge Function)
 
-### Step 4: Remove dead code
-- Delete `DOMAIN_LABELS`, `MODULE_TYPE_LABELS`, `VALIDATION_STATUS_LABELS` from `src/modules/vault/types.ts`
-- Delete `CATEGORY_LABELS` from `src/modules/vault/constants.ts` (or the entire file if nothing else remains)
-- Verify no imports reference these deleted exports
+### `supabase/functions/_shared/role-validator.ts`
+- `getUserRole(supabase, userId)` — chama `get_user_role` RPC
+- `requireRole(supabase, userId, requiredRole)` — valida hierarquia, throws se insuficiente
+- Hierarquia: `{ owner: 1, admin: 2, user: 3 }`
 
-### Step 5: Translate comments to English
-- Update all Portuguese comments in `types.ts`, `constants.ts`, and hooks to English
+### `supabase/functions/admin-crud/index.ts`
+Segue padrão de `bugs-crud` (usa `handleCors`, `authenticateRequest`, `isResponse`, `createSuccessResponse`, `createErrorResponse`).
 
-### Files to modify:
+**Actions:**
+- `get-my-role` — retorna a role do user autenticado (substitui `supabase.rpc()` do frontend)
+- `list-users` — requer admin+; retorna profiles com roles
+- `change-role` — requer owner; atualiza role de target user
+
+### `supabase/config.toml`
+- Adicionar `[functions.admin-crud]` com `verify_jwt = false`
+
+---
+
+## Etapa 3 — Frontend: Hooks + Rotas
+
+### `src/modules/auth/hooks/usePermissions.ts`
+- Usa `invokeEdgeFunction("admin-crud", { action: "get-my-role" })` (Regra 5.5)
+- React Query com `staleTime: 5min`, `refetchOnWindowFocus: true`
+- Expõe: `role`, `isLoading`, `isAdmin`, `isOwner`
+
+### `src/modules/auth/components/RoleProtectedRoute.tsx`
+- Aceita `requiredRole: "admin" | "owner"`
+- Hierarquia numérica para comparação
+- Redirect para `/` se sem permissão
+- Loading spinner enquanto verifica
+
+### Modificar `src/routes/appRoutes.tsx`
+- Adicionar rota `/admin` wrappada em `<RoleProtectedRoute requiredRole="admin">`
+
+### Modificar `src/modules/navigation/config/navigationConfig.ts`
+- Adicionar item `admin` no grupo `account` com ícone `Shield`
+
+### Modificar `src/layouts/AppSidebar.tsx`
+- Filtrar item `admin` da nav baseado em `usePermissions` (só mostra se admin/owner)
+
+### Modificar `src/modules/auth/components/ProtectedRoute.tsx`
+- Traduzir "Carregando..." para `t("common.loading")`
+
+---
+
+## Etapa 4 — Frontend: Admin Panel com XState
+
+### Estrutura de arquivos:
 ```text
-src/i18n/locales/en.json              (add missing keys)
-src/i18n/locales/pt-BR.json           (add missing keys)
-src/modules/vault/hooks/useVaultModules.ts
-src/modules/vault/hooks/useVaultModule.ts
-src/modules/settings/hooks/useDevVaultKeys.ts
-src/modules/projects/hooks/useProjects.ts
-src/modules/projects/hooks/useProjectDetail.ts
-src/modules/projects/hooks/useProjectApiKeys.ts
-src/modules/bugs/hooks/useBugs.ts
-src/modules/settings/hooks/useProfile.ts
-src/modules/search/pages/SearchPage.tsx
-src/modules/docs/components/EndpointCard.tsx
-src/modules/docs/components/ParamTable.tsx
-src/modules/vault/types.ts            (remove dead labels, translate comments)
-src/modules/vault/constants.ts        (remove dead labels or entire file)
+src/modules/admin/
+├── types/admin.types.ts
+├── machines/
+│   ├── adminMachine.types.ts
+│   └── adminMachine.ts
+├── context/
+│   ├── adminFetchers.ts
+│   ├── adminHandlers.ts
+│   └── AdminProvider.tsx
+├── hooks/useAdmin.ts
+├── components/
+│   ├── UsersTable.tsx
+│   └── RoleChangeDialog.tsx
+└── pages/AdminPage.tsx
 ```
+
+### `admin.types.ts`
+- `AdminUser { id, displayName, avatarUrl, email, role, createdAt }`
+
+### `adminMachine.ts` (XState v5)
+- States: `idle → loading → loaded → changingRole → error`
+- Events: `FETCH`, `ROLE_CHANGE`, `CONFIRM_ROLE_CHANGE`, `CANCEL`
+- Usa `fromPromise` importado de `xstate`
+
+### `adminFetchers.ts`
+- `fetchUsers()` — `invokeEdgeFunction("admin-crud", { action: "list-users" })`
+
+### `adminHandlers.ts`
+- `changeUserRole(targetUserId, newRole)` — `invokeEdgeFunction("admin-crud", { action: "change-role", ... })`
+
+### `AdminProvider.tsx`
+- Context React + `useMachine` do `@xstate/react`
+- Expõe state, users, selectedUser, send
+
+### `useAdmin.ts`
+- Hook que consome AdminContext
+
+### `UsersTable.tsx`
+- Tabela com avatar, nome, email, role badge, data criação, botão ações
+- Dropdown para mudar role (só visível para owners)
+
+### `RoleChangeDialog.tsx`
+- Dialog de confirmação antes de mudar role
+- Select com opções: user, admin, owner
+- Mostra user atual e nova role
+
+### `AdminPage.tsx`
+- Título + subtítulo via i18n
+- Renderiza `<AdminProvider>` + `<UsersTable />`
+
+---
+
+## i18n Keys
+
+Adicionar ao `en.json` e `pt-BR.json`:
+```json
+{
+  "admin": {
+    "title": "Administration",
+    "subtitle": "Manage users and roles.",
+    "users": "Users",
+    "role": "Role",
+    "changeRole": "Change Role",
+    "confirmRoleChange": "Are you sure you want to change the role of {{name}} to {{role}}?",
+    "roleChanged": "Role updated successfully!",
+    "roleChangeError": "Error changing role",
+    "noUsers": "No users found.",
+    "owner": "Owner",
+    "admin": "Admin",
+    "user": "User",
+    "joined": "Joined",
+    "actions": "Actions"
+  },
+  "nav": {
+    "admin": "Admin Panel"
+  }
+}
+```
+
+---
+
+## Dependências a Instalar
+
+- `xstate` (v5)
+- `@xstate/react`
+
+---
+
+## Arquivos Totais
+
+| Ação | Arquivo |
+|------|---------|
+| CREATE | `supabase/migrations/XXXX_rbac_owner_role.sql` |
+| CREATE | `supabase/functions/_shared/role-validator.ts` |
+| CREATE | `supabase/functions/admin-crud/index.ts` |
+| CREATE | `src/modules/auth/hooks/usePermissions.ts` |
+| CREATE | `src/modules/auth/components/RoleProtectedRoute.tsx` |
+| CREATE | `src/modules/admin/types/admin.types.ts` |
+| CREATE | `src/modules/admin/machines/adminMachine.types.ts` |
+| CREATE | `src/modules/admin/machines/adminMachine.ts` |
+| CREATE | `src/modules/admin/context/adminFetchers.ts` |
+| CREATE | `src/modules/admin/context/adminHandlers.ts` |
+| CREATE | `src/modules/admin/context/AdminProvider.tsx` |
+| CREATE | `src/modules/admin/hooks/useAdmin.ts` |
+| CREATE | `src/modules/admin/components/UsersTable.tsx` |
+| CREATE | `src/modules/admin/components/RoleChangeDialog.tsx` |
+| CREATE | `src/modules/admin/pages/AdminPage.tsx` |
+| MODIFY | `src/routes/appRoutes.tsx` |
+| MODIFY | `src/modules/navigation/config/navigationConfig.ts` |
+| MODIFY | `src/layouts/AppSidebar.tsx` |
+| MODIFY | `src/modules/auth/components/ProtectedRoute.tsx` |
+| MODIFY | `src/i18n/locales/en.json` |
+| MODIFY | `src/i18n/locales/pt-BR.json` |
+| MODIFY | `supabase/config.toml` |
 
