@@ -7,6 +7,7 @@
  */
 
 import { createLogger } from "../logger.ts";
+import { generateEmbedding } from "../embedding-client.ts";
 import { trackUsage } from "./usage-tracker.ts";
 import type { ToolRegistrar } from "./types.ts";
 
@@ -151,11 +152,20 @@ export const registerDiagnoseTool: ToolRegistrar = (server, client, auth) => {
           });
         }
 
-        // Strategy 4: ILIKE fallback in usage_hint and why_it_matters via RPC
-        const { data: ilikeFallback } = await client.rpc("query_vault_modules", {
-          p_query: errorMsg,
+        // Strategy 4: Hybrid search fallback (semantic + full-text)
+        let queryEmbedding: string | null = null;
+        try {
+          const embArr = await generateEmbedding(errorMsg);
+          queryEmbedding = `[${embArr.join(",")}]`;
+        } catch {
+          logger.warn("diagnose: embedding generation failed, using full-text only");
+        }
+
+        const { data: ilikeFallback } = await client.rpc("hybrid_search_vault_modules", {
+          p_query_text: errorMsg,
+          p_query_embedding: queryEmbedding,
           p_domain: domain ?? null,
-          p_limit: limit,
+          p_match_count: limit,
         });
 
         const ilikeMatches: Array<Record<string, unknown>> = [];

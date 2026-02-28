@@ -7,6 +7,7 @@
 
 import { createLogger } from "../logger.ts";
 import { batchInsertDependencies } from "../dependency-helpers.ts";
+import { updateModuleEmbedding } from "../embedding-client.ts";
 import { getCompleteness } from "./completeness.ts";
 import type { ToolRegistrar } from "./types.ts";
 
@@ -134,6 +135,9 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
           warnings.push(`Dependencies partially failed: ${(depError as Error).message}`);
         }
       }
+
+      // Fire-and-forget: generate embedding asynchronously
+      updateModuleEmbedding(client, data.id, insertData);
 
       const completeness = await getCompleteness(client, data.id);
       logger.info("module ingested via MCP", { moduleId: data.id, userId: auth.userId });

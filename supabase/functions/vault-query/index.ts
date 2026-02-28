@@ -21,6 +21,7 @@ import { enrichModuleDependencies } from "../_shared/dependency-helpers.ts";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "../_shared/api-helpers.ts";
 import { validateApiKey } from "../_shared/api-key-guard.ts";
+import { generateEmbedding } from "../_shared/embedding-client.ts";
 import { createLogger } from "../_shared/logger.ts";
 
 const logger = createLogger("vault-query");
@@ -91,24 +92,32 @@ Deno.serve(withSentry("vault-query", async (req: Request) => {
       return createSuccessResponse(req, data ?? { domains: [], playbook_phases: [], top_modules: [] });
     }
 
-    // ── SEARCH: full-text bilingual search with filters ──────────────────
+    // ── SEARCH: hybrid search (full-text + semantic) ───────────────────
     case "search": {
       const query       = (body.query as string) ?? null;
       const domain      = (body.domain as string) ?? null;
       const moduleType  = (body.module_type as string) ?? null;
       const tags        = (body.tags as string[]) ?? null;
-      const saasPhase   = (body.saas_phase as number) ?? null;
       const limit       = Math.min((body.limit as number) ?? 10, 50);
-      const offset      = (body.offset as number) ?? 0;
 
-      const { data, error } = await supabase.rpc("query_vault_modules", {
-        p_query:       query,
-        p_domain:      domain,
-        p_module_type: moduleType,
-        p_tags:        tags,
-        p_saas_phase:  saasPhase,
-        p_limit:       limit,
-        p_offset:      offset,
+      // Generate embedding for semantic search
+      let queryEmbedding: string | null = null;
+      if (query) {
+        try {
+          const embArr = await generateEmbedding(query);
+          queryEmbedding = `[${embArr.join(",")}]`;
+        } catch (embErr) {
+          logger.warn("embedding generation failed, using full-text only", { error: String(embErr) });
+        }
+      }
+
+      const { data, error } = await supabase.rpc("hybrid_search_vault_modules", {
+        p_query_text:    query,
+        p_query_embedding: queryEmbedding,
+        p_domain:        domain,
+        p_module_type:   moduleType,
+        p_tags:          tags,
+        p_match_count:   limit,
       });
 
       if (error) {
@@ -119,7 +128,8 @@ Deno.serve(withSentry("vault-query", async (req: Request) => {
       return createSuccessResponse(req, {
         modules: data ?? [],
         total: (data ?? []).length,
-        query: { query, domain, module_type: moduleType, tags, saas_phase: saasPhase, limit, offset },
+        search_mode: queryEmbedding ? "hybrid" : query ? "full_text" : "list",
+        query: { query, domain, module_type: moduleType, tags, limit },
       });
     }
 
