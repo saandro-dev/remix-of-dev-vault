@@ -1,8 +1,12 @@
 /**
- * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v2.3).
+ * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v2.4).
  *
  * Thin shell: Hono router, CORS, auth middleware, MCP transport.
  * All tool logic lives in _shared/mcp-tools/ (one file per tool).
+ *
+ * IMPORTANT: McpServer, transport, and tools are singletons (module-level).
+ * Auth is a mutable object updated per-request — safe because Edge Functions
+ * are single-threaded.
  *
  * Tools (8): devvault_bootstrap, devvault_search, devvault_get,
  *            devvault_list, devvault_domains, devvault_ingest,
@@ -14,6 +18,7 @@ import { McpServer, StreamableHttpTransport } from "mcp-lite";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
 import { authenticateRequest } from "../_shared/mcp-tools/auth.ts";
 import { registerAllTools } from "../_shared/mcp-tools/register.ts";
+import type { AuthContext } from "../_shared/mcp-tools/types.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,9 +31,6 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "86400",
 };
 
-/**
- * Injects CORS headers into any Response (including error responses from auth).
- */
 function withCors(response: Response): Response {
   const newHeaders = new Headers(response.headers);
   for (const [key, value] of Object.entries(CORS_HEADERS)) {
@@ -41,6 +43,19 @@ function withCors(response: Response): Response {
   });
 }
 
+// ─── MODULE-LEVEL SINGLETONS ────────────────────────────────────────────────
+const client = getSupabaseClient("general");
+const mcp = new McpServer({ name: "devvault", version: "2.4.0" });
+
+// Mutable auth — updated per-request, captured by reference in tool handlers.
+// Edge Functions are single-threaded, so no race conditions.
+const requestAuth: AuthContext = { userId: "", keyId: "" };
+registerAllTools(mcp, client, requestAuth);
+
+const transport = new StreamableHttpTransport();
+const httpHandler = transport.handleRequest.bind(transport);
+// ─────────────────────────────────────────────────────────────────────────────
+
 const app = new Hono();
 
 app.all("/*", async (c) => {
@@ -48,35 +63,28 @@ app.all("/*", async (c) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  // Diagnostic logging — headers received
-  const hdrs = c.req.raw.headers;
   console.log("[MCP:DIAG] incoming request", {
     method: c.req.method,
-    hasDevVaultKey: hdrs.has("x-devvault-key"),
-    hasApiKey: hdrs.has("x-api-key"),
-    hasAuthorization: hdrs.has("authorization"),
+    hasDevVaultKey: c.req.raw.headers.has("x-devvault-key"),
+    hasApiKey: c.req.raw.headers.has("x-api-key"),
+    hasAuthorization: c.req.raw.headers.has("authorization"),
     url: c.req.url,
   });
 
   const authResult = await authenticateRequest(c.req.raw);
 
   if (authResult instanceof Response) {
-    // Ensure CORS headers are present on error responses
     return withCors(authResult);
   }
 
   console.log("[MCP:DIAG] auth passed", { userId: authResult.userId });
 
-  const client = getSupabaseClient("general");
-  const server = new McpServer({ name: "devvault", version: "2.3.0" });
-
-  registerAllTools(server, client, authResult);
-
-  const transport = new StreamableHttpTransport();
+  // Mutate shared reference — tools see updated values
+  requestAuth.userId = authResult.userId;
+  requestAuth.keyId = authResult.keyId;
 
   try {
-    const handler = transport.bind(server);
-    const mcpResponse = await handler(c.req.raw);
+    const mcpResponse = await httpHandler(c.req.raw, mcp);
     console.log("[MCP:DIAG] transport response", { status: mcpResponse.status });
     return withCors(mcpResponse);
   } catch (err) {
