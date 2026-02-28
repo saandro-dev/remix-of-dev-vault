@@ -65,7 +65,11 @@ export const registerListTool: ToolRegistrar = (server, client) => {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
 
-        let modules = data as Record<string, unknown>[];
+        // Trim heavy fields from list results, keep useful metadata
+        let modules = (data as Record<string, unknown>[]).map((m) => {
+          const { code, context_markdown, ...rest } = m;
+          return rest;
+        });
         if (params.group) {
           const groupName = params.group as string;
           const { data: groupModules } = await client

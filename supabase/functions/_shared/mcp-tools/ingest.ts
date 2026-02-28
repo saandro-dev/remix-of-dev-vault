@@ -43,6 +43,31 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
         source_project: { type: "string", description: "Source project name" },
         module_group: { type: "string", description: "Group name for related modules" },
         implementation_order: { type: "number", description: "Order within group (1-based)" },
+        common_errors: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+              cause: { type: "string" },
+              fix: { type: "string" },
+            },
+            required: ["error", "cause", "fix"],
+          },
+          description: "Common errors and their fixes",
+        },
+        solves_problems: {
+          type: "array", items: { type: "string" },
+          description: "Problems this module solves (used for intent-based search)",
+        },
+        test_code: { type: "string", description: "Quick validation code to confirm the module works" },
+        difficulty: { type: "string", enum: ["beginner", "intermediate", "advanced"], description: "Implementation difficulty" },
+        estimated_minutes: { type: "number", description: "Estimated implementation time in minutes" },
+        prerequisites: {
+          type: "array",
+          items: { type: "object" },
+          description: "Environment prerequisites (e.g. extensions, env vars, services)",
+        },
         dependencies: {
           type: "array",
           items: {
@@ -77,6 +102,8 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
       const optionalFields = [
         "slug", "description", "domain", "module_type", "why_it_matters",
         "context_markdown", "code_example", "usage_hint", "source_project", "module_group",
+        "common_errors", "solves_problems", "test_code", "difficulty", "estimated_minutes",
+        "prerequisites",
       ];
       for (const field of optionalFields) {
         if (params[field]) insertData[field] = params[field];

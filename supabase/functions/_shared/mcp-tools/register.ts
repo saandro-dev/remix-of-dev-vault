@@ -16,6 +16,7 @@ import { registerDomainsTool } from "./domains.ts";
 import { registerIngestTool } from "./ingest.ts";
 import { registerUpdateTool } from "./update.ts";
 import { registerGetGroupTool } from "./get-group.ts";
+import { registerValidateTool } from "./validate.ts";
 
 export function registerAllTools(
   server: McpServerLike,
@@ -30,4 +31,5 @@ export function registerAllTools(
   registerIngestTool(server, client, auth);
   registerUpdateTool(server, client, auth);
   registerGetGroupTool(server, client, auth);
+  registerValidateTool(server, client, auth);
 }

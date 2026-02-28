@@ -2,7 +2,7 @@
  * mcp-tools/get-group.ts — devvault_get_group tool.
  *
  * Fetches all modules in a named group, ordered by implementation_order,
- * with dependencies pre-resolved. The "give me everything" tool.
+ * with dependencies pre-resolved and an implementation checklist in markdown.
  */
 
 import { createLogger } from "../logger.ts";
@@ -15,7 +15,8 @@ export const registerGetGroupTool: ToolRegistrar = (server, client) => {
   server.tool("devvault_get_group", {
     description:
       "Fetch all modules in a group, ordered by implementation_order, with dependencies " +
-      "pre-resolved. This is the 'give me everything I need to implement X' tool. " +
+      "pre-resolved and an implementation checklist in markdown. This is the " +
+      "'give me everything I need to implement X' tool. " +
       "Example: devvault_get_group({ group: 'whatsapp-integration' }) returns all " +
       "WhatsApp modules in the correct implementation sequence.",
     inputSchema: {
@@ -30,7 +31,7 @@ export const registerGetGroupTool: ToolRegistrar = (server, client) => {
 
       const { data: modules, error } = await client
         .from("vault_modules")
-        .select("id, slug, title, description, domain, module_type, language, tags, why_it_matters, code_example, module_group, implementation_order, validation_status")
+        .select("id, slug, title, description, domain, module_type, language, tags, why_it_matters, code_example, usage_hint, module_group, implementation_order, validation_status, difficulty, estimated_minutes")
         .eq("module_group", groupName)
         .order("implementation_order", { ascending: true, nullsFirst: false });
 
@@ -50,13 +51,19 @@ export const registerGetGroupTool: ToolRegistrar = (server, client) => {
         }),
       );
 
+      // Generate implementation checklist in markdown
+      const totalMinutes = enriched.reduce((sum, m) => sum + (Number(m.estimated_minutes) || 0), 0);
+      const checklist = generateChecklist(enriched, groupName, totalMinutes);
+
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
             group: groupName,
             total_modules: enriched.length,
+            total_estimated_minutes: totalMinutes || null,
             modules: enriched,
+            _implementation_checklist: checklist,
             _instructions:
               "Implement these modules in order (by implementation_order). " +
               "For each module, call devvault_get to fetch the full code before implementing. " +
@@ -67,3 +74,37 @@ export const registerGetGroupTool: ToolRegistrar = (server, client) => {
     },
   });
 };
+
+function generateChecklist(
+  modules: Record<string, unknown>[],
+  groupName: string,
+  totalMinutes: number,
+): string {
+  const lines: string[] = [
+    `# Implementation Checklist: ${groupName}`,
+    "",
+    `**Total modules:** ${modules.length}`,
+  ];
+
+  if (totalMinutes > 0) {
+    lines.push(`**Estimated total time:** ~${totalMinutes} minutes`);
+  }
+
+  lines.push("", "## Steps", "");
+
+  for (const mod of modules) {
+    const order = mod.implementation_order ?? "?";
+    const diff = mod.difficulty ? ` [${mod.difficulty}]` : "";
+    const time = mod.estimated_minutes ? ` (~${mod.estimated_minutes}min)` : "";
+    const deps = mod.dependencies as Array<Record<string, unknown>> | undefined;
+    const requiredDeps = deps?.filter((d) => d.dependency_type === "required") ?? [];
+
+    lines.push(`- [ ] **Step ${order}:** ${mod.title}${diff}${time}`);
+    if (mod.description) lines.push(`  - ${mod.description}`);
+    if (requiredDeps.length > 0) {
+      lines.push(`  - ⚠️ Requires: ${requiredDeps.map((d) => d.title || d.slug || d.depends_on_id).join(", ")}`);
+    }
+  }
+
+  return lines.join("\n");
+}
