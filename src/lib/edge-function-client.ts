@@ -4,7 +4,7 @@ export async function invokeEdgeFunction<T>(
   functionName: string,
   body: Record<string, unknown>
 ): Promise<T> {
-  // Busca a sessão atual para enviar o JWT do usuário logado no header Authorization
+  // Fetch the current session to send the logged-in user's JWT in the Authorization header
   const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = {};
   if (session?.access_token) {
