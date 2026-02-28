@@ -16,21 +16,21 @@ export const registerDomainsTool: ToolRegistrar = (server, client) => {
       "Use this to discover what areas of knowledge are available.",
     inputSchema: { type: "object", properties: {}, required: [] },
     handler: async () => {
-      console.log("[MCP:TOOL] devvault_domains invoked");
+      logger.info("invoked");
       try {
         const { data, error } = await client.rpc("list_vault_domains");
-        console.log("[MCP:TOOL] devvault_domains RPC result", JSON.stringify({
+        logger.info("RPC result", {
           success: !error,
           resultCount: Array.isArray(data) ? data.length : 0,
           error: error?.message,
-        }));
+        });
         if (error) {
           logger.error("domains failed", { error: error.message });
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       } catch (err) {
-        console.error("[MCP:TOOL] devvault_domains UNCAUGHT", String(err));
+        logger.error("uncaught error", { error: String(err) });
         return { content: [{ type: "text", text: `Uncaught error: ${String(err)}` }] };
       }
     },

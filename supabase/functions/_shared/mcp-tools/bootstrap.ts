@@ -18,20 +18,20 @@ export const registerBootstrapTool: ToolRegistrar = (server, client) => {
       "knowledge is available before searching or getting specific modules.",
     inputSchema: { type: "object", properties: {}, required: [] },
     handler: async () => {
-      console.log("[MCP:TOOL] devvault_bootstrap invoked");
+      logger.info("invoked");
       try {
         const { data, error } = await client.rpc("bootstrap_vault_context");
-        console.log("[MCP:TOOL] devvault_bootstrap RPC result", JSON.stringify({
+        logger.info("RPC result", {
           success: !error,
           error: error?.message,
-        }));
+        });
         if (error) {
           logger.error("bootstrap failed", { error: error.message });
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       } catch (err) {
-        console.error("[MCP:TOOL] devvault_bootstrap UNCAUGHT", String(err));
+        logger.error("uncaught error", { error: String(err) });
         return { content: [{ type: "text", text: `Uncaught error: ${String(err)}` }] };
       }
     },
