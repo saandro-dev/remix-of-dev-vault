@@ -4,7 +4,7 @@
  * Imports every tool registrar and calls them against the McpServer instance.
  * Adding a new tool = one import + one line in registerAllTools.
  *
- * Total tools: 14
+ * Total tools: 16
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -24,6 +24,8 @@ import { registerDiagnoseTool } from "./diagnose.ts";
 import { registerReportBugTool } from "./report-bug.ts";
 import { registerResolveBugTool } from "./resolve-bug.ts";
 import { registerReportSuccessTool } from "./report-success.ts";
+import { registerExportTreeTool } from "./export-tree.ts";
+import { registerCheckUpdatesTool } from "./check-updates.ts";
 
 export function registerAllTools(
   server: McpServerLike,
@@ -44,4 +46,6 @@ export function registerAllTools(
   registerReportBugTool(server, client, auth);
   registerResolveBugTool(server, client, auth);
   registerReportSuccessTool(server, client, auth);
+  registerExportTreeTool(server, client, auth);
+  registerCheckUpdatesTool(server, client, auth);
 }

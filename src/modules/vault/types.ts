@@ -56,6 +56,7 @@ export interface VaultModule {
   language: string;
   code: string;
   context_markdown: string | null;
+  database_schema: string | null;
   dependencies: string | null;
   tags: string[];
   module_group: string | null;
@@ -65,6 +66,7 @@ export interface VaultModule {
   test_code: string | null;
   difficulty: string | null;
   estimated_minutes: number | null;
+  version: string;
   module_dependencies?: ModuleDependency[];
   created_at: string;
   updated_at: string;

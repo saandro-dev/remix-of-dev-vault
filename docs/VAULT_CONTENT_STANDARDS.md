@@ -41,6 +41,7 @@ This section details the purpose and correct filling of each field in the `vault
 | Field | Type | Required | Description and Standard |
 | :--- | :--- | :--- | :--- |
 | `code` | `text` | ✅ Yes | **The code snippet, SQL script, or document body.** Must be complete and functional. |
+| `database_schema` | `text` | ❌ No | **The SQL migration/schema required for this module to work.** E.g.: `CREATE TABLE subscriptions (...)`. Include the exact DDL so agents can create the required tables automatically. |
 | `why_it_matters` | `text` | ✅ Yes | **English explanation of why this module is important.** What problem does it solve? What vulnerability does it prevent? E.g.: "Storing JWTs in localStorage exposes the app to XSS attacks. HttpOnly cookies eliminate this vector." |
 | `usage_hint` | `text` | ✅ Yes | **Clear instruction on when and how to use this module.** E.g.: "Use when storing auth tokens in cookies instead of localStorage to prevent XSS token theft." |
 | `code_example` | `text` | ✅ Yes | **Practical example of how to use the code from the `code` field.** Show the function call, the `import`, etc. |
