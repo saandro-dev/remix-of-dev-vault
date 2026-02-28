@@ -807,6 +807,7 @@ export type Database = {
           p_user_id: string
         }
         Returns: {
+          ai_metadata: Json
           code_example: string
           created_at: string
           description: string
@@ -846,6 +847,7 @@ export type Database = {
           p_tags?: string[]
         }
         Returns: {
+          ai_metadata: Json
           code: string
           code_example: string
           context_markdown: string
@@ -892,6 +894,7 @@ export type Database = {
           p_tags?: string[]
         }
         Returns: {
+          ai_metadata: Json
           code: string
           code_example: string
           context_markdown: string
