@@ -53,7 +53,7 @@ const requestAuth: AuthContext = { userId: "", keyId: "" };
 registerAllTools(mcp, client, requestAuth);
 
 const transport = new StreamableHttpTransport();
-const httpHandler = transport.handleRequest.bind(transport);
+const httpHandler = transport.bind(mcp);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const app = new Hono();
@@ -84,7 +84,7 @@ app.all("/*", async (c) => {
   requestAuth.keyId = authResult.keyId;
 
   try {
-    const mcpResponse = await httpHandler(c.req.raw, mcp);
+    const mcpResponse = await httpHandler(c.req.raw);
     console.log("[MCP:DIAG] transport response", { status: mcpResponse.status });
     return withCors(mcpResponse);
   } catch (err) {
