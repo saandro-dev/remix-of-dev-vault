@@ -1,27 +1,35 @@
-## v5.3 Search Infrastructure — Completo ✅
 
-Todas as 3 migrations foram aplicadas com sucesso.
 
-### Migrations Executadas
+## Resultado da Auditoria v5.3
 
-1. **Expand tsvector triggers + backfill** — Triggers PT/EN agora indexam `code`, `code_example`, `module_group`, `usage_hint`. Backfill executado.
-2. **OR tsquery + tokenized ILIKE + cosine threshold** — `hybrid_search_vault_modules` e `query_vault_modules` reescritos com OR tsquery, ILIKE tokenizado por palavra, e threshold coseno relaxado de `< 0.5` para `< 0.85`.
-3. **pg_trgm + GIN indexes** — Extensão `pg_trgm` habilitada. GIN trigram indexes em `title`, `description`, `code`.
+### ✅ Validações Positivas (Tudo Correto)
 
-### Bugs Resolvidos
+1. **register.ts** — 22 imports, 22 registrations, comment "Total tools: 22". Perfeito.
+2. **bootstrap.ts** — AGENT_GUIDE lista 22 tools, behavioral_rules inclui regra de debugging e diary_list dedup. Perfeito.
+3. **diagnose-troubleshoot.ts** — 5 estratégias implementadas, zero código morto (`tokenizedMatch` removido com sucesso). Perfeito.
+4. **load-context.ts** — Tag-based cross-project discovery implementado. Perfeito.
+5. **index.ts** — `version: "5.3.0"`, linha vazia extra removida, auth limpo. Perfeito.
+6. **SQL Functions** — `hybrid_search_vault_modules` com OR tsquery, tokenized ILIKE, cosine `< 0.85`, search_path `public, extensions`. `query_vault_modules` com OR tsquery e ILIKE expandido para `code`, `code_example`, `module_group`. Ambos confirmados via DB dump. Perfeito.
+7. **tsvector triggers** — PT e EN indexam `code`, `code_example`, `module_group`, `usage_hint`. Confirmado via DB dump. Perfeito.
+8. **EDGE_FUNCTIONS_REGISTRY.md** — Changelog v5.2 e v5.3 documentados, badge atualizado para v5.3. Perfeito.
+9. **.lovable/plan.md** — Estado atualizado com os 3 bugs resolvidos e tabela de performance. Perfeito.
+10. **Zero código morto** — Nenhuma função não utilizada encontrada em nenhum arquivo auditado.
 
-| Bug | Status | Correção |
-|---|---|---|
-| BUG-1: search vetorial | ✅ v5.2 | `search_path` com `extensions` |
-| BUG-2: diagnose sem fallback | ✅ v5.3 | OR tsquery + tokenized ILIKE + cosine 0.85 |
-| BUG-3: list busca limitada | ✅ v5.3 | OR tsquery + tokenized ILIKE em todos os campos |
+### 🔴 Problema Encontrado
 
-### Performance Esperada (10k módulos)
+**1. Comentário desatualizado no header de `index.ts` (linha 2)**
 
-| Operação | Antes | Depois |
-|---|---|---|
-| tsvector query | AND only, campos limitados | OR, todos os campos, ~5ms |
-| ILIKE fallback | seq scan, frase inteira | index scan (pg_trgm), por token, ~10ms |
-| Cosine distance | threshold 0.5 (descarta 50%+) | threshold 0.85 (aceita 15%+ similarity) |
+```text
+Linha 2: * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v5.0).
+```
 
-Zero alterações em TypeScript. Protocol V2 compliance: 10/10.
+O McpServer declara `version: "5.3.0"` (correto), mas o comentário JSDoc no topo do arquivo ainda diz **"(v5.0)"**. Viola §5.4 Code Hygiene — comentários devem refletir o estado atual.
+
+### Plano de Correção
+
+```text
+supabase/functions/devvault-mcp/index.ts  [EDIT — linha 2: "(v5.0)" → "(v5.3)"]
+```
+
+Correção de 1 linha. Após isso: **zero problemas restantes, compliance 10/10**.
+
