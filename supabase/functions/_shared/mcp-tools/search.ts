@@ -15,7 +15,9 @@ export const registerSearchTool: ToolRegistrar = (server, client) => {
     description:
       "Search the Knowledge Graph by intent/text. Returns modules matching your query " +
       "with relevance scoring. Uses full-text search (PT/EN) with automatic ILIKE " +
-      "fallback when tsvector finds no matches. Results include usage_hint field. " +
+      "fallback when tsvector finds no matches. Also searches in solves_problems field, " +
+      "so you can search by problem description (e.g. 'webhook not receiving events'). " +
+      "Results include usage_hint field. " +
       "For structured browsing without text search, use devvault_list instead.",
     inputSchema: {
       type: "object",
@@ -41,7 +43,7 @@ export const registerSearchTool: ToolRegistrar = (server, client) => {
       required: [],
     },
     handler: async (params: Record<string, unknown>) => {
-      console.log("[MCP:TOOL] devvault_search invoked", JSON.stringify({ params }));
+      logger.info("invoked", { params });
       try {
         const limit = Math.min(Number(params.limit ?? 10), 50);
         const rpcParams: Record<string, unknown> = { p_limit: limit };
@@ -52,11 +54,11 @@ export const registerSearchTool: ToolRegistrar = (server, client) => {
         if (params.tags) rpcParams.p_tags = params.tags;
 
         const { data, error } = await client.rpc("query_vault_modules", rpcParams);
-        console.log("[MCP:TOOL] devvault_search RPC result", JSON.stringify({
+        logger.info("RPC result", {
           success: !error,
           resultCount: (data as unknown[])?.length ?? 0,
           error: error?.message,
-        }));
+        });
 
         if (error) {
           logger.error("search failed", { error: error.message });
@@ -74,7 +76,7 @@ export const registerSearchTool: ToolRegistrar = (server, client) => {
           }],
         };
       } catch (err) {
-        console.error("[MCP:TOOL] devvault_search UNCAUGHT", String(err));
+        logger.error("uncaught error", { error: String(err) });
         return { content: [{ type: "text", text: `Uncaught error: ${String(err)}` }] };
       }
     },

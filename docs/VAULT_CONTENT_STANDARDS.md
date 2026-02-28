@@ -1,75 +1,109 @@
-# DevVault - Guia de Padrões de Conteúdo
+# DevVault - Content Standards Guide
 
-> **🔴 FONTE DA VERDADE MÁXIMA** - Este documento define as regras e padrões que **todos** os agentes de IA devem seguir ao adicionar ou modificar conteúdo no DevVault. O objetivo é garantir consistência, qualidade e máxima usabilidade para os agentes que consumirão este conhecimento.
-> Última atualização: 2026-02-28
-> Mantenedor: Arquiteto de IA
-
----
-
-## Princípios Fundamentais
-
-1.  **Inglês Primeiro:** Todos os campos de texto (`title`, `description`, `why_it_matters`, etc.) **devem** ser escritos em inglês. As `tags` podem conter termos em português se forem de alta relevância para a busca.
-2.  **Atomicidade:** Cada módulo deve representar uma única ideia, padrão ou trecho de código. Evite criar módulos monolíticos. Se um conceito é muito grande, quebre-o em múltiplos módulos e agrupe-os usando o campo `module_group`.
-3.  **Validação > Rascunho:** O objetivo é ter um vault de conhecimento validado. Sempre que possível, adicione conteúdo que já foi testado e provado em um projeto real. O status `draft` deve ser temporário.
-4.  **Contexto é Rei:** Um trecho de código sem contexto é inútil. Os campos `why_it_matters` e `usage_hint` são **obrigatórios** e devem explicar o problema que o módulo resolve e quando ele deve ser usado.
+> **🔴 MAXIMUM SOURCE OF TRUTH** — This document defines the rules and standards that **all** AI agents must follow when adding or modifying content in DevVault. The goal is to ensure consistency, quality, and maximum usability for agents consuming this knowledge.
+> Last updated: 2026-02-28
+> Maintainer: AI Architect
 
 ---
 
-## Estrutura de um Módulo (`vault_modules`)
+## Fundamental Principles
 
-Esta seção detalha o propósito e o preenchimento correto de cada campo da tabela `vault_modules`.
-
-### Campos de Identificação
-
-| Campo | Tipo | Obrigatório | Descrição e Padrão |
-| :--- | :--- | :--- | :--- |
-| `title` | `text` | ✅ Sim | **Título conciso e descritivo em inglês.** Deve ser autoexplicativo. Ex: "Secure Session Cookies — HttpOnly, Secure, SameSite". |
-| `slug` | `text` | ❌ Não | **URL-friendly slug.** Se omitido, será gerado a partir do título. Ex: `secure-session-cookies`. |
-| `description` | `text` | ❌ Não | Descrição um pouco mais longa que o título, se necessário. |
-
-### Campos de Classificação
-
-| Campo | Tipo | Obrigatório | Descrição e Valores Válidos |
-| :--- | :--- | :--- | :--- |
-| `domain` | `enum` | ✅ Sim | **A grande área de conhecimento.** Valores: `security`, `backend`, `frontend`, `architecture`, `devops`, `saas_playbook`. |
-| `module_type` | `enum` | ✅ Sim | **O formato do conteúdo.** Valores: `code_snippet`, `full_module`, `sql_migration`, `architecture_doc`, `playbook_phase`, `pattern_guide`. |
-| `language` | `text` | ✅ Sim | **A linguagem principal do código.** Ex: `typescript`, `sql`, `bash`, `python`. Use `text` para documentos. |
-| `tags` | `text[]` | ✅ Sim | **Array de tags para busca.** Pelo menos uma tag é obrigatória. Use lowercase. Ex: `["auth", "cookies", "security"]`. |
-
-### Campos de Conteúdo Principal
-
-| Campo | Tipo | Obrigatório | Descrição e Padrão |
-| :--- | :--- | :--- | :--- |
-| `code` | `text` | ✅ Sim | **O trecho de código, script SQL ou corpo do documento.** Deve ser completo e funcional. |
-| `why_it_matters` | `text` | ✅ Sim | **Explicação em inglês do porquê este módulo é importante.** Qual problema ele resolve? Qual vulnerabilidade ele previne? Ex: "Storing JWTs in localStorage exposes the app to XSS attacks. HttpOnly cookies eliminate this vector." |
-| `usage_hint` | `text` | ✅ Sim | **Instrução clara sobre quando e como usar este módulo.** Ex: "Use when storing auth tokens in cookies instead of localStorage to prevent XSS token theft." |
-| `code_example` | `text` | ✅ Sim | **Exemplo prático de como usar o código do campo `code`.** Mostre a chamada da função, o `import`, etc. |
-| `context_markdown` | `text` | ❌ Não | Documentação adicional em Markdown para explicações mais longas, se necessário. |
-
-### Campos de Agrupamento e Ordenação
-
-| Campo | Tipo | Obrigatório | Descrição e Padrão |
-| :--- | :--- | :--- | :--- |
-| `module_group` | `text` | ❌ Não | **Agrupa módulos relacionados que não são dependências diretas.** Use um slug em lowercase. Ex: `whatsapp-integration`. |
-| `implementation_order` | `integer` | ❌ Não | **Define a ordem de implementação dentro de um `module_group`.** Use 1, 2, 3... |
-| `saas_phase` | `integer` | ❌ Não | **Associa o módulo a uma fase do SaaS Playbook.** Apenas para módulos que se encaixam no playbook. |
-| `phase_title` | `text` | ❌ Não | **Título da fase do SaaS Playbook.** Deve ser consistente com o `saas_phase`. Ex: "Phase 2: Authentication and Security". |
-
-### Campos de Metadados
-
-| Campo | Tipo | Obrigatório | Descrição e Padrão |
-| :--- | :--- | :--- | :--- |
-| `source_project` | `text` | ✅ Sim | **O nome do projeto onde este módulo foi validado.** Ex: `risecheckout`. |
-| `validation_status` | `enum` | ✅ Sim | **O status de validação.** Comece com `draft` e mude para `validated` após a revisão. Valores: `draft`, `validated`, `deprecated`. |
-| `visibility` | `enum` | ✅ Sim | **Quem pode ver este módulo.** O padrão é `private`. Use `global` para conhecimento compartilhado. Valores: `private`, `shared`, `global`. |
-| `dependencies` | `text` | ❌ Não | **(LEGADO)** Não use este campo. As dependências são gerenciadas por uma tabela separada. |
-| `related_modules` | `uuid[]` | ❌ Não | **(LEGADO)** Não use este campo. |
+1.  **English First:** All text fields (`title`, `description`, `why_it_matters`, etc.) **must** be written in English. Tags may contain Portuguese terms if they are highly relevant for search.
+2.  **Atomicity:** Each module must represent a single idea, pattern, or code snippet. Avoid monolithic modules. If a concept is too large, break it into multiple modules and group them using the `module_group` field.
+3.  **Validation > Draft:** The goal is to have a validated knowledge vault. Whenever possible, add content that has been tested and proven in a real project. The `draft` status should be temporary.
+4.  **Context is King:** A code snippet without context is useless. The fields `why_it_matters` and `usage_hint` are **mandatory** and must explain the problem the module solves and when it should be used.
 
 ---
 
-## O SaaS Playbook
+## Module Structure (`vault_modules`)
 
-O `saas_playbook` é um domínio especial que organiza a construção de um SaaS em fases. Módulos do tipo `playbook_phase` definem estas fases. Outros módulos podem se associar a uma fase usando os campos `saas_phase` e `phase_title`.
+This section details the purpose and correct filling of each field in the `vault_modules` table.
+
+### Identification Fields
+
+| Field | Type | Required | Description and Standard |
+| :--- | :--- | :--- | :--- |
+| `title` | `text` | ✅ Yes | **Concise, descriptive title in English.** Must be self-explanatory. E.g.: "Secure Session Cookies — HttpOnly, Secure, SameSite". |
+| `slug` | `text` | ❌ No | **URL-friendly slug.** If omitted, will be generated from the title. E.g.: `secure-session-cookies`. |
+| `description` | `text` | ❌ No | Slightly longer description than the title, if needed. |
+
+### Classification Fields
+
+| Field | Type | Required | Description and Valid Values |
+| :--- | :--- | :--- | :--- |
+| `domain` | `enum` | ✅ Yes | **The broad knowledge area.** Values: `security`, `backend`, `frontend`, `architecture`, `devops`, `saas_playbook`. |
+| `module_type` | `enum` | ✅ Yes | **The content format.** Values: `code_snippet`, `full_module`, `sql_migration`, `architecture_doc`, `playbook_phase`, `pattern_guide`. |
+| `language` | `text` | ✅ Yes | **The primary code language.** E.g.: `typescript`, `sql`, `bash`, `python`. Use `text` for documents. |
+| `tags` | `text[]` | ✅ Yes | **Array of tags for search.** At least one tag is required. Use lowercase. E.g.: `["auth", "cookies", "security"]`. |
+
+### Main Content Fields
+
+| Field | Type | Required | Description and Standard |
+| :--- | :--- | :--- | :--- |
+| `code` | `text` | ✅ Yes | **The code snippet, SQL script, or document body.** Must be complete and functional. |
+| `why_it_matters` | `text` | ✅ Yes | **English explanation of why this module is important.** What problem does it solve? What vulnerability does it prevent? E.g.: "Storing JWTs in localStorage exposes the app to XSS attacks. HttpOnly cookies eliminate this vector." |
+| `usage_hint` | `text` | ✅ Yes | **Clear instruction on when and how to use this module.** E.g.: "Use when storing auth tokens in cookies instead of localStorage to prevent XSS token theft." |
+| `code_example` | `text` | ✅ Yes | **Practical example of how to use the code from the `code` field.** Show the function call, the `import`, etc. |
+| `context_markdown` | `text` | ❌ No | Additional Markdown documentation for longer explanations, if needed. |
+
+### Operational Depth Fields (AI Agent Support)
+
+These fields provide critical operational context that transforms DevVault from a "code repository" into a "technical co-pilot". They help agents debug, validate, and understand implementation difficulty.
+
+| Field | Type | Required | Description and Standard |
+| :--- | :--- | :--- | :--- |
+| `common_errors` | `jsonb` | ❌ No | **Array of common errors with causes and fixes.** Each entry must have `error`, `cause`, and `fix` keys. E.g.: `[{"error": "TypeError: Cannot read property 'id' of undefined", "cause": "Missing RLS policy on table X", "fix": "Run: ALTER TABLE x ENABLE ROW LEVEL SECURITY..."}]`. |
+| `solves_problems` | `text[]` | ❌ No | **Array of problem descriptions this module solves.** Used for problem-based search. E.g.: `["webhook not receiving events", "API returning 401", "instance stuck in connecting state"]`. |
+| `test_code` | `text` | ❌ No | **Quick validation code to confirm the module works after implementation.** E.g.: `"const result = await evo.getConnectionState('test');\nassert(result.state !== undefined, 'Client is working');"`. |
+| `difficulty` | `text` | ❌ No | **Implementation difficulty level.** Values: `beginner`, `intermediate`, `advanced`. Default: `intermediate`. |
+| `estimated_minutes` | `integer` | ❌ No | **Estimated implementation time in minutes.** E.g.: `15`, `45`, `120`. |
+| `prerequisites` | `jsonb[]` | ❌ No | **Environment prerequisites (not module dependencies).** E.g.: `["Supabase Vault enabled", "pgcrypto extension", "Environment variable: EVOLUTION_API_URL"]`. |
+
+### Grouping and Ordering Fields
+
+| Field | Type | Required | Description and Standard |
+| :--- | :--- | :--- | :--- |
+| `module_group` | `text` | ❌ No | **Groups related modules that are not direct dependencies.** Use a lowercase slug. E.g.: `whatsapp-integration`. |
+| `implementation_order` | `integer` | ❌ No | **Defines the implementation order within a `module_group`.** Use 1, 2, 3... |
+| `saas_phase` | `integer` | ❌ No | **Associates the module with a SaaS Playbook phase.** Only for modules that fit the playbook. |
+| `phase_title` | `text` | ❌ No | **SaaS Playbook phase title.** Must be consistent with `saas_phase`. E.g.: "Phase 2: Authentication and Security". |
+
+### Relationship Fields
+
+| Field | Type | Required | Description and Standard |
+| :--- | :--- | :--- | :--- |
+| `related_modules` | `uuid[]` | ❌ No | **Array of UUIDs of related modules.** The MCP `devvault_get` tool automatically resolves these UUIDs to `{id, slug, title}` objects for agent convenience. Use this to link contextually related modules (e.g., "audit-logging" ↔ "rls-policies"). |
+| `dependencies` | `text` | ❌ No | **(LEGACY)** Do not use this field. Dependencies are managed by the `vault_module_dependencies` table. |
+
+### Metadata Fields
+
+| Field | Type | Required | Description and Standard |
+| :--- | :--- | :--- | :--- |
+| `source_project` | `text` | ✅ Yes | **The project name where this module was validated.** E.g.: `risecheckout`. |
+| `validation_status` | `enum` | ✅ Yes | **The validation status.** Start with `draft` and change to `validated` after review. Values: `draft`, `validated`, `deprecated`. |
+| `visibility` | `enum` | ✅ Yes | **Who can see this module.** Default is `private`. Use `global` for shared knowledge. Values: `private`, `shared`, `global`. |
+
+---
+
+## Module Changelog (`vault_module_changelog`)
+
+The `vault_module_changelog` table tracks version history for modules. Each entry represents a version bump with a list of changes. This enables agents to understand what changed between versions without losing historical context.
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | Auto | Primary key. |
+| `module_id` | `uuid` | ✅ Yes | FK to `vault_modules.id`. Cascades on delete. |
+| `version` | `text` | ✅ Yes | Semantic version string. E.g.: `"1.1.0"`, `"2.0.0"`. |
+| `changes` | `text[]` | ✅ Yes | Array of change descriptions. E.g.: `["Added retry logic", "Fixed timeout handling"]`. |
+| `created_at` | `timestamptz` | Auto | Timestamp of the changelog entry. |
+
+The MCP `devvault_get` tool automatically includes the changelog history when fetching a module.
+
+---
+
+## The SaaS Playbook
+
+The `saas_playbook` is a special domain that organizes SaaS construction in phases. Modules of type `playbook_phase` define these phases. Other modules can associate with a phase using the `saas_phase` and `phase_title` fields.
 
 | `saas_phase` | `phase_title` |
 | :--- | :--- |
@@ -81,16 +115,16 @@ O `saas_playbook` é um domínio especial que organiza a construção de um SaaS
 
 ---
 
-## Como Adicionar Conteúdo (via API `vault-ingest`)
+## How to Add Content (via API `vault-ingest`)
 
-Para adicionar conteúdo, um agente deve fazer uma requisição `POST` para a Edge Function `vault-ingest` com a `action` apropriada.
+To add content, an agent must send a `POST` request to the Edge Function `vault-ingest` with the appropriate `action`.
 
 **Endpoint:** `https://bskfnthwewhpfrldbhqx.supabase.co/functions/v1/vault-ingest`
-**Autenticação:** Header `X-DevVault-Key: dvlt_...`
+**Authentication:** Header `X-DevVault-Key: dvlt_...`
 
-### Ação: `ingest` (Criação)
+### Action: `ingest` (Creation)
 
-O corpo da requisição pode ser um único objeto de módulo ou um array de módulos no campo `modules`.
+The request body can be a single module object or an array of modules in the `modules` field.
 
 ```json
 {
@@ -108,21 +142,34 @@ O corpo da requisição pode ser um único objeto de módulo ou um array de mód
       "code_example": "N/A",
       "source_project": "my-new-saas",
       "validation_status": "validated",
-      "visibility": "global"
+      "visibility": "global",
+      "difficulty": "intermediate",
+      "estimated_minutes": 30,
+      "solves_problems": ["high coupling between services", "difficult to swap implementations"],
+      "common_errors": [
+        {
+          "error": "TypeError: service.execute is not a function",
+          "cause": "Missing interface implementation",
+          "fix": "Ensure the class implements the required interface methods"
+        }
+      ],
+      "test_code": "const svc = new MyService();\nassert(typeof svc.execute === 'function');",
+      "prerequisites": ["TypeScript 5+", "Node.js 18+"]
     }
   ]
 }
 ```
 
-### Ações: `update` e `delete`
+### Actions: `update` and `delete`
 
-Para atualizar ou deletar, envie a `action` correspondente e o `id` do módulo a ser modificado.
+To update or delete, send the corresponding `action` and the `id` of the module to be modified.
 
 ```json
 {
   "action": "update",
   "id": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6",
-  "validation_status": "deprecated"
+  "validation_status": "deprecated",
+  "common_errors": [{"error": "...", "cause": "...", "fix": "..."}]
 }
 ```
 
@@ -133,4 +180,4 @@ Para atualizar ou deletar, envie a `action` correspondente e o `id` do módulo a
 }
 ```
 
-Ao seguir estes padrões, garantimos que o DevVault se torne um ativo de conhecimento de altíssima qualidade, acelerando o desenvolvimento de futuros projetos de forma consistente e segura.
+By following these standards, we ensure that DevVault becomes a high-quality knowledge asset, accelerating future project development consistently and securely.

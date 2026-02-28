@@ -39,7 +39,7 @@ export const registerListTool: ToolRegistrar = (server, client) => {
       required: [],
     },
     handler: async (params: Record<string, unknown>) => {
-      console.log("[MCP:TOOL] devvault_list invoked", JSON.stringify({ params }));
+      logger.info("invoked", { params });
       try {
         const limit = Math.min(Number(params.limit ?? 20), 50);
         const offset = Number(params.offset ?? 0);
@@ -54,11 +54,11 @@ export const registerListTool: ToolRegistrar = (server, client) => {
         if (params.tags) rpcParams.p_tags = params.tags;
 
         const { data, error } = await client.rpc("query_vault_modules", rpcParams);
-        console.log("[MCP:TOOL] devvault_list RPC result", JSON.stringify({
+        logger.info("RPC result", {
           success: !error,
           resultCount: (data as unknown[])?.length ?? 0,
           error: error?.message,
-        }));
+        });
 
         if (error) {
           logger.error("list failed", { error: error.message });
@@ -91,7 +91,7 @@ export const registerListTool: ToolRegistrar = (server, client) => {
           }],
         };
       } catch (err) {
-        console.error("[MCP:TOOL] devvault_list UNCAUGHT", String(err));
+        logger.error("uncaught error", { error: String(err) });
         return { content: [{ type: "text", text: `Uncaught error: ${String(err)}` }] };
       }
     },
