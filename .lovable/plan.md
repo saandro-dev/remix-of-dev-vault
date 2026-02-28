@@ -1,57 +1,54 @@
 
 
-## Diagnostico: Interceptacao Manual de GET Conflita com o Protocolo
+## Diagnostico: Handlers das Tools Nao Produzem Logs
 
-### Evidencia
+Os logs da Edge Function mostram apenas requests de `initialize`, `initialized` (202) e `tools/list` — nenhuma chamada real de `tools/call` (search, domains) aparece nos logs. Isso indica que:
 
-Os logs confirmam que o servidor responde corretamente ao POST `initialize` (200, JSON-RPC valido). O GET subsequente passa pela auth e recebe nosso 405 manual. Mas o Lovable continua reportando "Connection failed".
+1. As chamadas podem ter acontecido antes do window de logs visivel, OU
+2. Os handlers crasham silenciosamente sem produzir output
 
-### Causa Raiz
+### Problema Identificado
 
-Todos os exemplos oficiais do mcp-lite (Hono+Bun, Cloudflare Workers, Next.js, Supabase) delegam **TODOS** os metodos HTTP ao transport — incluindo GET:
-
-```text
-// Exemplo oficial Hono+Bun (do README do mcp-lite):
-app.all("/mcp", (c) => handler(c.req.raw))  // GET, POST, DELETE — tudo vai pro transport
-
-// Exemplo oficial Next.js:
-export const POST = handler
-export const GET = handler   // ← GET tambem vai pro transport
-```
-
-O transport em modo stateless (sem `sessionAdapter`) sabe retornar a resposta correta para GET. Nossa interceptacao manual retorna um 405 com body em texto plano ("Method Not Allowed") — o cliente MCP provavelmente espera uma resposta JSON-RPC formatada pelo transport, ou headers MCP especificos que nao estamos incluindo.
+Os tool handlers atuais (`search.ts`, `domains.ts`) nao possuem logging de entrada — nao ha como saber se o handler foi invocado, quais parametros recebeu, ou se o Supabase client RPC falhou. Os erros sao capturados mas os logs ficam perdidos se a Edge Function encerrar rapidamente.
 
 ### Solucao
 
-1. **Remover** a interceptacao manual de GET (linhas 82-90)
-2. **Adicionar `logger`** ao McpServer para visibilidade interna do mcp-lite
-3. **Deixar o transport lidar com todos os metodos** — e o padrao documentado
-
-### Mudancas
-
-**Arquivo: `supabase/functions/devvault-mcp/index.ts`**
-
-1. Remover o bloco `if (c.req.method === "GET") { ... }` (linhas 82-90)
-2. Adicionar logger ao McpServer:
-
-```typescript
-const mcp = new McpServer({
-  name: "devvault",
-  version: "2.4.0",
-  logger: {
-    error: (...args) => console.error("[MCP:LIB]", ...args),
-    warn: (...args) => console.warn("[MCP:LIB]", ...args),
-    info: (...args) => console.info("[MCP:LIB]", ...args),
-    debug: (...args) => console.debug("[MCP:LIB]", ...args),
-  },
-});
-```
-
-Isso vai: (a) seguir o padrao exato da documentacao oficial, e (b) nos dar visibilidade total do que o mcp-lite faz internamente em cada request, incluindo GET.
+Adicionar logging de diagnostico granular a TODOS os tool handlers para capturar:
+- Confirmacao de que o handler foi invocado
+- Parametros recebidos
+- Resultado do RPC (sucesso/erro)
+- Try-catch global para capturar excecoes nao previstas
 
 ### Arquivos Afetados
 
 | Arquivo | Acao |
 |---------|------|
-| `supabase/functions/devvault-mcp/index.ts` | Remover interceptacao GET, adicionar logger |
+| `supabase/functions/_shared/mcp-tools/search.ts` | Adicionar logs de entrada, parametros, resultado RPC e try-catch global |
+| `supabase/functions/_shared/mcp-tools/domains.ts` | Adicionar logs de entrada, resultado RPC e try-catch global |
+| `supabase/functions/_shared/mcp-tools/bootstrap.ts` | Adicionar logs de entrada e try-catch global (referencia de comparacao) |
+| `supabase/functions/_shared/mcp-tools/list.ts` | Adicionar logs de entrada, parametros, resultado RPC e try-catch global |
+
+### Exemplo de Mudanca (search.ts)
+
+```typescript
+handler: async (params: Record<string, unknown>) => {
+  console.log("[MCP:TOOL] devvault_search invoked", { params });
+  try {
+    const limit = Math.min(Number(params.limit ?? 10), 50);
+    // ... existing logic ...
+    const { data, error } = await client.rpc("query_vault_modules", rpcParams);
+    console.log("[MCP:TOOL] devvault_search RPC result", {
+      success: !error,
+      resultCount: (data as unknown[])?.length ?? 0,
+      error: error?.message,
+    });
+    // ... existing response ...
+  } catch (err) {
+    console.error("[MCP:TOOL] devvault_search UNCAUGHT", { error: String(err) });
+    return { content: [{ type: "text", text: `Uncaught error: ${String(err)}` }] };
+  }
+}
+```
+
+Apos deploy, o proximo teste vai revelar exatamente onde a falha ocorre — se e no handler, no RPC, ou se a chamada nunca chega ao handler.
 
