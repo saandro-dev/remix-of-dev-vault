@@ -1,88 +1,125 @@
 
 
-## DevVault MCP Server — v4.1.0
+## Plano: Fase 3 — Semantic Search com pgvector (Hybrid Search)
 
-### Status: ✅ Complete (Audit v4.1 passed)
+### Contexto
 
-### Architecture
+A busca atual usa **full-text search bilateral** (PT + EN via tsvector) com fallback ILIKE. A Fase 3 adiciona **busca semântica por embeddings** usando OpenAI `text-embedding-3-small` (1536 dims) + `pgvector`, combinando ambas num **Hybrid Search** com scoring ponderado.
 
-- **Edge Function:** `devvault-mcp` (Hono + mcp-lite)
-- **Auth:** API key via `X-DevVault-Key` header → `validate_devvault_api_key` RPC
-- **DB access:** `service_role` client (bypasses RLS)
-- **Tools:** 16 total
+---
 
-### Tool Registry (16 tools)
+### Análise de Soluções
 
-| # | Tool | File | Description |
-|---|------|------|-------------|
-| 1 | `devvault_bootstrap` | `bootstrap.ts` | Full vault context for agent onboarding |
-| 2 | `devvault_search` | `search.ts` | Bilingual full-text search (PT + EN) |
-| 3 | `devvault_get` | `get.ts` | Get module by UUID or slug (includes changelog + completeness) |
-| 4 | `devvault_list` | `list.ts` | List modules with filters |
-| 5 | `devvault_domains` | `domains.ts` | List available domains |
-| 6 | `devvault_ingest` | `ingest.ts` | Create new modules (single or batch) |
-| 7 | `devvault_update` | `update.ts` | Update existing module fields |
-| 8 | `devvault_get_group` | `get-group.ts` | Get all modules in a group with deps |
-| 9 | `devvault_validate` | `validate.ts` | Change validation_status |
-| 10 | `devvault_delete` | `delete.ts` | Delete a module |
-| 11 | `devvault_diagnose` | `diagnose.ts` | Problem-based search via solves_problems |
-| 12 | `devvault_report_bug` | `report-bug.ts` | Report knowledge gap |
-| 13 | `devvault_resolve_bug` | `resolve-bug.ts` | Resolve knowledge gap |
-| 14 | `devvault_report_success` | `report-success.ts` | Record successful implementation |
-| 15 | `devvault_export_tree` | `export-tree.ts` | Export module group as dependency tree |
-| 16 | `devvault_check_updates` | `check-updates.ts` | Check if project modules are outdated |
+#### Solução A: Embedding gerado na Edge Function dedicada + Hybrid Search via RPC único
+- Manutenibilidade: 10/10 — embedding isolado num helper reutilizável, hybrid search encapsulado numa única RPC
+- Zero DT: 10/10 — coluna nullable, backfill assíncrono, zero breaking changes
+- Arquitetura: 10/10 — SRP (helper de embedding separado), RPC única combina full-text + vector, pesos configuráveis
+- Escalabilidade: 9/10 — HNSW index para vector search, RPC parametrizada
+- Segurança: 10/10 — OPENAI_API_KEY no Supabase secrets, SECURITY DEFINER na RPC
+- **NOTA FINAL: 9.85/10**
 
-### File Structure
+#### Solução B: Embedding inline no ingest/update + busca vector-only (sem hybrid)
+- Manutenibilidade: 6/10 — lógica de embedding duplicada em ingest e update
+- Zero DT: 7/10 — perde a busca full-text existente
+- Arquitetura: 5/10 — viola SRP, não reutilizável
+- Escalabilidade: 8/10 — vector-only funciona mas perde matches exatos
+- Segurança: 10/10
+- **NOTA FINAL: 6.85/10**
 
-```
-supabase/functions/devvault-mcp/
-├── index.ts              # Hono router + MCP wiring
-└── deno.json             # mcp-lite dependency
+#### Solução C: pgvector + embedding via database trigger (PL/Python)
+- Manutenibilidade: 7/10 — difícil debugar triggers com chamadas HTTP
+- Zero DT: 8/10 — trigger pode falhar silenciosamente
+- Arquitetura: 6/10 — HTTP call dentro de trigger é anti-pattern no Supabase
+- Escalabilidade: 6/10 — trigger bloqueia INSERT/UPDATE
+- Segurança: 9/10 — key no banco em vez de secrets
+- **NOTA FINAL: 7.05/10**
 
-supabase/functions/_shared/mcp-tools/
-├── types.ts              # AuthContext, McpServerLike, ToolRegistrar
-├── register.ts           # Central wiring (16 tools)
-├── usage-tracker.ts      # Fire-and-forget analytics (11 event types)
-├── completeness.ts       # Completeness score helper
-├── bootstrap.ts
-├── search.ts
-├── get.ts
-├── list.ts
-├── domains.ts
-├── ingest.ts
-├── update.ts
-├── get-group.ts
-├── validate.ts
-├── delete.ts
-├── diagnose.ts
-├── report-bug.ts
-├── resolve-bug.ts
-├── report-success.ts
-├── export-tree.ts
-└── check-updates.ts
+### DECISÃO: Solução A (Nota 9.85)
+Embedding isolado num shared helper, hybrid search numa RPC parametrizada. As outras soluções violam SRP ou perdem capacidades existentes.
+
+---
+
+### Implementação (7 etapas)
+
+#### Etapa 1: SQL Migration — pgvector + coluna + índice
+```sql
+-- Habilitar pgvector
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
+
+-- Adicionar coluna de embedding (nullable para backfill gradual)
+ALTER TABLE public.vault_modules
+  ADD COLUMN IF NOT EXISTS embedding vector(1536);
+
+-- Índice HNSW para busca por similaridade coseno
+CREATE INDEX IF NOT EXISTS idx_vault_modules_embedding
+  ON public.vault_modules
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
 ```
 
-### Key DB Features
+#### Etapa 2: SQL Migration — RPC `hybrid_search_vault_modules`
+Nova função SQL que combina full-text score + vector similarity com pesos configuráveis:
+- Parâmetros: `p_query_text`, `p_query_embedding vector(1536)`, `p_match_count`, `p_full_text_weight` (default 0.3), `p_semantic_weight` (default 0.7), filtros existentes (domain, module_type, tags)
+- Lógica: calcula `full_text_rank` via `ts_rank` + `semantic_score` via `1 - (embedding <=> p_query_embedding)`, combina com pesos, ordena por score combinado
+- Fallback: se embedding for NULL num módulo, usa apenas full-text score
 
-| Feature | Implementation |
-|---------|---------------|
-| Full-text search | `search_vector` (PT) + `search_vector_en` (EN) via triggers |
-| Completeness score | `vault_module_completeness(p_id)` RPC — 4 bonus fields |
-| Slug generation | `generate_vault_module_slug()` trigger |
-| Changelog | `vault_module_changelog` table |
-| Dependencies | `vault_module_dependencies` N:N table |
-| Knowledge gaps | `vault_knowledge_gaps` table |
-| Usage analytics | `vault_usage_events` table (11 event types) |
-| Module versioning | `version` column (default `v1`) |
-| Database schema | `database_schema` column for DDL storage |
+#### Etapa 3: Shared helper — `_shared/embedding-client.ts`
+Novo arquivo responsável por chamar a OpenAI Embeddings API:
+- Função `generateEmbedding(text: string): Promise<number[]>`
+- Usa `Deno.env.get("OPENAI_API_KEY")`
+- Modelo: `text-embedding-3-small` (1536 dims)
+- Concatena campos relevantes: `title + description + why_it_matters + tags + solves_problems + usage_hint`
+- Função helper `buildEmbeddingInput(module: Record<string, unknown>): string` para montar o texto
 
-### Usage Event Types (11)
+#### Etapa 4: Atualizar `ingest.ts`
+Após inserir o módulo, chamar `generateEmbedding()` e fazer `UPDATE` da coluna `embedding` no registro recém-criado. Operação fire-and-forget (não bloqueia a resposta se falhar, mas loga warning).
 
-`search`, `get`, `list`, `get_group`, `diagnose`, `search_miss`, `bug_reported`, `bug_resolved`, `success_reported`, `export_tree`, `check_updates`
+#### Etapa 5: Atualizar `update.ts`
+Quando campos que afetam o embedding forem atualizados (title, description, why_it_matters, tags, solves_problems, usage_hint, code), regenerar o embedding. Mesma lógica fire-and-forget.
 
-### Phase 3 — Semantic Search (Next)
+#### Etapa 6: Atualizar `search.ts` + `diagnose.ts` + `vault-query/index.ts`
+- `search.ts`: quando `params.query` existir, gerar embedding da query via `generateEmbedding()`, chamar nova RPC `hybrid_search_vault_modules` em vez de `query_vault_modules`
+- `diagnose.ts`: na Strategy 4 (fallback), usar hybrid search em vez de full-text only
+- `vault-query/index.ts`: na action `search`, usar hybrid search
 
-- **Provider:** OpenAI `text-embedding-3-small` (1536 dims)
-- **Secret:** `OPENAI_API_KEY` (Supabase secret)
-- **Extension:** `pgvector` + `embedding` column on `vault_modules`
-- **Hybrid search:** Full-text (existing) + vector similarity (new)
+#### Etapa 7: Edge Function de backfill — `vault-backfill-embeddings`
+Nova Edge Function one-shot para gerar embeddings dos módulos existentes:
+- Busca módulos com `embedding IS NULL` e `visibility = 'global'`
+- Processa em batches de 20 (rate limit da OpenAI)
+- Loga progresso
+- Será chamada manualmente uma vez
+
+### Atualização de Documentação
+- `.lovable/plan.md`: adicionar seção Phase 3 como "Complete", documentar hybrid search, nova RPC, novo shared helper, nova Edge Function
+- `EDGE_FUNCTIONS_REGISTRY.md`: adicionar `vault-backfill-embeddings`
+- `VAULT_CONTENT_STANDARDS.md`: documentar campo `embedding`
+
+### Árvore de arquivos (novos/modificados)
+
+```text
+supabase/
+├── migrations/
+│   └── XXXXXX_phase3_pgvector_hybrid_search.sql  [NEW]
+├── functions/
+│   ├── _shared/
+│   │   └── embedding-client.ts                    [NEW]
+│   ├── vault-backfill-embeddings/
+│   │   └── index.ts                               [NEW]
+│   └── devvault-mcp/  (unchanged)
+│
+│   _shared/mcp-tools/
+│   ├── search.ts                                  [MODIFIED]
+│   ├── ingest.ts                                  [MODIFIED]
+│   ├── update.ts                                  [MODIFIED]
+│   └── diagnose.ts                                [MODIFIED]
+│
+│   vault-query/
+│   └── index.ts                                   [MODIFIED]
+│
+├── config.toml                                    [MODIFIED - add backfill function]
+docs/
+├── VAULT_CONTENT_STANDARDS.md                     [MODIFIED]
+├── EDGE_FUNCTIONS_REGISTRY.md                     [MODIFIED]
+.lovable/plan.md                                   [MODIFIED]
+```
+
