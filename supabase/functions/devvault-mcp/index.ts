@@ -8,13 +8,14 @@
  * Auth is a mutable object updated per-request — safe because Edge Functions
  * are single-threaded.
  *
- * Tools (19): devvault_bootstrap, devvault_search, devvault_get,
+ * Tools (21): devvault_bootstrap, devvault_search, devvault_get,
  *             devvault_list, devvault_domains, devvault_ingest,
  *             devvault_update, devvault_get_group, devvault_validate,
  *             devvault_delete, devvault_diagnose, devvault_report_bug,
  *             devvault_resolve_bug, devvault_report_success,
  *             devvault_export_tree, devvault_check_updates,
- *             devvault_load_context, devvault_quickstart, devvault_changelog.
+ *             devvault_load_context, devvault_quickstart, devvault_changelog,
+ *             devvault_diary_bug, devvault_diary_resolve.
  */
 
 import { Hono } from "hono";
