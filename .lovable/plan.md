@@ -1,53 +1,38 @@
 
 
-## Auditoria Completa — Estado do Codebase DevVault
+## Plano: Correcao dos 4 Pontos Pendentes do Relatorio MCP
 
-### Veredicto Geral: **SUCESSO TOTAL — ZERO ISSUES**
+### Diagnostico
 
----
+1. **Descriptions em portugues**: 2 modulos ainda em PT (`evolution-api-v2-client`, `whatsapp-status-webhook`)
+2. **related_modules vazio**: Nenhum dos 33 modulos tem `related_modules` preenchido
+3. **Completeness penaliza standalone**: A funcao `vault_module_completeness` desconta 10% para modulos sem dependencies, mesmo quando nao faz sentido ter
+4. **Dominios devops/saas_playbook sem modulos**: Existem nos enums mas sem dados — nao requer acao (serao preenchidos na migracao do RiseCheckout)
 
-### 1. config.toml — ✅ APROVADO
+### Execucao
 
-Todas as 15 Edge Functions com `verify_jwt = false`. Nenhuma funcao faltando.
+**Passo 1 — Traduzir 2 descriptions restantes (SQL UPDATE)**
 
-### 2. Zero Acesso Direto ao Banco no Frontend — ✅ APROVADO
+- `evolution-api-v2-client`: traduzir description de PT para EN
+- `whatsapp-status-webhook`: traduzir description de PT para EN
 
-Zero resultados para `supabase.from(` no `src/`. Protocolo §5.5 cumprido.
+**Passo 2 — Preencher related_modules para os 33 modulos (SQL UPDATE)**
 
-### 3. Zero Codigo Morto / Legado — ✅ APROVADO
+Mapeamento logico de relacoes laterais entre modulos do mesmo dominio ou com funcionalidade complementar. Exemplos:
+- `rate-limit-guard` ↔ `rate-limiting-middleware` (ambos sobre rate limiting)
+- `secure-cookie-helper` ↔ `secure-session-cookies` (ambos sobre cookies/sessoes)
+- `auth-constants-ssot` ↔ `unified-auth-v2` ↔ `auth-hooks-pattern` (stack de auth)
+- Todos os 7 modulos whatsapp apontam entre si
 
-Nenhum `TODO`, `FIXME`, `HACK`, `TEMP`, `WORKAROUND`, `is_public`, ou `console.log` espurio.
+**Passo 3 — Corrigir funcao vault_module_completeness (SQL Migration)**
 
-### 4. Limite de 300 Linhas — ✅ APROVADO
+Alterar a logica para nao penalizar modulos standalone. A abordagem: verificar se o modulo pertence a um `module_group` — se sim, cobrar dependencies; se nao, ignorar o campo. Isso muda o total de 10 para 9 campos para modulos standalone, mantendo o score justo.
 
-Nenhum arquivo ultrapassa o limite.
+### Arquivos Afetados
 
-### 5. Idioma do Codigo — ✅ APROVADO
+| Tipo | Arquivo/Tabela | Acao |
+|------|---------------|------|
+| Dados | `vault_modules.description` | UPDATE em 2 rows |
+| Dados | `vault_modules.related_modules` | UPDATE em ~33 rows |
+| Migration | `vault_module_completeness` function | ALTER para logica condicional de deps |
 
-Comentario em portugues no `edge-function-client.ts` traduzido para ingles. Zero violacoes.
-
-### 6. Documentacao e Comentarios — ✅ APROVADO
-
-### 7. Arquitetura e SOLID — ✅ APROVADO
-
-### 8. Seguranca — ✅ APROVADO
-
-### 9. Qualidade de Dados — ✅ APROVADO
-
-| Campo | Preenchido | Total | Status |
-|-------|-----------|-------|--------|
-| usage_hint | 33 | 33 | ✅ 100% |
-| why_it_matters | 33 | 33 | ✅ 100% (all English) |
-| code_example | 33 | 33 | ✅ 100% |
-| dependencies (whatsapp group) | 8 | 8 | ✅ 100% |
-| titles (English) | 33 | 33 | ✅ 100% |
-
-### 10. Aviso de Seguranca (Supabase)
-
-- **Leaked Password Protection** esta desabilitada. Recomendacao: ativar em Auth Settings no Supabase Dashboard.
-
----
-
-### Conclusao
-
-O codebase DevVault esta em **conformidade total** com o Protocolo V2. Zero divida tecnica, zero codigo morto, zero violacoes de idioma, 100% dos campos de dados preenchidos em ingles.
