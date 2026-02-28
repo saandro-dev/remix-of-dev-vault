@@ -1,5 +1,5 @@
 /**
- * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v2.2).
+ * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v2.3).
  *
  * Thin shell: Hono router, CORS, auth middleware, MCP transport.
  * All tool logic lives in _shared/mcp-tools/ (one file per tool).
@@ -26,6 +26,21 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "86400",
 };
 
+/**
+ * Injects CORS headers into any Response (including error responses from auth).
+ */
+function withCors(response: Response): Response {
+  const newHeaders = new Headers(response.headers);
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    newHeaders.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
+}
+
 const app = new Hono();
 
 app.all("/*", async (c) => {
@@ -33,16 +48,35 @@ app.all("/*", async (c) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
+  // Diagnostic logging — headers received
+  const hdrs = c.req.raw.headers;
+  console.log("[MCP:DIAG] incoming request", {
+    method: c.req.method,
+    hasDevVaultKey: hdrs.has("x-devvault-key"),
+    hasApiKey: hdrs.has("x-api-key"),
+    hasAuthorization: hdrs.has("authorization"),
+    url: c.req.url,
+  });
+
   const authResult = await authenticateRequest(c.req.raw);
-  if (authResult instanceof Response) return authResult;
+
+  if (authResult instanceof Response) {
+    // Ensure CORS headers are present on error responses
+    return withCors(authResult);
+  }
+
+  console.log("[MCP:DIAG] auth passed", { userId: authResult.userId });
 
   const client = getSupabaseClient("general");
-  const server = new McpServer({ name: "devvault", version: "2.2.0" });
+  const server = new McpServer({ name: "devvault", version: "2.3.0" });
 
   registerAllTools(server, client, authResult);
 
   const transport = new StreamableHttpTransport();
-  return await transport.bind(server)(c.req.raw);
+  const mcpResponse = await transport.bind(server)(c.req.raw);
+
+  // Ensure CORS headers on MCP transport responses too
+  return withCors(mcpResponse);
 });
 
 Deno.serve(app.fetch);
