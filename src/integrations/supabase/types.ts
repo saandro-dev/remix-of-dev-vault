@@ -761,6 +761,14 @@ export type Database = {
         Args: { p_key_id: string; p_user_id: string }
         Returns: boolean
       }
+      get_domain_counts: {
+        Args: { p_scope?: string; p_user_id: string }
+        Returns: {
+          count: number
+          domain: string
+          grand_total: number
+        }[]
+      }
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
       get_user_role: { Args: { _user_id: string }; Returns: string }
       get_vault_module: {
