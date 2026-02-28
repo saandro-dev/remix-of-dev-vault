@@ -1,57 +1,56 @@
 
 
-## Diagnostico: API Incorreta do mcp-lite
+## Causa Raiz Definitiva: `handleGet` do mcp-lite Rejeita Versao `2025-03-26`
 
-### Evidencia dos Logs
-
-```text
-10:41:23  incoming request (POST)
-10:41:23  key extraction (dvlt_V6psapr...) — source: authorization
-10:41:24  validation result (valid: true)
-10:41:24  auth passed (userId: 32d5c933...)
-10:41:24  transport response { status: 200 }  ← RESPONDEU 200!
-10:42:38  shutdown
-```
-
-O transport **respondeu 200**, mas o Lovable ainda mostra "Connection failed". O problema esta na forma como chamamos o mcp-lite.
-
-### Causa Raiz
-
-A documentacao oficial do Supabase mostra esta API:
+### Evidencia do Codigo-Fonte (mcp-lite `transport-http.ts`, linhas 795-818)
 
 ```text
-DOCUMENTACAO OFICIAL:                       NOSSO CODIGO ATUAL:
-─────────────────────                       ────────────────────
-const httpHandler = transport.bind(mcp)     const httpHandler = transport.handleRequest.bind(transport)
-await httpHandler(c.req.raw)                await httpHandler(c.req.raw, mcp)
-        ↑ 1 argumento                                ↑ 2 argumentos
+handleGet(request):
+  1. Verifica Accept header → OK
+  2. Verifica MCP-Protocol-Version header:
+     → SE header presente E header !== "2025-06-18" → retorna 400 "Protocol version mismatch"
+  3. SE nao tem sessionAdapter (modo stateless) → retorna 405 "Method Not Allowed"
 ```
 
-`transport.bind(mcp)` retorna um handler pre-configurado que recebe apenas o `Request`. Nosso codigo usa `handleRequest` com assinatura diferente — o que pode gerar uma resposta com formato incorreto (body vazio ou JSON-RPC malformado), fazendo o Lovable rejeitar a conexao apesar do status 200.
+### Sequencia de Eventos nos Logs
 
-### Correcao
+```text
+POST initialize → servidor negocia protocolVersion "2025-03-26" → 200 OK
+GET SSE         → Lovable envia MCP-Protocol-Version: "2025-03-26"
+                → mcp-lite compara com "2025-06-18" (unica versao aceita no GET)
+                → "2025-03-26" !== "2025-06-18" → 400 "Protocol version mismatch"
+                → Lovable interpreta como falha de conexao
+```
+
+Mesmo se a versao correspondesse, o proximo check rejeitaria com 405 porque nao temos `sessionAdapter` (modo stateless). Edge Functions bootem uma instancia nova por request — sessoes em memoria sao impossiveis.
+
+### Solucao
+
+Interceptar GET requests **antes** de delegar ao transport do mcp-lite. Retornar 405 "Method Not Allowed" com headers corretos, para que o cliente Lovable saiba que SSE nao esta disponivel e use modo POST-only (stateless).
+
+### Mudancas Concretas
 
 **Arquivo: `supabase/functions/devvault-mcp/index.ts`**
 
-Linha 56: Trocar de:
+No handler Hono, antes da chamada `httpHandler(c.req.raw)`, adicionar interceptacao de GET:
+
 ```typescript
-const httpHandler = transport.handleRequest.bind(transport);
-```
-Para:
-```typescript
-const httpHandler = transport.bind(mcp);
+// GET requests seek an SSE stream, which requires persistent sessions.
+// Edge Functions are stateless (fresh boot per request), so SSE is impossible.
+// Return 405 so the client falls back to POST-only (stateless) mode.
+if (c.req.method === "GET") {
+  return withCors(new Response("Method Not Allowed", {
+    status: 405,
+    headers: { "Allow": "POST, DELETE, OPTIONS" },
+  }));
+}
 ```
 
-Linha 87: Trocar de:
-```typescript
-const mcpResponse = await httpHandler(c.req.raw, mcp);
-```
-Para:
-```typescript
-const mcpResponse = await httpHandler(c.req.raw);
-```
+Isso evita que o GET chegue ao transport onde seria rejeitado com 400 (version mismatch) — um status que o cliente interpreta como erro fatal. O 405 e o status correto segundo a spec MCP para indicar que SSE nao esta disponivel, permitindo ao cliente operar em modo stateless.
 
-### Resultado
+### Arquivos Afetados
 
-O handler retornado por `transport.bind(mcp)` ja encapsula o servidor MCP internamente, garantindo que o JSON-RPC de `initialize` seja processado corretamente e o handshake com o Lovable complete.
+| Arquivo | Acao |
+|---------|------|
+| `supabase/functions/devvault-mcp/index.ts` | Interceptar GET antes do transport |
 
