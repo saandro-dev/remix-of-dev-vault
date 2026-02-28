@@ -830,81 +830,43 @@ export type Database = {
         }
         Returns: boolean
       }
-      hybrid_search_vault_modules:
-        | {
-            Args: {
-              p_domain?: string
-              p_full_text_weight?: number
-              p_match_count?: number
-              p_module_type?: string
-              p_query_embedding?: string
-              p_query_text?: string
-              p_semantic_weight?: number
-              p_tags?: string[]
-            }
-            Returns: {
-              code: string
-              code_example: string
-              context_markdown: string
-              created_at: string
-              description: string
-              difficulty: string
-              domain: string
-              estimated_minutes: number
-              id: string
-              language: string
-              module_type: string
-              phase_title: string
-              related_modules: string[]
-              relevance_score: number
-              saas_phase: number
-              slug: string
-              source_project: string
-              tags: string[]
-              title: string
-              updated_at: string
-              usage_hint: string
-              validation_status: string
-              why_it_matters: string
-            }[]
-          }
-        | {
-            Args: {
-              p_domain?: string
-              p_full_text_weight?: number
-              p_match_count?: number
-              p_module_type?: string
-              p_query_embedding?: string
-              p_query_text?: string
-              p_semantic_weight?: number
-              p_tags?: string[]
-            }
-            Returns: {
-              code: string
-              code_example: string
-              context_markdown: string
-              created_at: string
-              description: string
-              difficulty: string
-              domain: string
-              estimated_minutes: number
-              id: string
-              language: string
-              module_type: string
-              phase_title: string
-              related_modules: string[]
-              relevance_score: number
-              saas_phase: number
-              slug: string
-              source_project: string
-              tags: string[]
-              title: string
-              updated_at: string
-              usage_hint: string
-              validation_status: string
-              why_it_matters: string
-            }[]
-          }
+      hybrid_search_vault_modules: {
+        Args: {
+          p_domain?: string
+          p_full_text_weight?: number
+          p_match_count?: number
+          p_module_type?: string
+          p_query_embedding?: string
+          p_query_text?: string
+          p_semantic_weight?: number
+          p_tags?: string[]
+        }
+        Returns: {
+          code: string
+          code_example: string
+          context_markdown: string
+          created_at: string
+          description: string
+          difficulty: string
+          domain: string
+          estimated_minutes: number
+          id: string
+          language: string
+          module_type: string
+          phase_title: string
+          related_modules: string[]
+          relevance_score: number
+          saas_phase: number
+          slug: string
+          source_project: string
+          tags: string[]
+          title: string
+          updated_at: string
+          usage_hint: string
+          validation_status: string
+          why_it_matters: string
+        }[]
+      }
       is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean }
       list_vault_domains: {
         Args: never

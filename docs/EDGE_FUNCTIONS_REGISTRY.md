@@ -1,8 +1,8 @@
 # DevVault - Edge Functions Registry
 
-> **🔴 FONTE DA VERDADE MÁXIMA** - Este documento lista TODAS as 16 Edge Functions deployadas no Supabase para o projeto DevVault.
-> Última atualização: 2026-02-28
-> Mantenedor: Arquiteto de IA
+> **🔴 SINGLE SOURCE OF TRUTH** - This document lists ALL 16 Edge Functions deployed on Supabase for the DevVault project.
+> Last updated: 2026-02-28
+> Maintainer: AI Architect
 
 ---
 
@@ -12,7 +12,7 @@
 ╔═══════════════════════════════════════════════════════════════╗
 ║  ✅ DEVVAULT PROTOCOL V2 - 10.0/10 - DUAL-AUTH ARCHITECTURE   ║
 ║     16 Edge Functions | 2 Auth Systems | Zero Legacy Code      ║
-║     MCP Server v4.1: 16 Tools | Knowledge Flywheel + Tree     ║
+║     MCP Server v5.0: 19 Tools | Knowledge Flywheel + Tree     ║
 ║     Phase 3: Hybrid Search (pgvector + tsvector)               ║
 ║     Runtime: 100% Deno.serve() native                         ║
 ║     Secrets: Supabase Vault + Multi-Domain Keys               ║
@@ -23,92 +23,92 @@
 
 ---
 
-## Resumo
+## Summary
 
-| Métrica | Valor |
+| Metric | Value |
 | :--- | :--- |
-| **Total de Funções** | 16 |
-| **Funções Internas (Frontend)** | 12 |
-| **Funções Públicas (API Externa)** | 3 |
-| **Funções Utilitárias (One-shot)** | 1 |
-| **Funções com verify_jwt=true** | 0 ✅ |
+| **Total Functions** | 16 |
+| **Internal Functions (Frontend)** | 12 |
+| **Public Functions (External API)** | 3 |
+| **Utility Functions (One-shot)** | 1 |
+| **Functions with verify_jwt=true** | 0 ✅ |
 | **config.toml entries** | 16 ✅ |
-| **Sistema de API Keys (Externa)** | `dvlt_` keys via Supabase Vault ✅ |
-| **Domínios de Segurança (Secrets)** | 2 (admin, general) ✅ |
-| **Base URL (Interna & Externa)** | `https://bskfnthwewhpfrldbhqx.supabase.co/functions/v1/` |
+| **API Key System (External)** | `dvlt_` keys via Supabase Vault ✅ |
+| **Security Domains (Secrets)** | 2 (admin, general) ✅ |
+| **Base URL (Internal & External)** | `https://bskfnthwewhpfrldbhqx.supabase.co/functions/v1/` |
 
 ---
 
-## 🔐 Arquitetura de Autenticação Dupla
+## 🔐 Dual Authentication Architecture
 
-O DevVault opera com dois sistemas de autenticação distintos e isolados, garantindo que o acesso interno (da aplicação frontend) e o acesso externo (de agentes de IA) tenham mecanismos de segurança apropriados.
+DevVault operates with two distinct and isolated authentication systems, ensuring that internal access (from the frontend application) and external access (from AI agents) have appropriate security mechanisms.
 
-**REGRA ABSOLUTA**: Todas as 16 funções usam `verify_jwt = false` no `supabase/config.toml`. A autenticação é sempre tratada dentro do código da função, permitindo esta arquitetura flexível.
+**ABSOLUTE RULE**: All 16 functions use `verify_jwt = false` in `supabase/config.toml`. Authentication is always handled inside the function code, enabling this flexible architecture.
 
-### 1. Autenticação Interna (Frontend App)
+### 1. Internal Authentication (Frontend App)
 
--   **Mecanismo:** JWT (Bearer Token)
--   **Validação:** O helper `_shared/auth.ts` (`authenticateRequest`) valida o JWT do usuário logado no Supabase Auth.
--   **Uso:** Utilizado por todas as funções que servem a interface do DevVault. O frontend envia o token de sessão do usuário, e a função valida sua identidade e permissões (via RLS e checagens de papel).
--   **Funções:** 12
+-   **Mechanism:** JWT (Bearer Token)
+-   **Validation:** The helper `_shared/auth.ts` (`authenticateRequest`) validates the JWT of the user logged into Supabase Auth.
+-   **Usage:** Used by all functions serving the DevVault interface. The frontend sends the user's session token, and the function validates their identity and permissions (via RLS and role checks).
+-   **Functions:** 12
 
-### 2. Autenticação Externa (API para Agentes)
+### 2. External Authentication (API for Agents)
 
--   **Mecanismo:** Chave de API Estática (`dvlt_...`)
--   **Validação:** O helper `_shared/api-key-guard.ts` (`validateApiKey`) valida a chave enviada no header `X-DevVault-Key` (ou `x-api-key`/`Authorization`). A validação ocorre comparando um hash da chave com o valor armazenado de forma segura no **Supabase Vault** através da função SQL `validate_devvault_api_key`.
--   **Uso:** Utilizado pelas funções públicas designadas para automação e integração com agentes de IA, como o `devvault-mcp`.
--   **Funções:** 3
+-   **Mechanism:** Static API Key (`dvlt_...`)
+-   **Validation:** The helper `_shared/api-key-guard.ts` (`validateApiKey`) validates the key sent in the `X-DevVault-Key` header (or `x-api-key`/`Authorization`). Validation occurs by comparing a hash of the key with the value stored securely in **Supabase Vault** through the SQL function `validate_devvault_api_key`.
+-   **Usage:** Used by the public functions designated for automation and integration with AI agents, such as `devvault-mcp`.
+-   **Functions:** 3
 
-### 🔑 Arquitetura de Múltiplos Segredos (2 Domínios)
+### 🔑 Multi-Secret Architecture (2 Domains)
 
-Para limitar o "raio de explosão" em caso de um vazamento de chave, o sistema utiliza duas chaves de serviço (`service_role`) com escopos diferentes, gerenciadas pelo helper `_shared/supabase-client.ts`.
+To limit the "blast radius" in case of a key leak, the system uses two service keys (`service_role`) with different scopes, managed by the helper `_shared/supabase-client.ts`.
 
-| Domínio | Variável de Ambiente | Propósito | Funções que Utilizam |
+| Domain | Environment Variable | Purpose | Functions Using It |
 | :--- | :--- | :--- | :--- |
-| **admin** | `DEVVAULT_SECRET_ADMIN` | Operações críticas e de alta periculosidade: criação/revogação de chaves, acesso direto ao Vault, mudança de papéis de usuário. | `create-api-key`, `revoke-api-key`, `admin-crud` |
-| **general** | `DEVVAULT_SECRET_GENERAL` | Operações padrão de leitura e escrita do dia-a-dia, como CRUDs de projetos, bugs e módulos do vault. | Todas as outras 12 funções |
+| **admin** | `DEVVAULT_SECRET_ADMIN` | Critical high-risk operations: key creation/revocation, direct Vault access, user role changes. | `create-api-key`, `revoke-api-key`, `admin-crud` |
+| **general** | `DEVVAULT_SECRET_GENERAL` | Standard daily read/write operations such as project, bug, and vault module CRUDs. | All other 12 functions |
 
 ---
 
-## Tabela de Registro de Funções
+## Function Registry
 
-### Módulos do Vault & Conhecimento
+### Vault & Knowledge Modules
 
-| Função | Auth | Domínio | Descrição e Ações (`action`) |
+| Function | Auth | Domain | Description and Actions (`action`) |
 | :--- | :--- | :--- | :--- |
-| `vault-crud` | Interno (JWT) | general | **BFF Principal para o Vault.** Realiza todas as operações de CRUD nos módulos de conhecimento do usuário. **Ações:** `list`, `get`, `create`, `update`, `delete`, `search`, `get_playbook`, `share`, `unshare`, `list_shares`, `add_dependency`, `remove_dependency`, `list_dependencies`. |
-| `vault-query` | Externo (API Key) | general | **Endpoint PÚBLICO de LEITURA para Agentes.** Permite que sistemas externos consultem o grafo de conhecimento. **Ações:** `bootstrap`, `search`, `get`, `list`, `list_domains`. |
-| `vault-ingest` | Externo (API Key) | general | **Endpoint PÚBLICO de ESCRITA para Agentes.** Permite que sistemas externos criem, atualizem e deletem módulos. **Ações:** `ingest` (criação single/batch), `update`, `delete`. |
-| `devvault-mcp` | Externo (API Key) | general | **Servidor MCP (Model Context Protocol) para Agentes de IA (v4.1).** Expõe uma API estruturada com ferramentas para interagir com o Vault. **Ferramentas (16):** `devvault_bootstrap`, `devvault_search`, `devvault_get`, `devvault_list`, `devvault_domains`, `devvault_ingest`, `devvault_update`, `devvault_get_group`, `devvault_validate`, `devvault_delete`, `devvault_diagnose`, `devvault_report_bug`, `devvault_resolve_bug`, `devvault_report_success`, `devvault_export_tree`, `devvault_check_updates`. **Knowledge Flywheel (v4.0):** `devvault_report_bug` registra gaps de conhecimento com dedup por hit_count, `devvault_resolve_bug` documenta soluções e promove a módulos, `devvault_report_success` captura padrões de sucesso. `devvault_diagnose` busca também em gaps resolvidos. **Scaffolding (v4.1):** `devvault_export_tree` resolve toda a árvore de dependências com CTE recursiva — elimina N+1. `devvault_check_updates` compara versões locais vs vault. Módulos incluem `database_schema` (SQL) e `version` (versionamento). |
+| `vault-crud` | Internal (JWT) | general | **Main BFF for the Vault.** Performs all CRUD operations on the user's knowledge modules. **Actions:** `list`, `get`, `create`, `update`, `delete`, `search`, `get_playbook`, `share`, `unshare`, `list_shares`, `add_dependency`, `remove_dependency`, `list_dependencies`. |
+| `vault-query` | External (API Key) | general | **Public READ endpoint for Agents.** Allows external systems to query the knowledge graph. **Actions:** `bootstrap`, `search`, `get`, `list`, `list_domains`. |
+| `vault-ingest` | External (API Key) | general | **Public WRITE endpoint for Agents.** Allows external systems to create, update, and delete modules. **Actions:** `ingest` (single/batch creation), `update`, `delete`. |
+| `devvault-mcp` | External (API Key) | general | **MCP Server (Model Context Protocol) for AI Agents (v5.0).** Exposes a structured API with tools to interact with the Vault. **Tools (19):** `devvault_bootstrap`, `devvault_search`, `devvault_get`, `devvault_list`, `devvault_domains`, `devvault_ingest`, `devvault_update`, `devvault_get_group`, `devvault_validate`, `devvault_delete`, `devvault_diagnose`, `devvault_report_bug`, `devvault_resolve_bug`, `devvault_report_success`, `devvault_export_tree`, `devvault_check_updates`, `devvault_load_context`, `devvault_quickstart`, `devvault_changelog`. **v5.0 Improvements:** `devvault_validate` supports batch mode (no ID = audit all modules). `devvault_export_tree` supports optional ID (no ID = list root modules). `devvault_diagnose` supports health check mode (no params = open gaps + low-score modules). `devvault_list` and `devvault_search` include relation metadata (`has_dependencies`, `is_depended_upon`, `related_modules_count`). **New Tools (v5.0):** `devvault_load_context` loads all modules for a source_project. `devvault_quickstart` returns essential modules per domain ranked by usage. `devvault_changelog` returns version history for modules. **Knowledge Flywheel (v4.0):** `devvault_report_bug` registers knowledge gaps with dedup by hit_count, `devvault_resolve_bug` documents solutions and promotes to modules, `devvault_report_success` captures success patterns. `devvault_diagnose` also searches resolved gaps. **Scaffolding (v4.1):** `devvault_export_tree` resolves the full dependency tree with recursive CTE — eliminates N+1. `devvault_check_updates` compares local versions vs vault. Modules include `database_schema` (SQL) and `version` (versioning). |
 
-### Gerenciamento de Entidades
+### Entity Management
 
-| Função | Auth | Domínio | Descrição e Ações (`action`) |
+| Function | Auth | Domain | Description and Actions (`action`) |
 | :--- | :--- | :--- | :--- |
-| `projects-crud` | Interno (JWT) | general | Gerencia o CRUD completo para a entidade `projects`. **Ações:** `list`, `get`, `create`, `update`, `delete`. |
-| `bugs-crud` | Interno (JWT) | general | Gerencia o CRUD completo para a entidade `bugs` (Diário de Bugs). **Ações:** `list`, `create`, `update`, `delete`. |
-| `folders-crud` | Interno (JWT) | general | Gerencia o CRUD para `key_folders` (pastas de chaves de API de projetos). **Ações:** `list`, `get`, `create`, `delete`. |
-| `project-api-keys-crud` | Interno (JWT) | admin | Gerencia o CRUD para `api_keys` de projetos, interagindo com o Vault para criptografar/descriptografar chaves. **Ações:** `list`, `create`, `read` (decifra a chave), `delete`. |
+| `projects-crud` | Internal (JWT) | general | Manages complete CRUD for the `projects` entity. **Actions:** `list`, `get`, `create`, `update`, `delete`. |
+| `bugs-crud` | Internal (JWT) | general | Manages complete CRUD for the `bugs` entity (Bug Diary). **Actions:** `list`, `create`, `update`, `delete`. |
+| `folders-crud` | Internal (JWT) | general | Manages CRUD for `key_folders` (project API key folders). **Actions:** `list`, `get`, `create`, `delete`. |
+| `project-api-keys-crud` | Internal (JWT) | admin | Manages CRUD for project `api_keys`, interacting with the Vault to encrypt/decrypt keys. **Actions:** `list`, `create`, `read` (decrypts the key), `delete`. |
 
-### Painel e Utilitários
+### Dashboard & Utilities
 
-| Função | Auth | Domínio | Descrição e Ações (`action`) |
+| Function | Auth | Domain | Description and Actions (`action`) |
 | :--- | :--- | :--- | :--- |
-| `dashboard-stats` | Interno (JWT) | general | Agrega e retorna as principais métricas para o painel do usuário (total de projetos, módulos, etc.). Sem `action`. |
-| `global-search` | Interno (JWT) | general | Realiza uma busca textual unificada entre `vault_modules`, `projects` e `bugs`. Sem `action`. |
-| `profiles-crud` | Interno (JWT) | general | Gerencia o perfil do usuário logado. **Ações:** `get`, `update`. |
+| `dashboard-stats` | Internal (JWT) | general | Aggregates and returns key metrics for the user's dashboard (total projects, modules, etc.). No `action`. |
+| `global-search` | Internal (JWT) | general | Performs a unified text search across `vault_modules`, `projects`, and `bugs`. No `action`. |
+| `profiles-crud` | Internal (JWT) | general | Manages the logged-in user's profile. **Actions:** `get`, `update`. |
 
-### API Keys & Administração
+### API Keys & Administration
 
-| Função | Auth | Domínio | Descrição e Ações (`action`) |
+| Function | Auth | Domain | Description and Actions (`action`) |
 | :--- | :--- | :--- | :--- |
-| `create-api-key` | Interno (JWT) | admin | **Cria uma nova chave `dvlt_` para acesso externo.** Interage com a função SQL `create_devvault_api_key` para salvar o hash no Vault. Retorna a chave completa apenas uma vez. Sem `action`. |
-| `revoke-api-key` | Interno (JWT) | admin | **Revoga uma chave `dvlt_` existente.** Interage com a função SQL `revoke_devvault_api_key`. Sem `action`. |
-| `list-devvault-keys` | Interno (JWT) | general | Lista os metadados (prefixo, nome, data de uso) das chaves `dvlt_` do usuário. Sem `action`. |
-| `admin-crud` | Interno (JWT) | admin | **Endpoint para o Painel de Administração.** Requer papel de `admin` ou `owner`. **Ações:** `get-my-role`, `list-users`, `change-role` (owner), `admin-stats`, `list-api-keys`, `admin-revoke-api-key` (owner), `list-global-modules`, `unpublish-module`. |
+| `create-api-key` | Internal (JWT) | admin | **Creates a new `dvlt_` key for external access.** Interacts with the SQL function `create_devvault_api_key` to save the hash in the Vault. Returns the complete key only once. No `action`. |
+| `revoke-api-key` | Internal (JWT) | admin | **Revokes an existing `dvlt_` key.** Interacts with the SQL function `revoke_devvault_api_key`. No `action`. |
+| `list-devvault-keys` | Internal (JWT) | general | Lists metadata (prefix, name, usage date) of the user's `dvlt_` keys. No `action`. |
+| `admin-crud` | Internal (JWT) | admin | **Endpoint for the Admin Panel.** Requires `admin` or `owner` role. **Actions:** `get-my-role`, `list-users`, `change-role` (owner), `admin-stats`, `list-api-keys`, `admin-revoke-api-key` (owner), `list-global-modules`, `unpublish-module`. |
 
-### Utilitários (One-shot)
+### Utilities (One-shot)
 
-| Função | Auth | Domínio | Descrição |
+| Function | Auth | Domain | Description |
 | :--- | :--- | :--- | :--- |
-| `vault-backfill-embeddings` | Manual | general | **Backfill de embeddings para módulos existentes.** Processa módulos com `embedding IS NULL` em batches de 20, gerando embeddings via OpenAI `text-embedding-3-small`. Função one-shot para execução manual após Phase 3 migration. |
+| `vault-backfill-embeddings` | Manual | general | **Embedding backfill for existing modules.** Processes modules with `embedding IS NULL` in batches of 20, generating embeddings via OpenAI `text-embedding-3-small`. One-shot function for manual execution after Phase 3 migration. |
