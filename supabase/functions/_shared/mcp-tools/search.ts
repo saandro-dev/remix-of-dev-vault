@@ -41,30 +41,42 @@ export const registerSearchTool: ToolRegistrar = (server, client) => {
       required: [],
     },
     handler: async (params: Record<string, unknown>) => {
-      const limit = Math.min(Number(params.limit ?? 10), 50);
-      const rpcParams: Record<string, unknown> = { p_limit: limit };
+      console.log("[MCP:TOOL] devvault_search invoked", JSON.stringify({ params }));
+      try {
+        const limit = Math.min(Number(params.limit ?? 10), 50);
+        const rpcParams: Record<string, unknown> = { p_limit: limit };
 
-      if (params.query) rpcParams.p_query = params.query;
-      if (params.domain) rpcParams.p_domain = params.domain;
-      if (params.module_type) rpcParams.p_module_type = params.module_type;
-      if (params.tags) rpcParams.p_tags = params.tags;
+        if (params.query) rpcParams.p_query = params.query;
+        if (params.domain) rpcParams.p_domain = params.domain;
+        if (params.module_type) rpcParams.p_module_type = params.module_type;
+        if (params.tags) rpcParams.p_tags = params.tags;
 
-      const { data, error } = await client.rpc("query_vault_modules", rpcParams);
-      if (error) {
-        logger.error("search failed", { error: error.message });
-        return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        const { data, error } = await client.rpc("query_vault_modules", rpcParams);
+        console.log("[MCP:TOOL] devvault_search RPC result", JSON.stringify({
+          success: !error,
+          resultCount: (data as unknown[])?.length ?? 0,
+          error: error?.message,
+        }));
+
+        if (error) {
+          logger.error("search failed", { error: error.message });
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              total_results: (data as unknown[])?.length ?? 0,
+              modules: data,
+              _hint: "Use devvault_get with a module's id or slug to fetch full code and dependencies.",
+            }, null, 2),
+          }],
+        };
+      } catch (err) {
+        console.error("[MCP:TOOL] devvault_search UNCAUGHT", String(err));
+        return { content: [{ type: "text", text: `Uncaught error: ${String(err)}` }] };
       }
-
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            total_results: (data as unknown[])?.length ?? 0,
-            modules: data,
-            _hint: "Use devvault_get with a module's id or slug to fetch full code and dependencies.",
-          }, null, 2),
-        }],
-      };
     },
   });
 };
