@@ -1,9 +1,8 @@
 /**
  * mcp-tools/list.ts — devvault_list tool.
  *
- * Lists modules with optional filters: text search, domain, module_type,
- * tags, and module_group. Filtering is fully delegated to the SQL RPC
- * (zero in-memory filtering).
+ * Lists modules with optional filters. Results include dependency and
+ * relationship metadata for agent navigation.
  */
 
 import { createLogger } from "../logger.ts";
@@ -16,7 +15,7 @@ export const registerListTool: ToolRegistrar = (server, client, auth) => {
   server.tool("devvault_list", {
     description:
       "List modules with optional filters including text search, tags, group, and domain. " +
-      "All filtering is done server-side in SQL for efficiency. " +
+      "Results include has_dependencies and related_modules_count for navigation. " +
       "For semantic/intent-based search with relevance scoring, prefer devvault_search.",
     inputSchema: {
       type: "object",
@@ -35,7 +34,7 @@ export const registerListTool: ToolRegistrar = (server, client, auth) => {
           items: { type: "string" },
           description: "Filter by tags (AND match)",
         },
-        group: { type: "string", description: "Filter by module_group name (e.g. 'whatsapp-integration')" },
+        group: { type: "string", description: "Filter by module_group name" },
         limit: { type: "number", description: "Max results (default 20, max 50)" },
         offset: { type: "number", description: "Pagination offset (default 0)" },
       },
@@ -58,24 +57,44 @@ export const registerListTool: ToolRegistrar = (server, client, auth) => {
         if (params.group) rpcParams.p_group = params.group;
 
         const { data, error } = await client.rpc("query_vault_modules", rpcParams);
-        logger.info("RPC result", {
-          success: !error,
-          resultCount: (data as unknown[])?.length ?? 0,
-          error: error?.message,
-        });
 
         if (error) {
           logger.error("list failed", { error: error.message });
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
 
-        // Trim heavy fields from list results, keep useful metadata
-        const modules = (data as Record<string, unknown>[]).map((m) => {
+        const rawModules = data as Record<string, unknown>[];
+        const moduleIds = rawModules.map((m) => m.id as string);
+
+        // Enrich with dependency info in parallel
+        const [{ data: deps }, { data: dependents }] = await Promise.all([
+          client
+            .from("vault_module_dependencies")
+            .select("module_id")
+            .in("module_id", moduleIds),
+          client
+            .from("vault_module_dependencies")
+            .select("depends_on_id")
+            .in("depends_on_id", moduleIds),
+        ]);
+
+        const hasDepsSet = new Set(
+          (deps as Array<{ module_id: string }> ?? []).map((d) => d.module_id),
+        );
+        const hasDependentsSet = new Set(
+          (dependents as Array<{ depends_on_id: string }> ?? []).map((d) => d.depends_on_id),
+        );
+
+        const modules = rawModules.map((m) => {
           const { code, context_markdown, ...rest } = m;
-          return rest;
+          return {
+            ...rest,
+            has_dependencies: hasDepsSet.has(m.id as string),
+            is_depended_upon: hasDependentsSet.has(m.id as string),
+            related_modules_count: (m.related_modules as string[] | null)?.length ?? 0,
+          };
         });
 
-        // Track analytics
         trackUsage(client, auth, {
           event_type: "list",
           tool_name: "devvault_list",
