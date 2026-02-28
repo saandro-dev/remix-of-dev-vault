@@ -2,8 +2,7 @@
  * mcp-tools/search.ts — devvault_search tool.
  *
  * Hybrid search across the Knowledge Graph combining full-text (PT/EN)
- * with semantic vector similarity via pgvector embeddings.
- * Falls back to full-text only when embedding generation fails.
+ * with semantic vector similarity. Results include relationship metadata.
  */
 
 import { createLogger } from "../logger.ts";
@@ -16,11 +15,10 @@ const logger = createLogger("mcp-tool:search");
 export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
   server.tool("devvault_search", {
     description:
-      "Search the Knowledge Graph by intent/text. Returns modules matching your query " +
-      "with relevance scoring. Uses hybrid search combining full-text (PT/EN) with " +
-      "semantic vector similarity for best results. Also searches in solves_problems field, " +
-      "so you can search by problem description (e.g. 'webhook not receiving events'). " +
-      "Results include usage_hint field. " +
+      "Search the Knowledge Graph by intent/text. Returns modules with relevance scoring. " +
+      "Uses hybrid search combining full-text (PT/EN) with semantic vector similarity. " +
+      "Also searches solves_problems field (e.g. 'webhook not receiving events'). " +
+      "Results include has_dependencies and related_modules_count for navigation. " +
       "For structured browsing without text search, use devvault_list instead.",
     inputSchema: {
       type: "object",
@@ -28,12 +26,10 @@ export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
         query: { type: "string", description: "Full-text search query (PT or EN)" },
         domain: {
           type: "string",
-          description: "Filter by domain",
           enum: ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"],
         },
         module_type: {
           type: "string",
-          description: "Filter by module type",
           enum: ["code_snippet", "full_module", "sql_migration", "architecture_doc", "playbook_phase", "pattern_guide"],
         },
         tags: {
@@ -51,7 +47,6 @@ export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
         const limit = Math.min(Number(params.limit ?? 10), 50);
         const queryText = params.query as string | undefined;
 
-        // Generate embedding for semantic search (fire-and-forget safe)
         let queryEmbedding: string | null = null;
         if (queryText) {
           try {
@@ -64,7 +59,7 @@ export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
           }
         }
 
-        // Use hybrid search RPC when we have a query
+        // Use hybrid search when we have a query
         if (queryText || queryEmbedding) {
           const rpcParams: Record<string, unknown> = {
             p_query_text: queryText ?? null,
@@ -82,29 +77,30 @@ export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
             return { content: [{ type: "text", text: `Error: ${error.message}` }] };
           }
 
-          const resultCount = (data as unknown[])?.length ?? 0;
+          const rawModules = data as Record<string, unknown>[];
+          const modules = await enrichWithRelations(client, rawModules);
 
           trackUsage(client, auth, {
-            event_type: resultCount > 0 ? "search" : "search_miss",
+            event_type: modules.length > 0 ? "search" : "search_miss",
             tool_name: "devvault_search",
             query_text: queryText,
-            result_count: resultCount,
+            result_count: modules.length,
           });
 
           return {
             content: [{
               type: "text",
               text: JSON.stringify({
-                total_results: resultCount,
+                total_results: modules.length,
                 search_mode: queryEmbedding ? "hybrid" : "full_text",
-                modules: data,
+                modules,
                 _hint: "Use devvault_get with a module's id or slug to fetch full code and dependencies.",
               }, null, 2),
             }],
           };
         }
 
-        // No query: list mode via existing RPC
+        // No query: list mode
         const rpcParams: Record<string, unknown> = { p_limit: limit };
         if (params.domain) rpcParams.p_domain = params.domain;
         if (params.module_type) rpcParams.p_module_type = params.module_type;
@@ -117,22 +113,23 @@ export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
 
-        const resultCount = (data as unknown[])?.length ?? 0;
+        const rawModules = data as Record<string, unknown>[];
+        const modules = await enrichWithRelations(client, rawModules);
 
         trackUsage(client, auth, {
-          event_type: resultCount > 0 ? "search" : "search_miss",
+          event_type: modules.length > 0 ? "search" : "search_miss",
           tool_name: "devvault_search",
           query_text: queryText,
-          result_count: resultCount,
+          result_count: modules.length,
         });
 
         return {
           content: [{
             type: "text",
             text: JSON.stringify({
-              total_results: resultCount,
+              total_results: modules.length,
               search_mode: "list",
-              modules: data,
+              modules,
               _hint: "Use devvault_get with a module's id or slug to fetch full code and dependencies.",
             }, null, 2),
           }],
@@ -144,3 +141,34 @@ export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
     },
   });
 };
+
+/**
+ * Enrich search results with dependency/relationship metadata.
+ */
+async function enrichWithRelations(
+  client: Parameters<ToolRegistrar>[1],
+  modules: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  if (modules.length === 0) return modules;
+
+  const ids = modules.map((m) => m.id as string);
+
+  const [{ data: deps }, { data: dependents }] = await Promise.all([
+    client.from("vault_module_dependencies").select("module_id").in("module_id", ids),
+    client.from("vault_module_dependencies").select("depends_on_id").in("depends_on_id", ids),
+  ]);
+
+  const hasDepsSet = new Set(
+    (deps as Array<{ module_id: string }> ?? []).map((d) => d.module_id),
+  );
+  const hasDependentsSet = new Set(
+    (dependents as Array<{ depends_on_id: string }> ?? []).map((d) => d.depends_on_id),
+  );
+
+  return modules.map((m) => ({
+    ...m,
+    has_dependencies: hasDepsSet.has(m.id as string),
+    is_depended_upon: hasDependentsSet.has(m.id as string),
+    related_modules_count: (m.related_modules as string[] | null)?.length ?? 0,
+  }));
+}
