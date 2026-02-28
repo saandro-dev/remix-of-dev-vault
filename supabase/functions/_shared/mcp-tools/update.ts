@@ -17,7 +17,7 @@ const ALLOWED_UPDATE_FIELDS = [
   "usage_hint", "context_markdown", "tags", "domain", "module_type", "language",
   "source_project", "module_group", "implementation_order", "validation_status",
   "common_errors", "solves_problems", "test_code", "difficulty", "estimated_minutes",
-  "prerequisites", "database_schema", "version",
+  "prerequisites", "database_schema", "version", "ai_metadata",
 ] as const;
 
 export const registerUpdateTool: ToolRegistrar = (server, client, auth) => {
@@ -55,6 +55,15 @@ export const registerUpdateTool: ToolRegistrar = (server, client, auth) => {
         prerequisites: { type: "array", items: { type: "object" }, description: "Environment prerequisites" },
         database_schema: { type: "string", description: "SQL migration/schema required for this module" },
         version: { type: "string", description: "Semantic version string. E.g.: 'v1', 'v2', '1.0.0'" },
+        ai_metadata: {
+          type: "object",
+          description: "AI agent metadata: {npm_dependencies?: string[], env_vars_required?: string[], ai_rules?: string[]}",
+          properties: {
+            npm_dependencies: { type: "array", items: { type: "string" } },
+            env_vars_required: { type: "array", items: { type: "string" } },
+            ai_rules: { type: "array", items: { type: "string" } },
+          },
+        },
       },
       required: [],
     },

@@ -85,8 +85,12 @@ export const registerListTool: ToolRegistrar = (server, client, auth) => {
           (dependents as Array<{ depends_on_id: string }> ?? []).map((d) => d.depends_on_id),
         );
 
+        const totalCount = rawModules.length > 0
+          ? Number((rawModules[0] as Record<string, unknown>).total_count ?? rawModules.length)
+          : 0;
+
         const modules = rawModules.map((m) => {
-          const { code, context_markdown, ...rest } = m;
+          const { code, context_markdown, total_count, ...rest } = m as Record<string, unknown>;
           return {
             ...rest,
             has_dependencies: hasDepsSet.has(m.id as string),
@@ -106,7 +110,8 @@ export const registerListTool: ToolRegistrar = (server, client, auth) => {
           content: [{
             type: "text",
             text: JSON.stringify({
-              total_results: modules.length,
+              total_results: totalCount,
+              returned: modules.length,
               offset,
               modules,
             }, null, 2),
