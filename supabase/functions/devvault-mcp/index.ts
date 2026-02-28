@@ -85,7 +85,14 @@ app.all("/*", async (c) => {
 
   try {
     const mcpResponse = await httpHandler(c.req.raw);
-    console.log("[MCP:DIAG] transport response", { status: mcpResponse.status });
+    const cloned = mcpResponse.clone();
+    const bodyText = await cloned.text();
+    console.log("[MCP:DIAG] transport response", {
+      status: mcpResponse.status,
+      contentType: mcpResponse.headers.get("content-type"),
+      bodyLength: bodyText.length,
+      bodyPreview: bodyText.substring(0, 500),
+    });
     return withCors(mcpResponse);
   } catch (err) {
     console.error("[MCP:DIAG] transport error", {
