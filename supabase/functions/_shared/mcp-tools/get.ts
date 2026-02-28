@@ -15,7 +15,7 @@ const logger = createLogger("mcp-tool:get");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const registerGetTool: ToolRegistrar = (server, client) => {
+export const registerGetTool: ToolRegistrar = (server, client, auth) => {
   server.tool("devvault_get", {
     description:
       "Fetch a specific module by ID or slug. Returns full code, context, dependencies, " +
