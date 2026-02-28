@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Plus, Search, Loader2, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useVaultModules } from "../hooks/useVaultModules";
+import { useVaultModules, useVaultDomainCounts } from "../hooks/useVaultModules";
 import { CreateModuleDialog } from "../components/CreateModuleDialog";
 import { VaultModuleCard } from "../components/VaultModuleCard";
 import { VaultDomainFilters } from "../components/VaultDomainFilters";
@@ -36,19 +36,12 @@ export function VaultListPage() {
     query: searchQuery || undefined,
   });
 
-  const { data: allData } = useVaultModules({ scope });
+  const { data: domainData } = useVaultDomainCounts(scope);
 
   const modules = data?.pages.flatMap((p) => p.items) ?? [];
   const totalFiltered = data?.pages[0]?.total ?? 0;
-  const totalAll = allData?.pages[0]?.total ?? 0;
-
-  const domainCounts = useMemo(() => {
-    const allModules = allData?.pages.flatMap((p) => p.items) ?? [];
-    return allModules.reduce<Record<string, number>>((acc, m) => {
-      acc[m.domain] = (acc[m.domain] ?? 0) + 1;
-      return acc;
-    }, {});
-  }, [allData]);
+  const totalAll = domainData?.total ?? 0;
+  const domainCounts = domainData?.counts ?? {};
 
   return (
     <div className="space-y-6">

@@ -76,6 +76,29 @@ These fields provide critical operational context that transforms DevVault from 
 | `related_modules` | `uuid[]` | ❌ No | **Array of UUIDs of related modules.** The MCP `devvault_get` tool automatically resolves these UUIDs to `{id, slug, title}` objects for agent convenience. Use this to link contextually related modules (e.g., "audit-logging" ↔ "rls-policies"). |
 | `dependencies` | `text` | ❌ No | **(LEGACY)** Do not use this field. Dependencies are managed by the `vault_module_dependencies` table. |
 
+### AI Metadata
+
+The `ai_metadata` field is a structured JSONB object that stores machine-readable metadata for AI agents. It is validated by a PostgreSQL trigger (`validate_ai_metadata`) that enforces the allowed keys and types.
+
+| Key | Type | Description |
+| :--- | :--- | :--- |
+| `npm_dependencies` | `string[]` | NPM packages required by this module. E.g.: `["zod", "date-fns", "@supabase/supabase-js"]`. |
+| `env_vars_required` | `string[]` | Environment variables the module needs at runtime. E.g.: `["OPENAI_API_KEY", "SUPABASE_URL"]`. |
+| `ai_rules` | `string[]` | Free-form rules or constraints for AI agents consuming this module. E.g.: `["Always validate input with Zod before calling this function", "Never expose the raw key in logs"]`. |
+
+**Example:**
+```json
+{
+  "ai_metadata": {
+    "npm_dependencies": ["zod", "@supabase/supabase-js"],
+    "env_vars_required": ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"],
+    "ai_rules": ["Validate all inputs with Zod schema before invoking"]
+  }
+}
+```
+
+All three keys are optional. An empty object `{}` is valid. Unknown keys will be rejected by the database trigger.
+
 ### Metadata Fields
 
 | Field | Type | Required | Description and Standard |

@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
@@ -46,7 +46,25 @@ export function useVaultModules(filters?: VaultModuleFilters) {
   });
 }
 
-// Advanced search via SQL function
+interface DomainCountsResponse {
+  counts: Record<string, number>;
+  total: number;
+}
+
+export function useVaultDomainCounts(scope: VaultScope) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["vault_domain_counts", scope],
+    queryFn: () =>
+      invokeEdgeFunction<DomainCountsResponse>("vault-crud", {
+        action: "domain_counts",
+        scope,
+      }),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+}
+
 export function useVaultSearch(params: VaultModuleFilters & { validated?: boolean }) {
   const { user } = useAuth();
   return useInfiniteQuery({

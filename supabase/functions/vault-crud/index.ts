@@ -174,7 +174,32 @@ serve(withSentry("vault-crud", async (req: Request) => {
           p_offset: offset,
         });
         if (error) throw error;
-        return createSuccessResponse(req, { items: data, total: data.length });
+        const searchRows = data ?? [];
+        const searchTotal = searchRows.length > 0 ? (searchRows[0] as Record<string, unknown>).total_count as number : 0;
+        const searchItems = searchRows.map((r: Record<string, unknown>) => {
+          const { total_count: _, ...rest } = r;
+          return rest;
+        });
+        return createSuccessResponse(req, { items: searchItems, total: searchTotal });
+      }
+
+      case "domain_counts": {
+        const { scope = "owned" } = body;
+        const { data, error } = await client.rpc("get_visible_modules", {
+          p_user_id: user.id,
+          p_scope: scope,
+          p_limit: 10000,
+          p_offset: 0,
+        });
+        if (error) throw error;
+        const counts: Record<string, number> = {};
+        let grandTotal = 0;
+        for (const row of data ?? []) {
+          const d = (row as Record<string, unknown>).domain as string;
+          counts[d] = (counts[d] ?? 0) + 1;
+          grandTotal++;
+        }
+        return createSuccessResponse(req, { counts, total: grandTotal });
       }
 
       case "get_playbook": {
