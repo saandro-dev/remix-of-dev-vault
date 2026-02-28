@@ -12,6 +12,7 @@
 ╔═══════════════════════════════════════════════════════════════╗
 ║  ✅ DEVVAULT PROTOCOL V2 - 10.0/10 - DUAL-AUTH ARCHITECTURE   ║
 ║     15 Edge Functions | 2 Auth Systems | Zero Legacy Code      ║
+║     MCP Server v4.1: 16 Tools | Knowledge Flywheel + Tree     ║
 ║     Runtime: 100% Deno.serve() native                         ║
 ║     Secrets: Supabase Vault + Multi-Domain Keys               ║
 ║     verify_jwt: false (ALL 15 functions)                      ║
@@ -76,7 +77,7 @@ Para limitar o "raio de explosão" em caso de um vazamento de chave, o sistema u
 | `vault-crud` | Interno (JWT) | general | **BFF Principal para o Vault.** Realiza todas as operações de CRUD nos módulos de conhecimento do usuário. **Ações:** `list`, `get`, `create`, `update`, `delete`, `search`, `get_playbook`, `share`, `unshare`, `list_shares`, `add_dependency`, `remove_dependency`, `list_dependencies`. |
 | `vault-query` | Externo (API Key) | general | **Endpoint PÚBLICO de LEITURA para Agentes.** Permite que sistemas externos consultem o grafo de conhecimento. **Ações:** `bootstrap`, `search`, `get`, `list`, `list_domains`. |
 | `vault-ingest` | Externo (API Key) | general | **Endpoint PÚBLICO de ESCRITA para Agentes.** Permite que sistemas externos criem, atualizem e deletem módulos. **Ações:** `ingest` (criação single/batch), `update`, `delete`. |
-| `devvault-mcp` | Externo (API Key) | general | **Servidor MCP (Model Context Protocol) para Agentes de IA (v4.0).** Expõe uma API estruturada com ferramentas para interagir com o Vault. **Ferramentas (14):** `devvault_bootstrap`, `devvault_search`, `devvault_get`, `devvault_list`, `devvault_domains`, `devvault_ingest`, `devvault_update`, `devvault_get_group`, `devvault_validate`, `devvault_delete`, `devvault_diagnose`, `devvault_report_bug`, `devvault_resolve_bug`, `devvault_report_success`. **Knowledge Flywheel (v4.0):** `devvault_report_bug` registra gaps de conhecimento com dedup por hit_count, `devvault_resolve_bug` documenta soluções e promove a módulos, `devvault_report_success` captura padrões de sucesso. Tabela `vault_knowledge_gaps` rastreia ciclo bug→resolução→módulo. `devvault_diagnose` agora busca também em gaps resolvidos. |
+| `devvault-mcp` | Externo (API Key) | general | **Servidor MCP (Model Context Protocol) para Agentes de IA (v4.1).** Expõe uma API estruturada com ferramentas para interagir com o Vault. **Ferramentas (16):** `devvault_bootstrap`, `devvault_search`, `devvault_get`, `devvault_list`, `devvault_domains`, `devvault_ingest`, `devvault_update`, `devvault_get_group`, `devvault_validate`, `devvault_delete`, `devvault_diagnose`, `devvault_report_bug`, `devvault_resolve_bug`, `devvault_report_success`, `devvault_export_tree`, `devvault_check_updates`. **Knowledge Flywheel (v4.0):** `devvault_report_bug` registra gaps de conhecimento com dedup por hit_count, `devvault_resolve_bug` documenta soluções e promove a módulos, `devvault_report_success` captura padrões de sucesso. `devvault_diagnose` busca também em gaps resolvidos. **Scaffolding (v4.1):** `devvault_export_tree` resolve toda a árvore de dependências com CTE recursiva — elimina N+1. `devvault_check_updates` compara versões locais vs vault. Módulos incluem `database_schema` (SQL) e `version` (versionamento). |
 
 ### Gerenciamento de Entidades
 

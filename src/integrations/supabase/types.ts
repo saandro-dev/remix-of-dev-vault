@@ -611,6 +611,7 @@ export type Database = {
           validation_status:
             | Database["public"]["Enums"]["vault_validation_status"]
             | null
+          version: string | null
           visibility: Database["public"]["Enums"]["visibility_level"]
           why_it_matters: string | null
         }
@@ -650,6 +651,7 @@ export type Database = {
           validation_status?:
             | Database["public"]["Enums"]["vault_validation_status"]
             | null
+          version?: string | null
           visibility?: Database["public"]["Enums"]["visibility_level"]
           why_it_matters?: string | null
         }
@@ -689,6 +691,7 @@ export type Database = {
           validation_status?:
             | Database["public"]["Enums"]["vault_validation_status"]
             | null
+          version?: string | null
           visibility?: Database["public"]["Enums"]["visibility_level"]
           why_it_matters?: string | null
         }
@@ -762,6 +765,7 @@ export type Database = {
           common_errors: Json
           context_markdown: string
           created_at: string
+          database_schema: string
           description: string
           difficulty: string
           domain: string

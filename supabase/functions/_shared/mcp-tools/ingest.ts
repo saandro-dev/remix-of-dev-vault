@@ -43,6 +43,8 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
         source_project: { type: "string", description: "Source project name" },
         module_group: { type: "string", description: "Group name for related modules" },
         implementation_order: { type: "number", description: "Order within group (1-based)" },
+        version: { type: "string", description: "Semantic version string (default: 'v1'). E.g.: 'v1', 'v2', '1.0.0'" },
+        database_schema: { type: "string", description: "SQL migration/schema required for this module to work" },
         common_errors: {
           type: "array",
           items: {
@@ -103,7 +105,7 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
         "slug", "description", "domain", "module_type", "why_it_matters",
         "context_markdown", "code_example", "usage_hint", "source_project", "module_group",
         "common_errors", "solves_problems", "test_code", "difficulty", "estimated_minutes",
-        "prerequisites",
+        "prerequisites", "database_schema", "version",
       ];
       for (const field of optionalFields) {
         if (params[field]) insertData[field] = params[field];
