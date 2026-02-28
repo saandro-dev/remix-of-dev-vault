@@ -12,7 +12,8 @@ import { Lock, Users, Globe } from "lucide-react";
 import { useCreateVaultModule } from "../hooks/useVaultModules";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
 import { DependencySelector, type PendingDependency } from "./DependencySelector";
-import type { VaultDomain, VaultModuleType, VaultValidationStatus, VisibilityLevel } from "../types";
+import { TagInput } from "./TagInput";
+import type { VaultDomain, VaultModuleType, VaultValidationStatus, VisibilityLevel, AiMetadata } from "../types";
 
 interface Props {
   open: boolean;
@@ -63,12 +64,18 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
     validation_status: "draft" as VaultValidationStatus,
     visibility: "private" as VisibilityLevel,
   });
+  const [npmDeps, setNpmDeps] = useState<string[]>([]);
+  const [envVars, setEnvVars] = useState<string[]>([]);
 
   const set = (field: string, value: unknown) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
+    const aiMetadata: AiMetadata = {};
+    if (npmDeps.length > 0) aiMetadata.npm_dependencies = npmDeps;
+    if (envVars.length > 0) aiMetadata.env_vars_required = envVars;
+
     create.mutate({
       title: form.title.trim(),
       description: form.description || undefined,
@@ -85,6 +92,7 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
       phase_title: form.phase_title || undefined,
       validation_status: form.validation_status,
       visibility: form.visibility,
+      ai_metadata: aiMetadata,
     });
   };
 
@@ -96,9 +104,10 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid grid-cols-3 w-full">
+          <TabsList className="grid grid-cols-4 w-full">
             <TabsTrigger value="basic">{t("createModule.tabBasic")}</TabsTrigger>
             <TabsTrigger value="code">{t("createModule.tabCode")}</TabsTrigger>
+            <TabsTrigger value="ai">{t("createModule.tabAi")}</TabsTrigger>
             <TabsTrigger value="meta">{t("createModule.tabMeta")}</TabsTrigger>
           </TabsList>
 
@@ -166,6 +175,19 @@ export function CreateModuleDialog({ open, onOpenChange }: Props) {
             <div className="space-y-1.5">
               <Label>{t("createModule.docContext")}</Label>
               <Textarea placeholder={t("createModule.docPlaceholder")} value={form.context_markdown} onChange={(e) => set("context_markdown", e.target.value)} rows={6} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ai" className="space-y-4 mt-4">
+            <div className="space-y-1.5">
+              <Label>{t("createModule.npmDeps")}</Label>
+              <p className="text-xs text-muted-foreground">{t("createModule.npmDepsHint")}</p>
+              <TagInput value={npmDeps} onChange={setNpmDeps} placeholder={t("createModule.npmDepsPlaceholder")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("createModule.envVars")}</Label>
+              <p className="text-xs text-muted-foreground">{t("createModule.envVarsHint")}</p>
+              <TagInput value={envVars} onChange={setEnvVars} placeholder={t("createModule.envVarsPlaceholder")} />
             </div>
           </TabsContent>
 

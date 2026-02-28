@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CodeBlock } from "@/components/CodeBlock";
 import { TagCloud } from "@/components/TagCloud";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirmDelete } from "@/components/common/ConfirmDelete";
 import { EditModuleSheet } from "@/modules/vault/components/EditModuleSheet";
@@ -11,7 +12,7 @@ import { DependencyCard } from "@/modules/vault/components/DependencyCard";
 import { useVaultModule, useDeleteVaultModule } from "@/modules/vault/hooks/useVaultModule";
 import { useRemoveDependency } from "@/modules/vault/hooks/useModuleDependencies";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
-import { ArrowLeft, Trash2, Copy, Check, Loader2, Pencil, Lock, Users, Globe } from "lucide-react";
+import { ArrowLeft, Trash2, Copy, Check, Loader2, Pencil, Lock, Users, Globe, AlertTriangle, Package } from "lucide-react";
 import { VISIBILITY_COLORS } from "../types";
 import type { VisibilityLevel } from "../types";
 
@@ -27,6 +28,7 @@ export function VaultDetailPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [depCopied, setDepCopied] = useState(false);
+  const [npmCopied, setNpmCopied] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const { confirm, ConfirmDialog } = useConfirmDelete();
 
@@ -112,6 +114,45 @@ export function VaultDetailPage() {
       </div>
 
       <TagCloud tags={mod.tags} />
+
+      {/* AI Metadata: NPM Dependencies */}
+      {mod.ai_metadata?.npm_dependencies && mod.ai_metadata.npm_dependencies.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Package className="h-4 w-4" /> {t("vault.npmDependencies")}
+          </h2>
+          <div className="flex items-center gap-2 bg-surface rounded-lg border border-border p-3">
+            <div className="flex flex-wrap gap-1.5 flex-1">
+              {mod.ai_metadata.npm_dependencies.map((dep) => (
+                <Badge key={dep} variant="secondary" className="font-mono text-xs">{dep}</Badge>
+              ))}
+            </div>
+            <Button variant="ghost" size="sm" onClick={async () => {
+              await navigator.clipboard.writeText(`npm install ${mod.ai_metadata.npm_dependencies!.join(" ")}`);
+              setNpmCopied(true);
+              setTimeout(() => setNpmCopied(false), 2000);
+            }}>
+              {npmCopied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* AI Metadata: Required Environment Variables */}
+      {mod.ai_metadata?.env_vars_required && mod.ai_metadata.env_vars_required.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-500" /> {t("vault.envVarsRequired")}
+          </h2>
+          <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
+            <div className="flex flex-wrap gap-1.5">
+              {mod.ai_metadata.env_vars_required.map((v) => (
+                <Badge key={v} variant="outline" className="font-mono text-xs border-yellow-500/40 text-yellow-600 dark:text-yellow-400">{v}</Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Prerequisites / Dependencies Section */}
       {(mod.module_dependencies && mod.module_dependencies.length > 0) && (

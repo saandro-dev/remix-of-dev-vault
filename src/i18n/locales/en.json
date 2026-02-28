@@ -172,7 +172,9 @@
     "noPrerequisites": "No prerequisites defined.",
     "validated": "Validated",
     "deprecated": "Deprecated",
-    "draft": "Draft"
+    "draft": "Draft",
+    "npmDependencies": "NPM Dependencies",
+    "envVarsRequired": "Required Environment Variables"
   },
 
   "dependencies": {
@@ -223,7 +225,14 @@
     "sourceProjectPlaceholder": "risecheckout, devvault...",
     "validationStatus": "Validation Status",
     "visibility": "Visibility",
-    "createModule": "Create Module"
+    "createModule": "Create Module",
+    "tabAi": "AI Metadata",
+    "npmDeps": "NPM Dependencies",
+    "npmDepsHint": "Packages the agent must install (press Enter to add)",
+    "npmDepsPlaceholder": "e.g. axios, zod, bcrypt...",
+    "envVars": "Environment Variables",
+    "envVarsHint": "Env vars required for this module (press Enter to add)",
+    "envVarsPlaceholder": "e.g. STRIPE_SECRET_KEY..."
   },
 
   "editModule": {

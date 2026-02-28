@@ -46,6 +46,15 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
         implementation_order: { type: "number", description: "Order within group (1-based)" },
         version: { type: "string", description: "Semantic version string (default: 'v1'). E.g.: 'v1', 'v2', '1.0.0'" },
         database_schema: { type: "string", description: "SQL migration/schema required for this module to work" },
+        ai_metadata: {
+          type: "object",
+          properties: {
+            npm_dependencies: { type: "array", items: { type: "string" }, description: "NPM packages required (e.g. ['axios', 'zod'])" },
+            env_vars_required: { type: "array", items: { type: "string" }, description: "Environment variables needed (e.g. ['STRIPE_SECRET_KEY'])" },
+            ai_rules: { type: "array", items: { type: "string" }, description: "AI-specific rules or anti-patterns for this module" },
+          },
+          description: "Structured metadata for AI agent consumption. Provides dependency/env context without parsing code.",
+        },
         common_errors: {
           type: "array",
           items: {
@@ -100,6 +109,14 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
         validation_status: "draft",
         language: params.language ?? "typescript",
         tags: params.tags ?? [],
+      };
+
+      // Normalize ai_metadata: ensure valid structure with defaults
+      const rawMeta = (params.ai_metadata as Record<string, unknown>) ?? {};
+      insertData.ai_metadata = {
+        npm_dependencies: Array.isArray(rawMeta.npm_dependencies) ? rawMeta.npm_dependencies : [],
+        env_vars_required: Array.isArray(rawMeta.env_vars_required) ? rawMeta.env_vars_required : [],
+        ai_rules: Array.isArray(rawMeta.ai_rules) ? rawMeta.ai_rules : [],
       };
 
       const optionalFields = [

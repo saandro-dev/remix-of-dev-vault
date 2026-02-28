@@ -3,7 +3,7 @@ import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
 import i18n from "@/i18n/config";
-import type { VaultModule, VaultModuleSummary, VaultDomain, VaultModuleType, VaultValidationStatus, VaultScope, VisibilityLevel } from "../types";
+import type { VaultModule, VaultModuleSummary, VaultDomain, VaultModuleType, VaultValidationStatus, VaultScope, VisibilityLevel, AiMetadata } from "../types";
 
 // Filters for module listing
 export interface VaultModuleFilters {
@@ -84,6 +84,7 @@ export interface CreateModuleInput {
   validation_status?: VaultValidationStatus;
   related_modules?: string[];
   visibility?: VisibilityLevel;
+  ai_metadata?: AiMetadata;
 }
 
 export function useCreateVaultModule(onSuccess?: (createdModule: VaultModule) => void) {
