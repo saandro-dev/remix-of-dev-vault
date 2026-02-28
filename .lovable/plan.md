@@ -1,46 +1,36 @@
 
 
-## Diagnóstico: Por que apenas 50 módulos aparecem
+## Paginação — Implementado ✅
 
-A causa raiz está em **duas camadas** que limitam os resultados:
+### Problema
+O frontend limitava a listagem a 50 módulos sem paginação. A contagem exibida era incorreta (baseada no array retornado, não no total real).
 
-### 1. Frontend hardcoded `limit: 50` (linha 34 de `useVaultModules.ts`)
-```typescript
-limit: filters?.limit ?? 50,
-```
-O hook **sempre** pede no máximo 50 módulos ao backend. Sem paginação implementada, os demais são invisíveis.
+### Solução Implementada
 
-### 2. Sem mecanismo de paginação na UI (`VaultListPage.tsx`)
-A página renderiza `modules.map(...)` sem botão "Load More", scroll infinito, ou controle de página. Mesmo que o backend retornasse 1000, a UI não tem como navegar além do primeiro lote.
+1. **RPC `get_visible_modules`** — Adicionado `COUNT(*) OVER()::BIGINT AS total_count` ao retorno. Agora cada row inclui o total real de registros que atendem aos filtros, independente do `LIMIT/OFFSET`.
 
-### 3. Contagem incorreta
-A contagem exibida ("50 modules") vem de `allModules?.length` — que também está limitada a 50 pelo mesmo hook. O usuário não sabe quantos módulos realmente existem.
+2. **Edge Function `vault-crud`** (action `list`) — Extrai `total_count` da primeira row e remove o campo antes de enviar ao frontend. Retorna `{ items, total }` com o total real.
 
----
+3. **Hook `useVaultModules`** — Migrado de `useQuery` para `useInfiniteQuery` com `PAGE_SIZE = 50`. Suporta `getNextPageParam` para carregar páginas adicionais automaticamente.
 
-## Plano de Implementação — Paginação Completa
+4. **UI `VaultListPage`** — Refatorada em 3 componentes:
+   - `VaultListPage.tsx` — Página principal com Load More
+   - `VaultModuleCard.tsx` — Card individual extraído
+   - `VaultDomainFilters.tsx` — Filtros de domínio extraídos
+   - Exibe "Showing X of Y modules" e botão "Load More"
 
-### Fase 1: Backend — Retornar `total` real da RPC
-- A RPC `get_visible_modules` precisa retornar o count total (não apenas os itens paginados)
-- O `vault-crud` action `list` atualmente faz `total: (data ?? []).length` — isso é o count da página, não o total real
-- Criar migration para atualizar a RPC com `COUNT(*) OVER()` como coluna extra
-
-### Fase 2: Hook — Suportar paginação e total real
-- Alterar `useVaultModules` para retornar `{ items, total }` em vez de apenas `items`
-- Manter `limit: 50` por página (performance), mas expor `offset` controlável
-
-### Fase 3: UI — Implementar "Load More" ou paginação
-- Adicionar botão "Load More" no final da lista
-- Exibir contagem real: "Showing 50 of 312 modules"
-- Carregar próximos 50 ao clicar
+5. **i18n** — Adicionadas keys `vault.loadMore` e `vault.showingOf` em EN e PT-BR.
 
 ### Arquivos Afetados
-
-```text
-supabase/migrations/XXXXXX_update_rpc_total_count.sql   [NEW]
-src/modules/vault/hooks/useVaultModules.ts               [EDIT]
-src/modules/vault/pages/VaultListPage.tsx                [EDIT]
-src/i18n/locales/en.json                                 [EDIT]
-src/i18n/locales/pt-BR.json                              [EDIT]
 ```
-
+supabase/migrations/*_drop_recreate_get_visible_modules.sql  [NEW]
+supabase/functions/vault-crud/index.ts                        [EDIT]
+src/modules/vault/hooks/useVaultModules.ts                    [EDIT]
+src/modules/vault/pages/VaultListPage.tsx                     [EDIT]
+src/modules/vault/components/VaultModuleCard.tsx               [NEW]
+src/modules/vault/components/VaultDomainFilters.tsx            [NEW]
+src/modules/bugs/components/BugCreateDialog.tsx                [EDIT]
+src/modules/bugs/pages/BugDiaryPage.tsx                        [EDIT]
+src/i18n/locales/en.json                                       [EDIT]
+src/i18n/locales/pt-BR.json                                    [EDIT]
+```

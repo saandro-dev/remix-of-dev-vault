@@ -42,7 +42,13 @@ serve(withSentry("vault-crud", async (req: Request) => {
           p_offset: offset,
         });
         if (error) throw error;
-        return createSuccessResponse(req, { items: data ?? [], total: (data ?? []).length });
+        const rows = data ?? [];
+        const total = rows.length > 0 ? (rows[0] as Record<string, unknown>).total_count as number : 0;
+        const items = rows.map((r: Record<string, unknown>) => {
+          const { total_count: _, ...rest } = r;
+          return rest;
+        });
+        return createSuccessResponse(req, { items, total });
       }
 
       case "get": {

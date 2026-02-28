@@ -23,7 +23,8 @@ export function BugCreateDialog() {
   const [tagsInput, setTagsInput] = useState("");
 
   const { data: projects } = useProjects();
-  const { data: modules } = useVaultModules();
+  const { data: modulesData } = useVaultModules();
+  const modules = modulesData?.pages.flatMap((p) => p.items);
 
   const resetForm = () => {
     setTitle(""); setSymptom(""); setCauseCode(""); setSolution("");
