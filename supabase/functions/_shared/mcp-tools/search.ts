@@ -114,6 +114,9 @@ export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
         }
 
         const rawModules = data as Record<string, unknown>[];
+        const totalCount = rawModules.length > 0
+          ? Number((rawModules[0] as Record<string, unknown>).total_count ?? rawModules.length)
+          : 0;
         const modules = await enrichWithRelations(client, rawModules);
 
         trackUsage(client, auth, {
@@ -127,7 +130,8 @@ export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
           content: [{
             type: "text",
             text: JSON.stringify({
-              total_results: modules.length,
+              total_results: totalCount,
+              returned: modules.length,
               search_mode: "list",
               modules,
               _hint: "Use devvault_get with a module's id or slug to fetch full code and dependencies.",
