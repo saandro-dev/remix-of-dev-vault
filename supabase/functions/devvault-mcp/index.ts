@@ -17,9 +17,12 @@
 import { Hono } from "hono";
 import { McpServer, StreamableHttpTransport } from "mcp-lite";
 import { getSupabaseClient } from "../_shared/supabase-client.ts";
+import { createLogger } from "../_shared/logger.ts";
 import { authenticateRequest } from "../_shared/mcp-tools/auth.ts";
 import { registerAllTools } from "../_shared/mcp-tools/register.ts";
 import type { AuthContext } from "../_shared/mcp-tools/types.ts";
+
+const logger = createLogger("devvault-mcp");
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -73,7 +76,7 @@ app.all("/*", async (c) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  console.log("[MCP:DIAG] incoming request", {
+  logger.info("incoming request", {
     method: c.req.method,
     hasDevVaultKey: c.req.raw.headers.has("x-devvault-key"),
     hasApiKey: c.req.raw.headers.has("x-api-key"),
@@ -88,7 +91,7 @@ app.all("/*", async (c) => {
     return withCors(authResult);
   }
 
-  console.log("[MCP:DIAG] auth passed", { userId: authResult.userId });
+  logger.info("auth passed", { userId: authResult.userId });
 
   // Mutate shared reference — tools see updated values
   requestAuth.userId = authResult.userId;
@@ -98,7 +101,7 @@ app.all("/*", async (c) => {
     const mcpResponse = await httpHandler(c.req.raw);
     const cloned = mcpResponse.clone();
     const bodyText = await cloned.text();
-    console.log("[MCP:DIAG] transport response", {
+    logger.info("transport response", {
       status: mcpResponse.status,
       contentType: mcpResponse.headers.get("content-type"),
       bodyLength: bodyText.length,
@@ -106,7 +109,7 @@ app.all("/*", async (c) => {
     });
     return withCors(mcpResponse);
   } catch (err) {
-    console.error("[MCP:DIAG] transport error", {
+    logger.error("transport error", {
       message: String(err),
       stack: err instanceof Error ? err.stack : undefined,
     });

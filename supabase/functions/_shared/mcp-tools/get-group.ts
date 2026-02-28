@@ -12,7 +12,7 @@ import type { ToolRegistrar } from "./types.ts";
 
 const logger = createLogger("mcp-tool:get-group");
 
-export const registerGetGroupTool: ToolRegistrar = (server, client) => {
+export const registerGetGroupTool: ToolRegistrar = (server, client, auth) => {
   server.tool("devvault_get_group", {
     description:
       "Fetch all modules in a group, ordered by implementation_order, with dependencies " +
