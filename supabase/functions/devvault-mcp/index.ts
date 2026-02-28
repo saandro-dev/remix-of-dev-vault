@@ -80,28 +80,6 @@ app.all("/*", async (c) => {
     url: c.req.url,
   });
 
-  // Intercept GET before auth — mcp-lite 0.10.0 has a bug where handleGet()
-  // checks against a hardcoded protocol version different from the negotiated one.
-  // Return 405 JSON-RPC to force the client into POST-only mode.
-  if (c.req.method === "GET") {
-    return withCors(new Response(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        error: {
-          code: -32000,
-          message: "SSE transport not available. Use POST-only mode.",
-        },
-        id: null,
-      }),
-      {
-        status: 405,
-        headers: {
-          "Content-Type": "application/json",
-          "Allow": "POST, OPTIONS",
-        },
-      },
-    ));
-  }
 
   const authResult = await authenticateRequest(c.req.raw);
 
