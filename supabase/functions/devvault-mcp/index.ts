@@ -55,7 +55,7 @@ function withCors(response: Response): Response {
 const client = getSupabaseClient("general");
 const mcp = new McpServer({
   name: "devvault",
-  version: "5.0.0",
+  version: "5.2.0",
   logger: {
     error: (...args: unknown[]) => console.error("[MCP:LIB]", ...args),
     warn: (...args: unknown[]) => console.warn("[MCP:LIB]", ...args),
@@ -87,7 +87,6 @@ app.all("/*", async (c) => {
     hasAuthorization: c.req.raw.headers.has("authorization"),
     url: c.req.url,
   });
-
 
   const authResult = await authenticateRequest(c.req.raw);
 

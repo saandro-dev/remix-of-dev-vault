@@ -38,12 +38,6 @@ function extractKeywords(errorMsg: string): string[] {
     .filter((w) => w.length >= 3 && !stopWords.has(w));
 }
 
-/** Tokenized match: check if ANY token from the error appears in the target string */
-function tokenizedMatch(errorTokens: string[], target: string): boolean {
-  const targetLower = target.toLowerCase();
-  return errorTokens.some((token) => targetLower.includes(token));
-}
-
 export async function handleTroubleshooting(
   client: SupabaseClient,
   auth: AuthContext,
