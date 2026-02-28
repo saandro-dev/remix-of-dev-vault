@@ -1,54 +1,66 @@
 
 
-## Diagnostico: Handlers das Tools Nao Produzem Logs
+## Diagnostico: GET 400 "Protocol version mismatch" Persiste
 
-Os logs da Edge Function mostram apenas requests de `initialize`, `initialized` (202) e `tools/list` — nenhuma chamada real de `tools/call` (search, domains) aparece nos logs. Isso indica que:
+### Evidencia dos Logs (13:51:09Z)
 
-1. As chamadas podem ter acontecido antes do window de logs visivel, OU
-2. Os handlers crasham silenciosamente sem produzir output
+```text
+POST initialize → 200, negocia protocolVersion "2025-03-26"
+POST initialized → 202
+GET  → mcp-lite compara "2025-03-26" com "2025-06-18" hardcoded → 400 "Protocol version mismatch"
+POST tools/list → 200 (SSE, funciona)
+```
 
-### Problema Identificado
+O mcp-lite v0.10.0 tem um bug: o handler de GET verifica contra `2025-06-18` (hardcoded), mas o POST `initialize` negocia `2025-03-26`. O GET sempre vai falhar com 400. A conexao anterior funcionou porque o cliente Lovable tolerou o 400 naquela tentativa — comportamento inconsistente.
 
-Os tool handlers atuais (`search.ts`, `domains.ts`) nao possuem logging de entrada — nao ha como saber se o handler foi invocado, quais parametros recebeu, ou se o Supabase client RPC falhou. Os erros sao capturados mas os logs ficam perdidos se a Edge Function encerrar rapidamente.
+### Causa Raiz
+
+Bug no mcp-lite 0.10.0: `handleGet()` compara `MCP-Protocol-Version` contra uma versao diferente da negociada no `initialize`. Nao ha versao mais nova disponivel no npm (0.10.0 e a latest).
 
 ### Solucao
 
-Adicionar logging de diagnostico granular a TODOS os tool handlers para capturar:
-- Confirmacao de que o handler foi invocado
-- Parametros recebidos
-- Resultado do RPC (sucesso/erro)
-- Try-catch global para capturar excecoes nao previstas
+Interceptar GET **antes** do transport e retornar 405 com corpo JSON-RPC e `Content-Type: application/json` — diferente da tentativa anterior que usou texto plano. Isso sinaliza ao cliente MCP que SSE nao esta disponivel, forcando modo POST-only.
 
-### Arquivos Afetados
+### Mudanca
 
-| Arquivo | Acao |
-|---------|------|
-| `supabase/functions/_shared/mcp-tools/search.ts` | Adicionar logs de entrada, parametros, resultado RPC e try-catch global |
-| `supabase/functions/_shared/mcp-tools/domains.ts` | Adicionar logs de entrada, resultado RPC e try-catch global |
-| `supabase/functions/_shared/mcp-tools/bootstrap.ts` | Adicionar logs de entrada e try-catch global (referencia de comparacao) |
-| `supabase/functions/_shared/mcp-tools/list.ts` | Adicionar logs de entrada, parametros, resultado RPC e try-catch global |
+**Arquivo: `supabase/functions/devvault-mcp/index.ts`**
 
-### Exemplo de Mudanca (search.ts)
+Adicionar interceptacao de GET apos auth e antes do `httpHandler`, retornando resposta JSON-RPC formatada:
 
 ```typescript
-handler: async (params: Record<string, unknown>) => {
-  console.log("[MCP:TOOL] devvault_search invoked", { params });
-  try {
-    const limit = Math.min(Number(params.limit ?? 10), 50);
-    // ... existing logic ...
-    const { data, error } = await client.rpc("query_vault_modules", rpcParams);
-    console.log("[MCP:TOOL] devvault_search RPC result", {
-      success: !error,
-      resultCount: (data as unknown[])?.length ?? 0,
-      error: error?.message,
-    });
-    // ... existing response ...
-  } catch (err) {
-    console.error("[MCP:TOOL] devvault_search UNCAUGHT", { error: String(err) });
-    return { content: [{ type: "text", text: `Uncaught error: ${String(err)}` }] };
-  }
+// After auth passes, before httpHandler:
+if (c.req.method === "GET") {
+  return withCors(new Response(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      error: {
+        code: -32000,
+        message: "SSE transport not available. Use POST-only mode.",
+      },
+      id: null,
+    }),
+    {
+      status: 405,
+      headers: {
+        "Content-Type": "application/json",
+        "Allow": "POST, OPTIONS",
+      },
+    },
+  ));
 }
 ```
 
-Apos deploy, o proximo teste vai revelar exatamente onde a falha ocorre — se e no handler, no RPC, ou se a chamada nunca chega ao handler.
+### Diferenca da Tentativa Anterior
+
+| Aspecto | Tentativa anterior | Nova solucao |
+|---------|-------------------|--------------|
+| Body | Texto plano `"Method Not Allowed"` | JSON-RPC formatado |
+| Content-Type | Nenhum (text/plain implicito) | `application/json` |
+| Formato | Nao-MCP | Compativel com protocolo JSON-RPC |
+
+### Arquivo Afetado
+
+| Arquivo | Acao |
+|---------|------|
+| `supabase/functions/devvault-mcp/index.ts` | Interceptar GET com resposta JSON-RPC 405 |
 
