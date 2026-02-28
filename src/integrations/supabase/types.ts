@@ -412,6 +412,38 @@ export type Database = {
         }
         Relationships: []
       }
+      vault_module_changelog: {
+        Row: {
+          changes: string[]
+          created_at: string
+          id: string
+          module_id: string
+          version: string
+        }
+        Insert: {
+          changes?: string[]
+          created_at?: string
+          id?: string
+          module_id: string
+          version: string
+        }
+        Update: {
+          changes?: string[]
+          created_at?: string
+          id?: string
+          module_id?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_module_changelog_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vault_module_dependencies: {
         Row: {
           created_at: string
@@ -485,11 +517,14 @@ export type Database = {
           category: Database["public"]["Enums"]["vault_category"]
           code: string
           code_example: string | null
+          common_errors: Json | null
           context_markdown: string | null
           created_at: string
           dependencies: string | null
           description: string | null
+          difficulty: string | null
           domain: Database["public"]["Enums"]["vault_domain"] | null
+          estimated_minutes: number | null
           id: string
           implementation_order: number | null
           language: string
@@ -503,8 +538,10 @@ export type Database = {
           search_vector: unknown
           search_vector_en: unknown
           slug: string | null
+          solves_problems: string[] | null
           source_project: string | null
           tags: string[]
+          test_code: string | null
           title: string
           updated_at: string
           usage_hint: string | null
@@ -519,11 +556,14 @@ export type Database = {
           category?: Database["public"]["Enums"]["vault_category"]
           code?: string
           code_example?: string | null
+          common_errors?: Json | null
           context_markdown?: string | null
           created_at?: string
           dependencies?: string | null
           description?: string | null
+          difficulty?: string | null
           domain?: Database["public"]["Enums"]["vault_domain"] | null
+          estimated_minutes?: number | null
           id?: string
           implementation_order?: number | null
           language?: string
@@ -537,8 +577,10 @@ export type Database = {
           search_vector?: unknown
           search_vector_en?: unknown
           slug?: string | null
+          solves_problems?: string[] | null
           source_project?: string | null
           tags?: string[]
+          test_code?: string | null
           title: string
           updated_at?: string
           usage_hint?: string | null
@@ -553,11 +595,14 @@ export type Database = {
           category?: Database["public"]["Enums"]["vault_category"]
           code?: string
           code_example?: string | null
+          common_errors?: Json | null
           context_markdown?: string | null
           created_at?: string
           dependencies?: string | null
           description?: string | null
+          difficulty?: string | null
           domain?: Database["public"]["Enums"]["vault_domain"] | null
+          estimated_minutes?: number | null
           id?: string
           implementation_order?: number | null
           language?: string
@@ -571,8 +616,10 @@ export type Database = {
           search_vector?: unknown
           search_vector_en?: unknown
           slug?: string | null
+          solves_problems?: string[] | null
           source_project?: string | null
           tags?: string[]
+          test_code?: string | null
           title?: string
           updated_at?: string
           usage_hint?: string | null
@@ -606,19 +653,25 @@ export type Database = {
         Returns: {
           code: string
           code_example: string
+          common_errors: Json
           context_markdown: string
           created_at: string
           description: string
+          difficulty: string
           domain: string
+          estimated_minutes: number
           id: string
           language: string
           module_type: string
           phase_title: string
+          prerequisites: Json[]
           related_modules: string[]
           saas_phase: number
           slug: string
+          solves_problems: string[]
           source_project: string
           tags: string[]
+          test_code: string
           title: string
           updated_at: string
           usage_hint: string
@@ -689,7 +742,9 @@ export type Database = {
           context_markdown: string
           created_at: string
           description: string
+          difficulty: string
           domain: string
+          estimated_minutes: number
           id: string
           language: string
           module_type: string

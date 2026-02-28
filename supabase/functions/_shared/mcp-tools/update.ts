@@ -15,6 +15,8 @@ const ALLOWED_UPDATE_FIELDS = [
   "title", "description", "code", "code_example", "why_it_matters",
   "usage_hint", "context_markdown", "tags", "domain", "module_type", "language",
   "source_project", "module_group", "implementation_order", "validation_status",
+  "common_errors", "solves_problems", "test_code", "difficulty", "estimated_minutes",
+  "prerequisites",
 ] as const;
 
 export const registerUpdateTool: ToolRegistrar = (server, client, auth) => {
@@ -44,6 +46,12 @@ export const registerUpdateTool: ToolRegistrar = (server, client, auth) => {
         module_group: { type: "string" },
         implementation_order: { type: "number" },
         validation_status: { type: "string", enum: ["draft", "validated", "deprecated"] },
+        common_errors: { type: "array", items: { type: "object" }, description: "Common errors [{error, cause, fix}]" },
+        solves_problems: { type: "array", items: { type: "string" }, description: "Problems this module solves" },
+        test_code: { type: "string", description: "Quick validation code" },
+        difficulty: { type: "string", enum: ["beginner", "intermediate", "advanced"] },
+        estimated_minutes: { type: "number", description: "Estimated implementation time" },
+        prerequisites: { type: "array", items: { type: "object" }, description: "Environment prerequisites" },
       },
       required: [],
     },

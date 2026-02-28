@@ -2,7 +2,7 @@
  * mcp-tools/get.ts — devvault_get tool.
  *
  * Fetches a single module by ID or slug with full code, dependencies,
- * completeness score, and group metadata.
+ * completeness score, group metadata, changelog, and resolved related_modules.
  */
 
 import { createLogger } from "../logger.ts";
@@ -18,9 +18,10 @@ export const registerGetTool: ToolRegistrar = (server, client) => {
   server.tool("devvault_get", {
     description:
       "Fetch a specific module by ID or slug. Returns full code, context, dependencies, " +
-      "completeness score, and group metadata. CRITICAL: If any dependency has " +
-      "dependency_type='required', you MUST call devvault_get for each required " +
-      "dependency BEFORE implementing this module. " +
+      "completeness score, group metadata, prerequisites, common_errors, test_code, " +
+      "solves_problems, difficulty, estimated_minutes, changelog, and resolved related_modules. " +
+      "CRITICAL: If any dependency has dependency_type='required', you MUST call devvault_get " +
+      "for each required dependency BEFORE implementing this module. " +
       "You can pass either a UUID id or a slug string — auto-detected.",
     inputSchema: {
       type: "object",
@@ -58,17 +59,18 @@ export const registerGetTool: ToolRegistrar = (server, client) => {
       const mod = (data as Record<string, unknown>[])[0];
       const moduleId = mod.id as string;
 
-      const dependencies = await enrichModuleDependencies(client, moduleId);
+      // Parallel fetches: dependencies, completeness, group meta, changelog, related_modules
+      const [dependencies, completeness, moduleRaw, changelogResult, resolvedRelated] = await Promise.all([
+        enrichModuleDependencies(client, moduleId),
+        getCompleteness(client, moduleId),
+        client.from("vault_modules").select("module_group, implementation_order").eq("id", moduleId).single(),
+        client.from("vault_module_changelog").select("version, changes, created_at").eq("module_id", moduleId).order("created_at", { ascending: false }).limit(10),
+        resolveRelatedModules(client, mod.related_modules as string[] | null),
+      ]);
+
       const hasRequired = dependencies.some(
         (d: Record<string, unknown>) => d.dependency_type === "required",
       );
-      const completeness = await getCompleteness(client, moduleId);
-
-      const moduleRaw = await client
-        .from("vault_modules")
-        .select("module_group, implementation_order")
-        .eq("id", moduleId)
-        .single();
 
       let groupMeta: Record<string, unknown> | null = null;
       if (moduleRaw.data?.module_group) {
@@ -89,7 +91,9 @@ export const registerGetTool: ToolRegistrar = (server, client) => {
           type: "text",
           text: JSON.stringify({
             ...mod,
+            related_modules: resolvedRelated,
             dependencies,
+            _changelog: changelogResult.data ?? [],
             _completeness: completeness,
             _group: groupMeta,
             _instructions: hasRequired
@@ -101,3 +105,20 @@ export const registerGetTool: ToolRegistrar = (server, client) => {
     },
   });
 };
+
+/**
+ * Resolves an array of UUID related_modules into {id, slug, title} objects.
+ */
+async function resolveRelatedModules(
+  client: Parameters<ToolRegistrar>[1],
+  uuids: string[] | null,
+): Promise<Array<{ id: string; slug: string | null; title: string }>> {
+  if (!uuids || uuids.length === 0) return [];
+
+  const { data } = await client
+    .from("vault_modules")
+    .select("id, slug, title")
+    .in("id", uuids);
+
+  return (data ?? []) as Array<{ id: string; slug: string | null; title: string }>;
+}
