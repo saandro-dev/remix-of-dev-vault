@@ -1,56 +1,57 @@
 
 
-## Causa Raiz Definitiva: `handleGet` do mcp-lite Rejeita Versao `2025-03-26`
+## Diagnostico: Interceptacao Manual de GET Conflita com o Protocolo
 
-### Evidencia do Codigo-Fonte (mcp-lite `transport-http.ts`, linhas 795-818)
+### Evidencia
 
-```text
-handleGet(request):
-  1. Verifica Accept header → OK
-  2. Verifica MCP-Protocol-Version header:
-     → SE header presente E header !== "2025-06-18" → retorna 400 "Protocol version mismatch"
-  3. SE nao tem sessionAdapter (modo stateless) → retorna 405 "Method Not Allowed"
-```
+Os logs confirmam que o servidor responde corretamente ao POST `initialize` (200, JSON-RPC valido). O GET subsequente passa pela auth e recebe nosso 405 manual. Mas o Lovable continua reportando "Connection failed".
 
-### Sequencia de Eventos nos Logs
+### Causa Raiz
+
+Todos os exemplos oficiais do mcp-lite (Hono+Bun, Cloudflare Workers, Next.js, Supabase) delegam **TODOS** os metodos HTTP ao transport — incluindo GET:
 
 ```text
-POST initialize → servidor negocia protocolVersion "2025-03-26" → 200 OK
-GET SSE         → Lovable envia MCP-Protocol-Version: "2025-03-26"
-                → mcp-lite compara com "2025-06-18" (unica versao aceita no GET)
-                → "2025-03-26" !== "2025-06-18" → 400 "Protocol version mismatch"
-                → Lovable interpreta como falha de conexao
+// Exemplo oficial Hono+Bun (do README do mcp-lite):
+app.all("/mcp", (c) => handler(c.req.raw))  // GET, POST, DELETE — tudo vai pro transport
+
+// Exemplo oficial Next.js:
+export const POST = handler
+export const GET = handler   // ← GET tambem vai pro transport
 ```
 
-Mesmo se a versao correspondesse, o proximo check rejeitaria com 405 porque nao temos `sessionAdapter` (modo stateless). Edge Functions bootem uma instancia nova por request — sessoes em memoria sao impossiveis.
+O transport em modo stateless (sem `sessionAdapter`) sabe retornar a resposta correta para GET. Nossa interceptacao manual retorna um 405 com body em texto plano ("Method Not Allowed") — o cliente MCP provavelmente espera uma resposta JSON-RPC formatada pelo transport, ou headers MCP especificos que nao estamos incluindo.
 
 ### Solucao
 
-Interceptar GET requests **antes** de delegar ao transport do mcp-lite. Retornar 405 "Method Not Allowed" com headers corretos, para que o cliente Lovable saiba que SSE nao esta disponivel e use modo POST-only (stateless).
+1. **Remover** a interceptacao manual de GET (linhas 82-90)
+2. **Adicionar `logger`** ao McpServer para visibilidade interna do mcp-lite
+3. **Deixar o transport lidar com todos os metodos** — e o padrao documentado
 
-### Mudancas Concretas
+### Mudancas
 
 **Arquivo: `supabase/functions/devvault-mcp/index.ts`**
 
-No handler Hono, antes da chamada `httpHandler(c.req.raw)`, adicionar interceptacao de GET:
+1. Remover o bloco `if (c.req.method === "GET") { ... }` (linhas 82-90)
+2. Adicionar logger ao McpServer:
 
 ```typescript
-// GET requests seek an SSE stream, which requires persistent sessions.
-// Edge Functions are stateless (fresh boot per request), so SSE is impossible.
-// Return 405 so the client falls back to POST-only (stateless) mode.
-if (c.req.method === "GET") {
-  return withCors(new Response("Method Not Allowed", {
-    status: 405,
-    headers: { "Allow": "POST, DELETE, OPTIONS" },
-  }));
-}
+const mcp = new McpServer({
+  name: "devvault",
+  version: "2.4.0",
+  logger: {
+    error: (...args) => console.error("[MCP:LIB]", ...args),
+    warn: (...args) => console.warn("[MCP:LIB]", ...args),
+    info: (...args) => console.info("[MCP:LIB]", ...args),
+    debug: (...args) => console.debug("[MCP:LIB]", ...args),
+  },
+});
 ```
 
-Isso evita que o GET chegue ao transport onde seria rejeitado com 400 (version mismatch) — um status que o cliente interpreta como erro fatal. O 405 e o status correto segundo a spec MCP para indicar que SSE nao esta disponivel, permitindo ao cliente operar em modo stateless.
+Isso vai: (a) seguir o padrao exato da documentacao oficial, e (b) nos dar visibilidade total do que o mcp-lite faz internamente em cada request, incluindo GET.
 
 ### Arquivos Afetados
 
 | Arquivo | Acao |
 |---------|------|
-| `supabase/functions/devvault-mcp/index.ts` | Interceptar GET antes do transport |
+| `supabase/functions/devvault-mcp/index.ts` | Remover interceptacao GET, adicionar logger |
 
