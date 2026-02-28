@@ -94,13 +94,8 @@ export const registerGetTool: ToolRegistrar = (server, client, auth) => {
         result_count: 1,
       });
 
-      // Fetch ai_metadata from the raw module row
-      const { data: fullRow } = await client
-        .from("vault_modules")
-        .select("ai_metadata")
-        .eq("id", moduleId)
-        .single();
-      const aiMeta = (fullRow?.ai_metadata as Record<string, unknown>) ?? {};
+      // ai_metadata already returned by get_vault_module RPC — no extra query needed
+      const aiMeta = (mod.ai_metadata as Record<string, unknown>) ?? {};
 
       // Build environment setup instructions for consuming agent
       const envInstructions: string[] = [];
