@@ -1,89 +1,62 @@
 
 
-## Por que 8.9 e não 10? Análise das lacunas
+## Auditoria da Implementação `ai_metadata` — Problemas Encontrados
 
-A Solution B perdeu pontos em 4 áreas específicas. Vou detalhar cada uma e apresentar a **Solution C** que fecha todas as lacunas para atingir o 10.
-
-### Lacunas da Solution B (JSONB puro sem guardrails)
-
-| Critério | Score | Motivo da perda |
-|----------|-------|----------------|
-| Maintainability | 9/10 | JSONB sem schema validation no DB permite dados malformados silenciosamente. Em 2 anos, o campo pode conter lixo de agentes que erraram o formato. |
-| Zero TD | 9/10 | Sem CHECK constraint, alguém vai precisar "limpar" dados inválidos no futuro — isso é dívida técnica latente. |
-| Architecture | 9/10 | Validação apenas no TypeScript (frontend) e no Deno (MCP) viola defense-in-depth. O banco deve ser a última barreira. |
-| Security | 8/10 | JSONB sem constraint aceita payloads arbitrariamente grandes ou com chaves inesperadas. |
+Após investigação profunda de todos os arquivos afetados, identifiquei **3 problemas reais** que precisam de correção:
 
 ---
 
-## Solution C: JSONB com Defense-in-Depth (Score 10/10)
+### Problema 1: Query redundante em `devvault_get` (get.ts)
 
-Tudo da Solution B **mais**:
+**Linhas 97-103** fazem uma query separada para buscar `ai_metadata`:
+```typescript
+const { data: fullRow } = await client
+  .from("vault_modules")
+  .select("ai_metadata")
+  .eq("id", moduleId)
+  .single();
+```
 
-1. **CHECK constraint no PostgreSQL** validando a estrutura do JSONB no nível do banco:
-   - `npm_dependencies` deve ser array de strings (ou ausente)
-   - `env_vars_required` deve ser array de strings (ou ausente)
-   - `ai_rules` deve ser array de strings (ou ausente)
-   - Rejeita chaves desconhecidas no top-level
+Mas a RPC `get_vault_module` **já retorna `ai_metadata`** (confirmado no SQL). O campo `mod.ai_metadata` já contém o dado. Esta query extra é código morto — uma chamada desnecessária ao banco que degrada performance.
 
-2. **GIN index** no campo `ai_metadata` para permitir queries futuras como "todos os módulos que precisam de STRIPE_SECRET_KEY"
-
-3. **Validação Zod no MCP** (Deno) — já prevista na Solution B, mas agora com schema estrito que normaliza input antes de gravar
-
-4. **Validação TypeScript no frontend** — interface `AiMetadata` tipada, impossível enviar dados malformados
-
-### Scoring
-
-- Maintainability: **10/10** — Schema enforcement em 3 camadas (DB, backend, frontend) impede degradação
-- Zero TD: **10/10** — Constraint no DB garante que dados inválidos nunca entram, zero limpeza futura
-- Architecture: **10/10** — Defense-in-depth: DB constraint → Edge Function validation → Frontend types
-- Scalability: **10/10** — GIN index permite queries eficientes no JSONB à medida que o vault cresce
-- Security: **10/10** — Rejeição de payloads malformados na camada mais baixa (PostgreSQL)
-- **FINAL SCORE: 10.0/10**
-
-### Por que a Solution B é inferior
-
-A Solution B confia que todos os consumidores (MCP tools, frontend, futuras APIs) validarão corretamente. Basta UM path de escrita sem validação para corromper dados permanentemente. A Solution C torna isso **impossível** ao nível do PostgreSQL.
+**Correção:** Remover a query extra e usar `mod.ai_metadata` diretamente.
 
 ---
 
-## Plano de Implementação — Solution C
+### Problema 2: RPCs de listagem/busca não retornam `ai_metadata`
 
-### Fase 1: Database Migration
-- `ALTER TABLE vault_modules ADD COLUMN ai_metadata JSONB NOT NULL DEFAULT '{}'::jsonb`
-- `CHECK constraint` validando estrutura (arrays de strings, chaves permitidas)
-- `GIN index` em `ai_metadata` para queries por conteúdo
+As seguintes RPCs **não incluem** `ai_metadata` no retorno:
+- `query_vault_modules` — usada por `devvault_list` e `devvault_search`
+- `hybrid_search_vault_modules` — usada por `devvault_search`
+- `get_visible_modules` — usada por `vault-crud` action `list`
 
-### Fase 2: TypeScript Types
-- Interface `AiMetadata` em `src/modules/vault/types.ts`
-- Campo `ai_metadata` adicionado a `VaultModule` e `VaultModuleSummary`
+Isso significa que o campo `ai_metadata` **nunca aparece** nos resultados de listagem/busca — nem no frontend, nem no MCP. O plano original previa "Fase 6: Atualizar RPCs" mas isso não foi executado.
 
-### Fase 3: MCP Tools (Edge Functions)
-- `devvault_ingest`: aceitar `ai_metadata` com validação, default `{}`
-- `devvault_get`: retornar `ai_metadata` com instrução contextual para o agente
-- `devvault_search`/`devvault_list`: incluir `ai_metadata` nos resultados
+**Correção:** Migration SQL para adicionar `ai_metadata` ao retorno das 3 RPCs.
 
-### Fase 4: Edge Function `vault-crud`
-- Suportar `ai_metadata` nas operações de create/update
+---
 
-### Fase 5: Frontend
-- `CreateModuleDialog` e `EditModuleSheet`: inputs tag-style para npm deps e env vars
-- `VaultDetailPage`: badges copiáveis para npm deps, alerta visual para env vars
+### Problema 3: `database_schema` não retornado pela RPC `get_vault_module`
 
-### Fase 6: Database RPCs
-- Atualizar `get_vault_module`, `hybrid_search_vault_modules` e `query_vault_modules` para incluir `ai_metadata`
+O campo `database_schema` **já está** no retorno da RPC (confirmado). Este não é um problema — apenas validação.
+
+---
+
+## Plano de Correção
+
+### 1. Remover query redundante em `get.ts`
+- Eliminar linhas 97-103 (fetch separado de `ai_metadata`)
+- Usar `mod.ai_metadata` diretamente para construir `envInstructions`
+
+### 2. Migration: Atualizar 3 RPCs para incluir `ai_metadata`
+- `query_vault_modules` — adicionar `vm.ai_metadata` ao SELECT e ao retorno
+- `hybrid_search_vault_modules` — adicionar `vm.ai_metadata` ao SELECT e ao retorno
+- `get_visible_modules` — adicionar `vm.ai_metadata` ao SELECT e ao retorno
 
 ### Arquivos Afetados
 
 ```text
-supabase/migrations/XXXXXX_add_ai_metadata.sql           [NEW]
-src/modules/vault/types.ts                                [EDIT]
-supabase/functions/_shared/mcp-tools/ingest.ts            [EDIT]
+supabase/migrations/XXXXXX_add_ai_metadata_to_rpcs.sql   [NEW]
 supabase/functions/_shared/mcp-tools/get.ts               [EDIT]
-supabase/functions/vault-crud/index.ts                    [EDIT]
-src/modules/vault/components/CreateModuleDialog.tsx        [EDIT]
-src/modules/vault/components/EditModuleSheet.tsx           [EDIT]
-src/modules/vault/pages/VaultDetailPage.tsx               [EDIT]
-src/i18n/locales/en.json                                  [EDIT]
-src/i18n/locales/pt-BR.json                               [EDIT]
 ```
 
