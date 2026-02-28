@@ -83,6 +83,7 @@ These fields provide critical operational context that transforms DevVault from 
 | `source_project` | `text` | ✅ Yes | **The project name where this module was validated.** E.g.: `risecheckout`. |
 | `validation_status` | `enum` | ✅ Yes | **The validation status.** Start with `draft` and change to `validated` after review. Values: `draft`, `validated`, `deprecated`. |
 | `visibility` | `enum` | ✅ Yes | **Who can see this module.** Default is `private`. Use `global` for shared knowledge. Values: `private`, `shared`, `global`. |
+| `version` | `text` | ❌ No | **Semantic version string for the module content.** Defaults to `"v1"`. Bump on meaningful content changes. E.g.: `"v1"`, `"v2"`, `"v3"`. Used by `devvault_check_updates` to detect outdated copies in projects. |
 
 ---
 
