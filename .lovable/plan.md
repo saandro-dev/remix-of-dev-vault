@@ -2,47 +2,59 @@
 
 ## Diagnóstico
 
-A observação da IA está **100% correta** e conecta-se diretamente ao relatório anterior. São dois problemas distintos:
+Existem **dois sistemas separados** que não se comunicam:
 
-### Problema A: Código — 3 bugs aprovados ainda não implementados
+| Sistema | Tabela | Acesso MCP | Visível no Frontend |
+|---------|--------|------------|---------------------|
+| Knowledge Gaps (global) | `vault_knowledge_gaps` | `devvault_report_bug` / `devvault_resolve_bug` | Não (apenas admin via health check) |
+| Bug Diary (pessoal) | `bugs` | Nenhum | Sim (página Bug Diary) |
 
-Os 3 problemas do plano aprovado continuam presentes no código:
+A IA **já pode** reportar problemas via `devvault_report_bug`, mas esses registros vão para `vault_knowledge_gaps` — uma tabela global de lacunas de conhecimento que **não aparece** na aba Bug Diary do frontend. O Bug Diary (`bugs` table) é completamente inacessível via MCP.
 
-1. **`update.ts` linha 15-21:** `ai_metadata` ausente do `ALLOWED_UPDATE_FIELDS` — agentes não conseguem atualizar metadados AI após ingestão
-2. **`list.ts` linha 109:** `total_results: modules.length` — retorna count da página, não o total real (RPC `query_vault_modules` sem `COUNT(*) OVER()`)
-3. **`search.ts` linha 130:** Mesmo problema no modo list — `total_results: modules.length`
+## Plano: Criar 2 novas MCP tools para o Bug Diary
 
-### Problema B: Dados — Módulos sem dependências declaradas
+### Solution Analysis
 
-A infraestrutura de dependências está **completa no código** (ingest, get, export_tree, enrichment). O problema é de **conteúdo**: os módulos foram ingeridos sem declarar `dependencies`. Isso não é um bug de código — é uma lacuna de dados que precisa ser preenchida por agentes via `devvault_update` + `add_dependency`.
+#### Solution A: Criar tools MCP separadas para `bugs` table
+- Maintainability: 10/10 — Cada sistema tem suas tools dedicadas, responsabilidade clara
+- Zero TD: 10/10 — Sem acoplamento entre sistemas distintos
+- Architecture: 10/10 — Single Responsibility: knowledge gaps ≠ bug diary pessoal
+- Scalability: 9/10 — Escala independentemente
+- Security: 10/10 — Respeita ownership via `user_id` do auth context
+- **FINAL SCORE: 9.8/10**
 
-Porém, o Problema A bloqueia parcialmente o B: sem `ai_metadata` no `ALLOWED_UPDATE_FIELDS`, agentes não conseguem enriquecer módulos existentes com metadados.
+#### Solution B: Unificar `bugs` e `vault_knowledge_gaps` numa só tabela
+- Maintainability: 5/10 — Mistura conceitos distintos (pessoal vs global)
+- Zero TD: 3/10 — Requer migration destrutiva e rewrite de toda a UI
+- Architecture: 4/10 — Viola Single Responsibility
+- Scalability: 6/10 — Tabela monolítica com concerns mistos
+- Security: 5/10 — RLS complexo para pessoal vs global
+- **FINAL SCORE: 4.6/10**
+
+### DECISION: Solution A (Score 9.8)
+Solution B viola SRP ao misturar um diário pessoal com um sistema global de knowledge gaps. São domínios semânticos distintos.
 
 ---
 
-## Plano de Implementação
+### Implementação
 
-### 1. Migration: `query_vault_modules` com `total_count`
-Recriar a RPC adicionando `COUNT(*) OVER()::BIGINT AS total_count` nos 3 branches de `RETURN QUERY`.
+#### 1. `supabase/functions/_shared/mcp-tools/diary-bug.ts` [NEW]
+Tool `devvault_diary_bug` — Cria um bug no diário pessoal do usuário (`bugs` table). Inputs: `title` (required), `symptom` (required), `cause_code`, `solution`, `project_id`, `vault_module_id`, `tags`. Se `solution` for fornecida, status = `resolved`, senão `open`.
 
-### 2. `update.ts` — Adicionar `ai_metadata` ao ALLOWED_UPDATE_FIELDS e inputSchema
-Linha 21: adicionar `"ai_metadata"` ao array. Adicionar propriedade `ai_metadata` ao `inputSchema.properties`.
+#### 2. `supabase/functions/_shared/mcp-tools/diary-resolve.ts` [NEW]
+Tool `devvault_diary_resolve` — Atualiza um bug existente no diário com a solução. Inputs: `bug_id` (required), `cause_code`, `solution` (required). Seta status para `resolved`.
 
-### 3. `list.ts` — Extrair `total_count` real
-Linha 109: extrair `total_count` da primeira row em vez de usar `modules.length`.
+#### 3. `supabase/functions/_shared/mcp-tools/register.ts` [EDIT]
+Registrar as 2 novas tools. Total tools: 21.
 
-### 4. `search.ts` — Extrair `total_count` real no modo list
-Linha 130: mesmo padrão — extrair `total_count` quando usa `query_vault_modules`.
-
-### 5. `src/integrations/supabase/types.ts` — Atualizar tipos da RPC
+#### 4. `supabase/functions/_shared/mcp-tools/types.ts` [NO CHANGE]
+Tipos existentes são suficientes.
 
 ### Arquivos Afetados
 
 ```text
-supabase/migrations/XXXXXX_query_vault_modules_total_count.sql  [NEW]
-supabase/functions/_shared/mcp-tools/update.ts                   [EDIT]
-supabase/functions/_shared/mcp-tools/list.ts                     [EDIT]
-supabase/functions/_shared/mcp-tools/search.ts                   [EDIT]
-src/integrations/supabase/types.ts                               [EDIT]
+supabase/functions/_shared/mcp-tools/diary-bug.ts      [NEW]
+supabase/functions/_shared/mcp-tools/diary-resolve.ts   [NEW]
+supabase/functions/_shared/mcp-tools/register.ts        [EDIT]
 ```
 
