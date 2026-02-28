@@ -79,6 +79,16 @@ app.all("/*", async (c) => {
 
   console.log("[MCP:DIAG] auth passed", { userId: authResult.userId });
 
+  // GET requests seek an SSE stream, which requires persistent sessions.
+  // Edge Functions are stateless (fresh boot per request), so SSE is impossible.
+  // Return 405 so the client falls back to POST-only (stateless) mode.
+  if (c.req.method === "GET") {
+    return withCors(new Response("Method Not Allowed", {
+      status: 405,
+      headers: { "Allow": "POST, DELETE, OPTIONS" },
+    }));
+  }
+
   // Mutate shared reference — tools see updated values
   requestAuth.userId = authResult.userId;
   requestAuth.keyId = authResult.keyId;
