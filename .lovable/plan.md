@@ -1,60 +1,41 @@
 
 
-## Diagnóstico
+## Relatório de Validação — MCP Diary Tools
 
-Existem **dois sistemas separados** que não se comunicam:
-
-| Sistema | Tabela | Acesso MCP | Visível no Frontend |
-|---------|--------|------------|---------------------|
-| Knowledge Gaps (global) | `vault_knowledge_gaps` | `devvault_report_bug` / `devvault_resolve_bug` | Não (apenas admin via health check) |
-| Bug Diary (pessoal) | `bugs` | Nenhum | Sim (página Bug Diary) |
-
-A IA **já pode** reportar problemas via `devvault_report_bug`, mas esses registros vão para `vault_knowledge_gaps` — uma tabela global de lacunas de conhecimento que **não aparece** na aba Bug Diary do frontend. O Bug Diary (`bugs` table) é completamente inacessível via MCP.
-
-## Plano: Criar 2 novas MCP tools para o Bug Diary
-
-### Solution Analysis
-
-#### Solution A: Criar tools MCP separadas para `bugs` table
-- Maintainability: 10/10 — Cada sistema tem suas tools dedicadas, responsabilidade clara
-- Zero TD: 10/10 — Sem acoplamento entre sistemas distintos
-- Architecture: 10/10 — Single Responsibility: knowledge gaps ≠ bug diary pessoal
-- Scalability: 9/10 — Escala independentemente
-- Security: 10/10 — Respeita ownership via `user_id` do auth context
-- **FINAL SCORE: 9.8/10**
-
-#### Solution B: Unificar `bugs` e `vault_knowledge_gaps` numa só tabela
-- Maintainability: 5/10 — Mistura conceitos distintos (pessoal vs global)
-- Zero TD: 3/10 — Requer migration destrutiva e rewrite de toda a UI
-- Architecture: 4/10 — Viola Single Responsibility
-- Scalability: 6/10 — Tabela monolítica com concerns mistos
-- Security: 5/10 — RLS complexo para pessoal vs global
-- **FINAL SCORE: 4.6/10**
-
-### DECISION: Solution A (Score 9.8)
-Solution B viola SRP ao misturar um diário pessoal com um sistema global de knowledge gaps. São domínios semânticos distintos.
+### Resultado: SUCESSO com 1 problema de documentação
 
 ---
 
-### Implementação
+### Código — 100% Correto
 
-#### 1. `supabase/functions/_shared/mcp-tools/diary-bug.ts` [NEW]
-Tool `devvault_diary_bug` — Cria um bug no diário pessoal do usuário (`bugs` table). Inputs: `title` (required), `symptom` (required), `cause_code`, `solution`, `project_id`, `vault_module_id`, `tags`. Se `solution` for fornecida, status = `resolved`, senão `open`.
+| Verificação | Status | Detalhe |
+|---|---|---|
+| `diary-bug.ts` — Estrutura e tipagem | OK | 135 linhas, Single Responsibility, logging + error handling corretos |
+| `diary-bug.ts` — Ownership via `auth.userId` | OK | `user_id: auth.userId` no insert (linha 78) |
+| `diary-bug.ts` — Status automático | OK | `solution ? "resolved" : "open"` (linha 73) |
+| `diary-bug.ts` — Usage tracking | OK | `trackUsage` com `event_type: "bug_reported"` (linha 100) |
+| `diary-resolve.ts` — Estrutura e tipagem | OK | 118 linhas, Single Responsibility |
+| `diary-resolve.ts` — Ownership filter | OK | `.eq("user_id", auth.userId)` (linha 62) — impede resolver bugs de outros users |
+| `diary-resolve.ts` — Usage tracking | OK | `trackUsage` com `event_type: "bug_resolved"` (linha 81) |
+| `register.ts` — Imports e registros | OK | 21 tools importados e registrados, comentário "Total tools: 21" correto |
+| `update.ts` — `ai_metadata` no ALLOWED_UPDATE_FIELDS | OK | Linha 20 inclui `"ai_metadata"` |
+| `update.ts` — `ai_metadata` no inputSchema | OK | Linhas 58-66 com properties tipadas |
+| `list.ts` — `total_count` real | OK | Linha 88-90 extrai da primeira row |
+| `search.ts` — `total_count` real no modo list | OK | Linhas 117-119 mesmo padrão |
+| Código morto / legado | Nenhum | Todos os arquivos limpos |
+| Limite 300 linhas | OK | Todos dentro do limite |
 
-#### 2. `supabase/functions/_shared/mcp-tools/diary-resolve.ts` [NEW]
-Tool `devvault_diary_resolve` — Atualiza um bug existente no diário com a solução. Inputs: `bug_id` (required), `cause_code`, `solution` (required). Seta status para `resolved`.
+### Protocolo — 1 Problema Encontrado
 
-#### 3. `supabase/functions/_shared/mcp-tools/register.ts` [EDIT]
-Registrar as 2 novas tools. Total tools: 21.
+| Verificação | Status | Detalhe |
+|---|---|---|
+| `EDGE_FUNCTIONS_REGISTRY.md` — Tool count | **DESATUALIZADO** | Diz "19 Tools" (linha 15, 82) mas agora são **21 Tools** (`devvault_diary_bug` e `devvault_diary_resolve` não listados) |
+| Memory note `funcionalidades/integracao-mcp` | **DESATUALIZADO** | Diz "16 ferramentas" mas agora são 21 |
 
-#### 4. `supabase/functions/_shared/mcp-tools/types.ts` [NO CHANGE]
-Tipos existentes são suficientes.
+### Plano de Correção
 
-### Arquivos Afetados
-
-```text
-supabase/functions/_shared/mcp-tools/diary-bug.ts      [NEW]
-supabase/functions/_shared/mcp-tools/diary-resolve.ts   [NEW]
-supabase/functions/_shared/mcp-tools/register.ts        [EDIT]
-```
+#### 1. `docs/EDGE_FUNCTIONS_REGISTRY.md` [EDIT]
+- Atualizar badge de "19 Tools" para "21 Tools"
+- Adicionar `devvault_diary_bug` e `devvault_diary_resolve` à lista de tools do `devvault-mcp` na tabela (linha 82)
+- Atualizar seção de descrição com as novas tools do Bug Diary
 
