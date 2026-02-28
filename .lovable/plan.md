@@ -1,67 +1,48 @@
 
 
-## Resultado da Auditoria Final
+## Diagnóstico
 
-A implementacao esta **funcional e completa nos 3 pontos corrigidos**. Porem identifico **2 problemas residuais** que violam o protocolo:
+A observação da IA está **100% correta** e conecta-se diretamente ao relatório anterior. São dois problemas distintos:
 
----
+### Problema A: Código — 3 bugs aprovados ainda não implementados
 
-### Problema 1: `domain_counts` usa abordagem ineficiente (vault-crud linhas 186-203)
+Os 3 problemas do plano aprovado continuam presentes no código:
 
-A action `domain_counts` busca **todos os modulos** (`p_limit: 10000`) via RPC `get_visible_modules` e conta os dominios no Deno com um loop. Isso transfere potencialmente milhares de rows completas do banco para o edge function apenas para contar 6 numeros.
+1. **`update.ts` linha 15-21:** `ai_metadata` ausente do `ALLOWED_UPDATE_FIELDS` — agentes não conseguem atualizar metadados AI após ingestão
+2. **`list.ts` linha 109:** `total_results: modules.length` — retorna count da página, não o total real (RPC `query_vault_modules` sem `COUNT(*) OVER()`)
+3. **`search.ts` linha 130:** Mesmo problema no modo list — `total_results: modules.length`
 
-**Violacao:** Escalabilidade 0/10. Com 10.000+ modulos, essa query transfere megabytes de dados desnecessariamente. A solucao correta e uma RPC dedicada com `GROUP BY domain` que retorna apenas `{domain, count}`.
+### Problema B: Dados — Módulos sem dependências declaradas
 
-**Correcao:** Criar RPC `get_domain_counts(p_user_id, p_scope)` que faz `SELECT domain, COUNT(*) FROM ... GROUP BY domain` e retorna apenas a contagem. Ajustar a action `domain_counts` para usar essa RPC.
+A infraestrutura de dependências está **completa no código** (ingest, get, export_tree, enrichment). O problema é de **conteúdo**: os módulos foram ingeridos sem declarar `dependencies`. Isso não é um bug de código — é uma lacuna de dados que precisa ser preenchida por agentes via `devvault_update` + `add_dependency`.
 
----
-
-### Problema 2: Mutations nao invalidam `vault_domain_counts`
-
-`useCreateVaultModule` e `useUpdateVaultModule` invalidam `vault_modules` e `vault_playbook`, mas **nao invalidam** `vault_domain_counts`. Apos criar/editar um modulo, os counts dos filtros de dominio ficam desatualizados ate o proximo refresh.
-
-**Correcao:** Adicionar `queryClient.invalidateQueries({ queryKey: ["vault_domain_counts"] })` nos `onSuccess` de ambas as mutations.
+Porém, o Problema A bloqueia parcialmente o B: sem `ai_metadata` no `ALLOWED_UPDATE_FIELDS`, agentes não conseguem enriquecer módulos existentes com metadados.
 
 ---
 
-### Problema 3: `vault-crud/index.ts` tem 303 linhas
+## Plano de Implementação
 
-Exatamente no limite de 300 linhas do protocolo (na verdade 3 acima). Com a adicao da action `domain_counts` que sera simplificada, isso se resolve naturalmente.
+### 1. Migration: `query_vault_modules` com `total_count`
+Recriar a RPC adicionando `COUNT(*) OVER()::BIGINT AS total_count` nos 3 branches de `RETURN QUERY`.
 
----
+### 2. `update.ts` — Adicionar `ai_metadata` ao ALLOWED_UPDATE_FIELDS e inputSchema
+Linha 21: adicionar `"ai_metadata"` ao array. Adicionar propriedade `ai_metadata` ao `inputSchema.properties`.
 
-### Verificacoes OK (sem problemas)
+### 3. `list.ts` — Extrair `total_count` real
+Linha 109: extrair `total_count` da primeira row em vez de usar `modules.length`.
 
-| Item | Status |
-|------|--------|
-| `search` com `total_count` real | OK |
-| `list` com `total_count` real | OK |
-| `useInfiniteQuery` com paginacao | OK |
-| UI Load More + "Showing X of Y" | OK |
-| `VaultDomainFilters` componente extraido | OK |
-| `VaultModuleCard` componente extraido | OK |
-| Documentacao `ai_metadata` no Content Standards | OK |
-| Zero DB access no frontend | OK |
-| Codigo morto removido | OK |
+### 4. `search.ts` — Extrair `total_count` real no modo list
+Linha 130: mesmo padrão — extrair `total_count` quando usa `query_vault_modules`.
 
----
-
-## Plano de Correcao
-
-### 1. Migration: RPC `get_domain_counts`
-Nova RPC dedicada que retorna `TABLE(domain TEXT, count BIGINT, grand_total BIGINT)` usando `GROUP BY` — zero transferencia de dados desnecessaria.
-
-### 2. Simplificar action `domain_counts` no vault-crud
-Substituir o loop manual pela chamada a nova RPC. Reduz ~15 linhas para ~8.
-
-### 3. Invalidar `vault_domain_counts` nas mutations
-Adicionar invalidacao em `useCreateVaultModule` e `useUpdateVaultModule`.
+### 5. `src/integrations/supabase/types.ts` — Atualizar tipos da RPC
 
 ### Arquivos Afetados
 
 ```text
-supabase/migrations/XXXXXX_create_domain_counts_rpc.sql  [NEW]
-supabase/functions/vault-crud/index.ts                    [EDIT]
-src/modules/vault/hooks/useVaultModules.ts                [EDIT]
+supabase/migrations/XXXXXX_query_vault_modules_total_count.sql  [NEW]
+supabase/functions/_shared/mcp-tools/update.ts                   [EDIT]
+supabase/functions/_shared/mcp-tools/list.ts                     [EDIT]
+supabase/functions/_shared/mcp-tools/search.ts                   [EDIT]
+src/integrations/supabase/types.ts                               [EDIT]
 ```
 
