@@ -1,61 +1,101 @@
+# DevVault — Post-Deployment State (v4.0 Knowledge Flywheel)
 
-
-## Auditoria v4.0 — Knowledge Flywheel
-
-### Veredicto: 2 problemas encontrados (sem bugs de runtime)
+## Status: DEPLOYED ✅
 
 ---
 
-### Problema 1: `.lovable/plan.md` nao foi atualizado
+## Architecture Overview
 
-O arquivo ainda contem o **plano de execucao** (pre-implementacao) em vez do estado pos-deployment. A escrita anterior nao persistiu. O conteudo atual mostra a proposta "Arquitetura: 3 Novas MCP Tools + 1 Tabela SQL" como se fosse um TODO, quando ja esta implementado.
+The DevVault MCP Server is a universal AI-agent interface exposing 14 tools
+via the Model Context Protocol over Streamable HTTP. All tool logic resides
+in `supabase/functions/_shared/mcp-tools/` (one file per tool).
 
-**Correcao:** Reescrever com o estado final v4.0 (14 tools, file structure, checklist de sucesso).
+### Knowledge Flywheel Cycle
 
----
+```text
+Agent has bug → devvault_diagnose → found? → use solution
+                                   → NOT found? → devvault_report_bug (gap registered)
+                                                 → agent solves it
+                                                 → devvault_resolve_bug (solution → module)
 
-### Problema 2: `index.ts` linha 2 — versao desatualizada no comentario
-
-```typescript
-// Linha 2: diz "v3.0"
-* devvault-mcp/index.ts — Universal MCP Server for AI Agents (v3.0).
-// Linha 55: diz "4.0.0"
-version: "4.0.0",
+Agent builds feature → success → devvault_report_success (pattern → module)
 ```
 
-Inconsistencia entre o comentario do header e a versao real do servidor.
+---
 
-**Correcao:** Alterar linha 2 para `(v4.0)`.
+## MCP Tools (14)
+
+| # | Tool | File | Purpose |
+|---|------|------|---------|
+| 1 | `devvault_bootstrap` | `bootstrap.ts` | Full vault context for agent onboarding |
+| 2 | `devvault_search` | `search.ts` | Full-text + filtered search across modules |
+| 3 | `devvault_get` | `get.ts` | Fetch single module by id or slug |
+| 4 | `devvault_list` | `list.ts` | Paginated module listing with filters |
+| 5 | `devvault_domains` | `domains.ts` | List all domains with counts |
+| 6 | `devvault_ingest` | `ingest.ts` | Create new vault module |
+| 7 | `devvault_update` | `update.ts` | Update existing module fields |
+| 8 | `devvault_get_group` | `get-group.ts` | Fetch modules by group name |
+| 9 | `devvault_validate` | `validate.ts` | Set validation_status on a module |
+| 10 | `devvault_delete` | `delete.ts` | Soft/hard delete a module |
+| 11 | `devvault_diagnose` | `diagnose.ts` | 4-strategy diagnostic (common_errors, solves_problems, resolved_gaps, text_search) |
+| 12 | `devvault_report_bug` | `report-bug.ts` | Register knowledge gap with dedup (hit_count) |
+| 13 | `devvault_resolve_bug` | `resolve-bug.ts` | Resolve gap + optional promote to module |
+| 14 | `devvault_report_success` | `report-success.ts` | Ingest successful pattern with smart defaults |
 
 ---
 
-### O que esta CORRETO (confirmado por leitura completa)
+## Database Tables
 
-| Area | Status |
-|---|---|
-| `report-bug.ts` — dedup por hit_count, analytics, logger | OK |
-| `resolve-bug.ts` — promoção a modulo, completeness, ownership | OK |
-| `report-success.ts` — defaults otimizados, warnings, analytics | OK |
-| `diagnose.ts` — 4 estrategias (common_errors, solves_problems, resolved_gaps, text_search) | OK |
-| `diagnose.ts` — hint de search_miss direciona para report_bug | OK |
-| `diagnose.ts` — match_breakdown inclui resolved_gaps | OK |
-| `register.ts` — 14 tools, header "Total tools: 14" | OK |
-| `usage-tracker.ts` — 9 event_types incluindo bug_reported, bug_resolved, success_reported | OK |
-| `index.ts` — version "4.0.0", tools list no header com 14 | OK |
-| `types.ts` — ToolRegistrar com 3 params (server, client, auth) | OK |
-| `EDGE_FUNCTIONS_REGISTRY.md` — v4.0, 14 tools, Knowledge Flywheel documentado | OK |
-| Zero codigo morto | OK |
-| Zero imports nao utilizados | OK |
-| Todos os arquivos abaixo de 300 linhas | OK |
-| Nomenclatura em ingles tecnico | OK |
-| Protocolo §5.5 (zero DB access no frontend) | OK |
+| Table | Purpose |
+|-------|---------|
+| `vault_modules` | Core knowledge modules |
+| `vault_knowledge_gaps` | Bug/gap lifecycle tracking (open → resolved → promoted) |
+| `vault_usage_events` | Analytics (9 event types incl. bug_reported, bug_resolved, success_reported) |
+| `vault_module_dependencies` | Module dependency graph |
+| `vault_module_changelog` | Version history per module |
+| `vault_module_shares` | Module sharing between users |
 
 ---
 
-### Plano de Correcao (2 arquivos)
+## File Structure (Edge Functions)
 
-| Arquivo | Mudanca |
-|---|---|
-| `supabase/functions/devvault-mcp/index.ts` | Linha 2: `(v3.0)` → `(v4.0)` |
-| `.lovable/plan.md` | Reescrever com estado pos-deployment v4.0 |
+```
+supabase/functions/
+├── devvault-mcp/
+│   ├── index.ts          # Hono router, CORS, auth, MCP transport (v4.0)
+│   └── deno.json         # Deno config
+└── _shared/
+    └── mcp-tools/
+        ├── auth.ts           # API key + JWT authentication
+        ├── bootstrap.ts      # devvault_bootstrap
+        ├── completeness.ts   # Module completeness scorer
+        ├── delete.ts         # devvault_delete
+        ├── diagnose.ts       # devvault_diagnose (4 strategies)
+        ├── domains.ts        # devvault_domains
+        ├── get.ts            # devvault_get
+        ├── get-group.ts      # devvault_get_group
+        ├── ingest.ts         # devvault_ingest
+        ├── list.ts           # devvault_list
+        ├── register.ts       # Tool registration hub (14 tools)
+        ├── report-bug.ts     # devvault_report_bug
+        ├── report-success.ts # devvault_report_success
+        ├── resolve-bug.ts    # devvault_resolve_bug
+        ├── search.ts         # devvault_search
+        ├── types.ts          # AuthContext, ToolRegistrar
+        ├── update.ts         # devvault_update
+        ├── usage-tracker.ts  # Analytics event tracker (9 types)
+        └── validate.ts       # devvault_validate
+```
 
+---
+
+## Quality Checklist ✅
+
+- [x] 14 tools registered and deployed
+- [x] Zero dead code, zero unused imports
+- [x] All files under 300 lines
+- [x] Technical English naming throughout
+- [x] Protocol §5.5 enforced (zero frontend DB access)
+- [x] Knowledge Flywheel cycle operational
+- [x] Documentation updated (EDGE_FUNCTIONS_REGISTRY.md)
+- [x] Version consistent: header v4.0, McpServer 4.0.0

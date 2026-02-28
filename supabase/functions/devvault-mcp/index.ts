@@ -1,5 +1,5 @@
 /**
- * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v3.0).
+ * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v4.0).
  *
  * Thin shell: Hono router, CORS, auth middleware, MCP transport.
  * All tool logic lives in _shared/mcp-tools/ (one file per tool).
