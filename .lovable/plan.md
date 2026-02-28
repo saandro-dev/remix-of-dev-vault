@@ -1,96 +1,61 @@
 
 
-## Analise do Feedback do Agente — Plano de Evolucao do Knowledge Graph
+## Auditoria Completa — Evolução do Knowledge Graph (Fases 1-4)
 
-O feedback e excelente e identifica lacunas operacionais reais. Vou categorizar por viabilidade e impacto.
+### Resultado: 7 problemas encontrados (3 criticos, 4 documentacao)
 
-### Estado Atual vs Solicitado
+---
 
-| Campo solicitado | Existe no DB? | Existe no MCP? |
-|---|---|---|
-| `prerequisites` | SIM (jsonb[]) | NAO exposto |
-| `common_errors` | NAO | NAO |
-| `solves_problems` | NAO | NAO |
-| `test_code` | NAO | NAO |
-| `difficulty` | NAO | NAO |
-| `estimated_minutes` | NAO | NAO |
-| `changelog` | NAO | NAO |
-| `devvault_validate` tool | Logica existe (`completeness`) | NAO como tool |
-| `related_modules` com slugs | UUIDs no DB | MCP retorna UUIDs |
-| `usage_hint` no list | Campo existe | NAO retornado no list |
+### Problemas Criticos (Codigo)
 
-### Fase 1 — Schema (Migracao SQL)
+**1. `devvault-mcp/index.ts` — Comentario desatualizado (linha 11-13)**
+O header diz "Tools (8)" mas agora sao 9 (inclui `devvault_validate`). Viola protocolo §5.4 (nomenclatura clara).
 
-Adicionar 5 colunas a `vault_modules`:
+**2. `docs/EDGE_FUNCTIONS_REGISTRY.md` — MCP tools desatualizado (linha 79)**
+Lista apenas 8 ferramentas, falta `devvault_validate`. Tambem nao menciona os novos campos aceitos por `devvault_ingest` e `devvault_update`.
 
-```sql
-ALTER TABLE vault_modules
-  ADD COLUMN IF NOT EXISTS common_errors jsonb DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS solves_problems text[] DEFAULT '{}'::text[],
-  ADD COLUMN IF NOT EXISTS test_code text,
-  ADD COLUMN IF NOT EXISTS difficulty text DEFAULT 'intermediate',
-  ADD COLUMN IF NOT EXISTS estimated_minutes integer;
-```
+**3. `docs/VAULT_CONTENT_STANDARDS.md` — Novos campos ausentes**
+O documento nao menciona `common_errors`, `solves_problems`, `test_code`, `difficulty`, `estimated_minutes`, nem a tabela `vault_module_changelog`. Os campos `related_modules` e `dependencies` sao marcados como "LEGADO" (linhas 65-66) mas `related_modules` esta ativamente em uso no `get.ts` (resolve UUIDs para slugs). Isso e informacao incorreta.
 
-Adicionar `changelog` como tabela separada (nao coluna — um modulo pode ter N entradas de changelog, e misturar no mesmo registro violaria 1NF):
+**4. `.lovable/plan.md` — Estado desatualizado**
+A tabela "Estado Atual vs Solicitado" mostra "NAO" para campos que agora existem. Deveria refletir o estado pos-implementacao ou ser limpo.
 
-```sql
-CREATE TABLE vault_module_changelog (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  module_id uuid NOT NULL REFERENCES vault_modules(id) ON DELETE CASCADE,
-  version text NOT NULL,
-  changes text[] NOT NULL DEFAULT '{}',
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-```
+---
 
-### Fase 2 — Funcoes SQL
+### Problemas Menores
 
-1. Atualizar `get_vault_module` para retornar os novos campos + `prerequisites`
-2. Atualizar `query_vault_modules` para buscar em `solves_problems`
-3. Atualizar `vault_module_completeness` para considerar novos campos
-4. Atualizar `search_vector_en` trigger para indexar `solves_problems`
+**5. `search.ts` — Nao menciona `solves_problems` na description**
+A description da tool diz "Uses full-text search (PT/EN)" mas nao informa ao agente que busca tambem em `solves_problems` (que e o ponto principal do feedback item 5).
 
-### Fase 3 — MCP Tools (Edge Functions)
+**6. `list.ts` — console.log de debug (linhas 42, 57-61)**
+Logs de debug `console.log("[MCP:TOOL]")` estao presentes. Mesmo padrao em `search.ts` (linhas 44, 55-59), `bootstrap.ts` (linhas 21, 24-27), `domains.ts` (linhas 19, 22-26). Todos os tools tem logs de debug que deveriam usar o `logger` estruturado em vez de `console.log` direto.
 
-| Arquivo | Mudanca |
+**7. `completeness.ts` — Nao atualizado no codigo TS**
+O `completeness.ts` no TypeScript apenas chama o RPC `vault_module_completeness`. A logica real esta na funcao SQL que JA foi atualizada. O arquivo TS esta correto — nenhuma mudanca necessaria. Falso positivo.
+
+---
+
+### Codigo Morto / Legado
+
+Nenhum codigo morto encontrado nos arquivos MCP. Todos os imports sao usados, todas as funcoes registradas sao chamadas.
+
+---
+
+### Plano de Correcao
+
+| Arquivo | Acao |
 |---|---|
-| `ingest.ts` | Aceitar `common_errors`, `solves_problems`, `test_code`, `difficulty`, `estimated_minutes`, `prerequisites` |
-| `update.ts` | Aceitar os mesmos campos novos no `ALLOWED_UPDATE_FIELDS` |
-| `get.ts` | Resolver `related_modules` UUIDs para `{id, slug, title}` inline |
-| `list.ts` | Incluir `usage_hint`, `difficulty`, `estimated_minutes` nos resultados |
-| `get-group.ts` | Gerar checklist de implementacao em markdown no response |
-| `search.ts` | Buscar tambem no campo `solves_problems` |
-| `register.ts` | Registrar nova tool `devvault_validate` |
-| **NOVO** `validate.ts` | Tool `devvault_validate` que expoe completeness como ferramenta |
+| `supabase/functions/devvault-mcp/index.ts` | Atualizar comentario: "Tools (9)" e adicionar `devvault_validate` na lista |
+| `docs/EDGE_FUNCTIONS_REGISTRY.md` | Atualizar linha 79: adicionar `devvault_validate` a lista de ferramentas MCP. Mencionar novos campos. |
+| `docs/VAULT_CONTENT_STANDARDS.md` | Adicionar secao para novos campos (`common_errors`, `solves_problems`, `test_code`, `difficulty`, `estimated_minutes`). Adicionar secao para `vault_module_changelog`. Corrigir `related_modules` — remover marcacao "LEGADO" pois esta em uso ativo. |
+| `.lovable/plan.md` | Limpar — substituir pelo estado atual pos-implementacao |
+| `supabase/functions/_shared/mcp-tools/search.ts` | Atualizar description para mencionar busca em `solves_problems` |
+| `supabase/functions/_shared/mcp-tools/list.ts` | Migrar `console.log` para `logger` |
+| `supabase/functions/_shared/mcp-tools/search.ts` | Migrar `console.log` para `logger` |
+| `supabase/functions/_shared/mcp-tools/bootstrap.ts` | Migrar `console.log` para `logger` |
+| `supabase/functions/_shared/mcp-tools/domains.ts` | Migrar `console.log` para `logger` |
 
-### Fase 4 — Completeness Score Atualizado
+### Redeploy
 
-Novos campos opcionais no calculo (peso menor que os core):
-- `common_errors` (preenchido = +1)
-- `test_code` (preenchido = +1)
-- `solves_problems` (preenchido = +1)
-
-### Item 4 (Validacao code_example vs codigo) — Fora de Escopo
-
-Validar se `code_example` compila contra `code` requer analise estatica de AST. Isso e um linter/CI, nao uma feature de runtime. Recomendo anotar como melhoria futura de tooling.
-
-### Item 7 (Frontend fraco) — Conteudo, nao Codigo
-
-A solucao e criar mais modulos via `devvault_ingest`, nao mudanca de codigo.
-
-### Arquivos Afetados (Total: 10)
-
-| Arquivo | Tipo |
-|---|---|
-| Migracao SQL (novo) | Schema + funcoes DB |
-| `supabase/functions/_shared/mcp-tools/ingest.ts` | Novos campos |
-| `supabase/functions/_shared/mcp-tools/update.ts` | Novos campos |
-| `supabase/functions/_shared/mcp-tools/get.ts` | Related modules resolvidos |
-| `supabase/functions/_shared/mcp-tools/list.ts` | usage_hint + metadata |
-| `supabase/functions/_shared/mcp-tools/get-group.ts` | Checklist markdown |
-| `supabase/functions/_shared/mcp-tools/search.ts` | solves_problems search |
-| `supabase/functions/_shared/mcp-tools/validate.ts` | NOVO — tool devvault_validate |
-| `supabase/functions/_shared/mcp-tools/register.ts` | Registrar validate |
-| `supabase/functions/_shared/mcp-tools/completeness.ts` | Novos campos no score |
+Apos as correcoes, redeploy de `devvault-mcp`.
 
