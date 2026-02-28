@@ -12,14 +12,28 @@
 ╔═══════════════════════════════════════════════════════════════╗
 ║  ✅ DEVVAULT PROTOCOL V2 - 10.0/10 - DUAL-AUTH ARCHITECTURE   ║
 ║     16 Edge Functions | 2 Auth Systems | Zero Legacy Code      ║
-║     MCP Server v5.0: 22 Tools | Knowledge Flywheel + Tree     ║
-║     Phase 3: Hybrid Search (pgvector + tsvector)               ║
+║     MCP Server v5.2: 22 Tools | Knowledge Flywheel + Tree     ║
+║     Phase 3: Hybrid Search (pgvector + tsvector) — FIXED      ║
 ║     Runtime: 100% Deno.serve() native                         ║
 ║     Secrets: Supabase Vault + Multi-Domain Keys               ║
 ║     verify_jwt: false (ALL 16 functions)                      ║
 ║     SECRET DOMAINS: admin | general                           ║
 ╚═══════════════════════════════════════════════════════════════╝
 ```
+
+---
+
+## v5.2 Changelog (2026-02-28)
+
+### Bug Fixes
+- **BUG-1 (P0):** Fixed `hybrid_search_vault_modules` — added `extensions` to `search_path` so pgvector `<=>` operator resolves correctly. Semantic search is now fully operational.
+- **BUG-3 (P1):** Expanded `query_vault_modules` ILIKE fallback to include `code`, `code_example`, and `module_group` fields. Searches like "redirect", "https", or "whatsapp-integration" now find relevant modules.
+
+### Improvements
+- **diagnose (Strategy 5):** Added tag-based fallback to `devvault_diagnose`. Error keywords are extracted and matched against module tags, enabling correlation even when `common_errors` and `solves_problems` are empty.
+- **diagnose (Strategy 2):** Improved `solves_problems` matching with tokenized partial matching. Errors like "Cannot GET /instance/create 404" now match modules with related problem descriptions.
+- **load_context (tags):** Added `tags` parameter to `devvault_load_context`. Agents can now discover modules across projects by tag (e.g. `tags: ['evolution-api']`) instead of needing to know the exact `source_project` name. Discovery mode now shows top tags per project.
+- **bootstrap (debugging rule):** Added mandatory behavioral rule: "When debugging errors, ALWAYS call devvault_diagnose BEFORE manual fixes."
 
 ---
 

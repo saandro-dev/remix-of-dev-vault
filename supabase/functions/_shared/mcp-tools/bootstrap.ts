@@ -20,7 +20,8 @@ const logger = createLogger("mcp-tool:bootstrap");
 const AGENT_GUIDE = {
   _purpose:
     "This guide teaches AI agents how to use DevVault's 22 MCP tools effectively. " +
-    "Read it once after bootstrap, then follow the workflow.",
+    "Read it once after bootstrap, then follow the workflow. " +
+    "CRITICAL: When debugging errors, ALWAYS consult devvault_diagnose BEFORE manual fixes.",
 
   recommended_workflow: [
     "1. BOOTSTRAP — You already called this. Review domains, phases, and top modules below.",
@@ -47,7 +48,8 @@ const AGENT_GUIDE = {
       devvault_get_group:
         "Fetches all modules in a module_group. Useful for multi-part implementations.",
       devvault_load_context:
-        "Loads a module's context_markdown — rich implementation guide with architecture decisions.",
+        "Loads all modules for a source_project OR matching specific tags. Use tags for cross-project discovery " +
+        "(e.g. tags: ['evolution-api'] finds modules regardless of source_project). Call without params to list projects.",
       devvault_quickstart:
         "Returns a curated onboarding sequence for a specific domain.",
     },
@@ -93,13 +95,15 @@ const AGENT_GUIDE = {
     "ALWAYS call devvault_bootstrap first to understand available knowledge before searching.",
     "ALWAYS fetch required dependencies (prerequisites) before implementing a module.",
     "ALWAYS check devvault_validate before marking a module as validated.",
+    "When debugging errors in Edge Functions or external APIs, ALWAYS call devvault_diagnose with the error message BEFORE attempting manual fixes.",
     "Use devvault_diary_bug to document ANY problem encountered during implementation — this builds institutional memory.",
     "ALWAYS search existing bugs with devvault_diary_list before creating new ones to avoid duplicates.",
     "Use devvault_report_success after successful implementation — this tracks module reliability.",
     "Prefer devvault_search over devvault_list when you know what problem you're solving.",
     "Prefer devvault_list over devvault_search when browsing a domain or exploring available knowledge.",
-    "When a module has context_markdown, ALWAYS load it with devvault_load_context — it contains critical architecture decisions.",
+    "When a module has context_markdown, ALWAYS read it — it contains critical architecture decisions.",
     "When ingesting new modules, include why_it_matters and code_example — modules without these are considered incomplete.",
+    "Use devvault_load_context with 'tags' parameter to find modules across projects (e.g. tags: ['evolution-api'] finds all Evolution API modules regardless of source_project).",
   ],
 
   anti_patterns: [

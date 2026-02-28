@@ -1,12 +1,12 @@
 /**
  * mcp-tools/diagnose-troubleshoot.ts — Troubleshooting logic for devvault_diagnose.
  *
- * Extracted from diagnose.ts to comply with the 300-line limit (Protocol §5.4).
  * Contains the multi-strategy error resolution pipeline:
  *   1. common_errors JSONB match
- *   2. solves_problems array match
+ *   2. solves_problems array match (tokenized)
  *   3. resolved knowledge gaps
  *   4. hybrid search fallback (pgvector + tsvector)
+ *   5. tag-based fallback (keyword extraction → tag overlap)
  */
 
 import { createLogger } from "../logger.ts";
@@ -19,6 +19,31 @@ const logger = createLogger("mcp-tool:diagnose-troubleshoot");
 type SupabaseClient = Parameters<ToolRegistrar>[1];
 type AuthContext = Parameters<ToolRegistrar>[2];
 
+/** Extract meaningful keywords from an error message for tag matching */
+function extractKeywords(errorMsg: string): string[] {
+  const stopWords = new Set([
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "must", "to", "of",
+    "in", "for", "on", "with", "at", "by", "from", "as", "into", "about",
+    "not", "no", "but", "or", "and", "if", "then", "than", "too", "very",
+    "just", "don", "t", "s", "it", "its", "this", "that", "there", "error",
+    "cannot", "get", "set", "null", "undefined", "true", "false",
+  ]);
+
+  return errorMsg
+    .toLowerCase()
+    .replace(/[^a-z0-9_\-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !stopWords.has(w));
+}
+
+/** Tokenized match: check if ANY token from the error appears in the target string */
+function tokenizedMatch(errorTokens: string[], target: string): boolean {
+  const targetLower = target.toLowerCase();
+  return errorTokens.some((token) => targetLower.includes(token));
+}
+
 export async function handleTroubleshooting(
   client: SupabaseClient,
   auth: AuthContext,
@@ -29,12 +54,14 @@ export async function handleTroubleshooting(
   logger.info("troubleshooting", { errorMsg: errorMsg.substring(0, 100), domain });
 
   try {
+    const errorTokens = extractKeywords(errorMsg);
+
     // Strategy 1: common_errors JSONB
     const errorMatches = await matchCommonErrors(client, errorMsg, domain);
 
-    // Strategy 2: solves_problems
+    // Strategy 2: solves_problems (tokenized)
     const matchedIds = new Set(errorMatches.map((m) => m.id as string));
-    const solvesMatches = await matchSolvesProblems(client, errorMsg, domain, matchedIds);
+    const solvesMatches = await matchSolvesProblems(client, errorMsg, domain, matchedIds, errorTokens);
 
     // Strategy 3: resolved knowledge gaps
     const gapMatches = await matchResolvedGaps(client, errorMsg);
@@ -42,7 +69,10 @@ export async function handleTroubleshooting(
     // Strategy 4: Hybrid search fallback
     const ilikeMatches = await hybridSearchFallback(client, errorMsg, domain, limit, matchedIds);
 
-    const allMatches = [...errorMatches, ...solvesMatches, ...gapMatches, ...ilikeMatches]
+    // Strategy 5: Tag-based fallback
+    const tagMatches = await matchByTags(client, errorTokens, domain, matchedIds);
+
+    const allMatches = [...errorMatches, ...solvesMatches, ...gapMatches, ...ilikeMatches, ...tagMatches]
       .sort((a, b) => (b.relevance as number) - (a.relevance as number))
       .slice(0, limit);
 
@@ -59,6 +89,7 @@ export async function handleTroubleshooting(
       solvesMatches: solvesMatches.length,
       gapMatches: gapMatches.length,
       ilikeMatches: ilikeMatches.length,
+      tagMatches: tagMatches.length,
     });
 
     return {
@@ -73,7 +104,8 @@ export async function handleTroubleshooting(
               common_errors: errorMatches.length,
               solves_problems: solvesMatches.length,
               resolved_gaps: gapMatches.length,
-              text_search: ilikeMatches.length,
+              hybrid_search: ilikeMatches.length,
+              tag_match: tagMatches.length,
             },
           },
           matching_modules: allMatches,
@@ -132,13 +164,14 @@ async function matchCommonErrors(
   return matches;
 }
 
-// ── Strategy 2: solves_problems ──────────────────────────────────────────────
+// ── Strategy 2: solves_problems (tokenized matching) ─────────────────────────
 
 async function matchSolvesProblems(
   client: SupabaseClient,
   errorMsg: string,
   domain: string | undefined,
   matchedIds: Set<string>,
+  errorTokens: string[],
 ): Promise<Array<Record<string, unknown>>> {
   let query = client
     .from("vault_modules")
@@ -156,9 +189,12 @@ async function matchSolvesProblems(
     if (matchedIds.has(mod.id as string)) continue;
     const problems = mod.solves_problems as string[] | null;
     if (!problems) continue;
-    const matchedProblem = problems.find(
+
+    // Try exact substring first (high relevance)
+    let matchedProblem = problems.find(
       (p) => p.toLowerCase().includes(errorLower) || errorLower.includes(p.toLowerCase()),
     );
+
     if (matchedProblem) {
       matches.push({
         id: mod.id, slug: mod.slug, title: mod.title, domain: mod.domain,
@@ -166,6 +202,22 @@ async function matchSolvesProblems(
         difficulty: mod.difficulty, estimated_minutes: mod.estimated_minutes,
       });
       matchedIds.add(mod.id as string);
+      continue;
+    }
+
+    // Tokenized fallback: match if 2+ error tokens appear in any problem
+    for (const problem of problems) {
+      const matchCount = errorTokens.filter((t) => problem.toLowerCase().includes(t)).length;
+      if (matchCount >= 2) {
+        matches.push({
+          id: mod.id, slug: mod.slug, title: mod.title, domain: mod.domain,
+          match_type: "solves_problems_partial", relevance: 0.6 + (matchCount * 0.05),
+          matched_problem: problem,
+          difficulty: mod.difficulty, estimated_minutes: mod.estimated_minutes,
+        });
+        matchedIds.add(mod.id as string);
+        break;
+      }
     }
   }
 
@@ -222,10 +274,52 @@ async function hybridSearchFallback(
     if (matchedIds.has(mod.id as string)) continue;
     matches.push({
       id: mod.id, slug: mod.slug, title: mod.title, domain: mod.domain,
-      match_type: "text_search", relevance: Number(mod.relevance_score ?? 0.5),
+      match_type: "hybrid_search", relevance: Number(mod.relevance_score ?? 0.5),
       difficulty: mod.difficulty, estimated_minutes: mod.estimated_minutes,
     });
     matchedIds.add(mod.id as string);
+  }
+
+  return matches;
+}
+
+// ── Strategy 5: Tag-based fallback ───────────────────────────────────────────
+
+async function matchByTags(
+  client: SupabaseClient,
+  errorTokens: string[],
+  domain: string | undefined,
+  matchedIds: Set<string>,
+): Promise<Array<Record<string, unknown>>> {
+  if (errorTokens.length === 0) return [];
+
+  // Use the most distinctive tokens as potential tags (limit to 10)
+  const candidateTags = errorTokens.slice(0, 10);
+
+  let query = client
+    .from("vault_modules")
+    .select("id, slug, title, description, domain, tags, usage_hint, difficulty, estimated_minutes")
+    .eq("visibility", "global")
+    .in("validation_status", ["validated", "draft"])
+    .overlaps("tags", candidateTags);
+
+  if (domain) query = query.eq("domain", domain);
+  const { data: tagModules } = await query.limit(10);
+
+  const matches: Array<Record<string, unknown>> = [];
+  for (const mod of (tagModules ?? []) as Record<string, unknown>[]) {
+    if (matchedIds.has(mod.id as string)) continue;
+    const tags = mod.tags as string[];
+    const overlapCount = candidateTags.filter((t) => tags.some((tag) => tag.toLowerCase().includes(t))).length;
+    if (overlapCount >= 1) {
+      matches.push({
+        id: mod.id, slug: mod.slug, title: mod.title, domain: mod.domain,
+        match_type: "tag_match", relevance: 0.4 + (overlapCount * 0.1),
+        matched_tags: tags.filter((tag) => candidateTags.some((t) => tag.toLowerCase().includes(t))),
+        difficulty: mod.difficulty, estimated_minutes: mod.estimated_minutes,
+      });
+      matchedIds.add(mod.id as string);
+    }
   }
 
   return matches;
