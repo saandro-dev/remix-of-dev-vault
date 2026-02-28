@@ -12,8 +12,8 @@
 ╔═══════════════════════════════════════════════════════════════╗
 ║  ✅ DEVVAULT PROTOCOL V2 - 10.0/10 - DUAL-AUTH ARCHITECTURE   ║
 ║     16 Edge Functions | 2 Auth Systems | Zero Legacy Code      ║
-║     MCP Server v5.2: 22 Tools | Knowledge Flywheel + Tree     ║
-║     Phase 3: Hybrid Search (pgvector + tsvector) — FIXED      ║
+║     MCP Server v5.3: 22 Tools | Knowledge Flywheel + Tree     ║
+║     Phase 3: Hybrid Search (pgvector + tsvector + pg_trgm)     ║
 ║     Runtime: 100% Deno.serve() native                         ║
 ║     Secrets: Supabase Vault + Multi-Domain Keys               ║
 ║     verify_jwt: false (ALL 16 functions)                      ║
@@ -22,6 +22,17 @@
 ```
 
 ---
+
+## v5.3 Changelog (2026-02-28)
+
+### Bug Fixes
+- **BUG-2 (P0):** Fixed `devvault_diagnose` returning 0 results — `hybrid_search_vault_modules` now uses OR tsquery (word-level matching instead of AND), tokenized ILIKE fallback (each word matched independently), and relaxed cosine threshold from `< 0.5` to `< 0.85`. Error messages like "Cannot GET /instance/create 404" now find relevant modules.
+- **BUG-3 (P0):** Fixed `devvault_list` textual search returning 0 for multi-word queries — `query_vault_modules` now uses OR tsquery and tokenized ILIKE fallback. Searches like "http https redirect" now match modules containing ANY of those words.
+
+### Performance Improvements
+- **tsvector triggers expanded:** Both PT and EN triggers now index `code`, `code_example`, `module_group`, and `usage_hint` in addition to existing fields. Full-text search covers all content fields via GIN index.
+- **pg_trgm GIN indexes:** Enabled `pg_trgm` extension with GIN trigram indexes on `title`, `description`, and `code`. ILIKE `'%token%'` queries now use index scan instead of sequential scan (~10ms vs ~200ms at 10k modules).
+- **OR tsquery:** Replaced `plainto_tsquery` (AND logic) with `to_tsquery` using `|` operator (OR logic). Multi-word queries match modules containing ANY word instead of ALL words.
 
 ## v5.2 Changelog (2026-02-28)
 
