@@ -1,6 +1,6 @@
 # DevVault - Edge Functions Registry
 
-> **🔴 FONTE DA VERDADE MÁXIMA** - Este documento lista TODAS as 15 Edge Functions deployadas no Supabase para o projeto DevVault.
+> **🔴 FONTE DA VERDADE MÁXIMA** - Este documento lista TODAS as 16 Edge Functions deployadas no Supabase para o projeto DevVault.
 > Última atualização: 2026-02-28
 > Mantenedor: Arquiteto de IA
 
@@ -11,11 +11,12 @@
 ```
 ╔═══════════════════════════════════════════════════════════════╗
 ║  ✅ DEVVAULT PROTOCOL V2 - 10.0/10 - DUAL-AUTH ARCHITECTURE   ║
-║     15 Edge Functions | 2 Auth Systems | Zero Legacy Code      ║
+║     16 Edge Functions | 2 Auth Systems | Zero Legacy Code      ║
 ║     MCP Server v4.1: 16 Tools | Knowledge Flywheel + Tree     ║
+║     Phase 3: Hybrid Search (pgvector + tsvector)               ║
 ║     Runtime: 100% Deno.serve() native                         ║
 ║     Secrets: Supabase Vault + Multi-Domain Keys               ║
-║     verify_jwt: false (ALL 15 functions)                      ║
+║     verify_jwt: false (ALL 16 functions)                      ║
 ║     SECRET DOMAINS: admin | general                           ║
 ╚═══════════════════════════════════════════════════════════════╝
 ```
@@ -26,11 +27,12 @@
 
 | Métrica | Valor |
 | :--- | :--- |
-| **Total de Funções** | 15 |
+| **Total de Funções** | 16 |
 | **Funções Internas (Frontend)** | 12 |
 | **Funções Públicas (API Externa)** | 3 |
+| **Funções Utilitárias (One-shot)** | 1 |
 | **Funções com verify_jwt=true** | 0 ✅ |
-| **config.toml entries** | 15 ✅ |
+| **config.toml entries** | 16 ✅ |
 | **Sistema de API Keys (Externa)** | `dvlt_` keys via Supabase Vault ✅ |
 | **Domínios de Segurança (Secrets)** | 2 (admin, general) ✅ |
 | **Base URL (Interna & Externa)** | `https://bskfnthwewhpfrldbhqx.supabase.co/functions/v1/` |
@@ -41,7 +43,7 @@
 
 O DevVault opera com dois sistemas de autenticação distintos e isolados, garantindo que o acesso interno (da aplicação frontend) e o acesso externo (de agentes de IA) tenham mecanismos de segurança apropriados.
 
-**REGRA ABSOLUTA**: Todas as 15 funções usam `verify_jwt = false` no `supabase/config.toml`. A autenticação é sempre tratada dentro do código da função, permitindo esta arquitetura flexível.
+**REGRA ABSOLUTA**: Todas as 16 funções usam `verify_jwt = false` no `supabase/config.toml`. A autenticação é sempre tratada dentro do código da função, permitindo esta arquitetura flexível.
 
 ### 1. Autenticação Interna (Frontend App)
 
@@ -104,3 +106,9 @@ Para limitar o "raio de explosão" em caso de um vazamento de chave, o sistema u
 | `revoke-api-key` | Interno (JWT) | admin | **Revoga uma chave `dvlt_` existente.** Interage com a função SQL `revoke_devvault_api_key`. Sem `action`. |
 | `list-devvault-keys` | Interno (JWT) | general | Lista os metadados (prefixo, nome, data de uso) das chaves `dvlt_` do usuário. Sem `action`. |
 | `admin-crud` | Interno (JWT) | admin | **Endpoint para o Painel de Administração.** Requer papel de `admin` ou `owner`. **Ações:** `get-my-role`, `list-users`, `change-role` (owner), `admin-stats`, `list-api-keys`, `admin-revoke-api-key` (owner), `list-global-modules`, `unpublish-module`. |
+
+### Utilitários (One-shot)
+
+| Função | Auth | Domínio | Descrição |
+| :--- | :--- | :--- | :--- |
+| `vault-backfill-embeddings` | Manual | general | **Backfill de embeddings para módulos existentes.** Processa módulos com `embedding IS NULL` em batches de 20, gerando embeddings via OpenAI `text-embedding-3-small`. Função one-shot para execução manual após Phase 3 migration. |

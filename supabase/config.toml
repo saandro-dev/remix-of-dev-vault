@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.devvault-mcp]
 verify_jwt = false
+
+[functions.vault-backfill-embeddings]
+verify_jwt = false

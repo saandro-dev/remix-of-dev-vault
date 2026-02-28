@@ -6,6 +6,7 @@
  */
 
 import { createLogger } from "../logger.ts";
+import { updateModuleEmbedding } from "../embedding-client.ts";
 import { getCompleteness } from "./completeness.ts";
 import type { ToolRegistrar } from "./types.ts";
 
@@ -94,6 +95,21 @@ export const registerUpdateTool: ToolRegistrar = (server, client, auth) => {
       if (error) {
         logger.error("update failed", { error: error.message });
         return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+      }
+
+      // Re-generate embedding if any embedding-relevant field was updated
+      const embeddingFields = ["title", "description", "why_it_matters", "tags", "solves_problems", "usage_hint", "code"];
+      const needsEmbedding = embeddingFields.some((f) => updateFields[f] !== undefined);
+      if (needsEmbedding) {
+        // Fetch current module data to build complete embedding input
+        const { data: fullMod } = await client
+          .from("vault_modules")
+          .select("title, description, why_it_matters, usage_hint, tags, solves_problems")
+          .eq("id", moduleId!)
+          .single();
+        if (fullMod) {
+          updateModuleEmbedding(client, moduleId!, fullMod as Record<string, unknown>);
+        }
       }
 
       const completeness = await getCompleteness(client, moduleId!);
