@@ -115,6 +115,9 @@ export const registerDiaryBugTool: ToolRegistrar = (
                   title: data.title,
                   status: data.status,
                   message: `Bug "${data.title}" created in diary as ${data.status}.`,
+                  _hint:
+                    "Use devvault_diary_list to find this bug later, or save the bug_id to resolve it with devvault_diary_resolve. " +
+                    "ALWAYS search existing bugs before creating new ones to avoid duplicates.",
                 },
                 null,
                 2,
