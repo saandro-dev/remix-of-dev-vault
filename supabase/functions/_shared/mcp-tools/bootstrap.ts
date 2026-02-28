@@ -19,7 +19,7 @@ const logger = createLogger("mcp-tool:bootstrap");
 
 const AGENT_GUIDE = {
   _purpose:
-    "This guide teaches AI agents how to use DevVault's 21 MCP tools effectively. " +
+    "This guide teaches AI agents how to use DevVault's 22 MCP tools effectively. " +
     "Read it once after bootstrap, then follow the workflow.",
 
   recommended_workflow: [
@@ -80,6 +80,8 @@ const AGENT_GUIDE = {
         "Records a bug in the user's personal bug diary. Auto-sets status based on whether solution is provided.",
       devvault_diary_resolve:
         "Resolves an existing bug diary entry with cause_code and solution. Ownership enforced.",
+      devvault_diary_list:
+        "Lists and searches the user's bug diary entries. Filter by status, tags, project, or text. Use to find bug_ids for resolving and to avoid duplicates.",
     },
     reporting: {
       devvault_report_success:
@@ -92,6 +94,7 @@ const AGENT_GUIDE = {
     "ALWAYS fetch required dependencies (prerequisites) before implementing a module.",
     "ALWAYS check devvault_validate before marking a module as validated.",
     "Use devvault_diary_bug to document ANY problem encountered during implementation — this builds institutional memory.",
+    "ALWAYS search existing bugs with devvault_diary_list before creating new ones to avoid duplicates.",
     "Use devvault_report_success after successful implementation — this tracks module reliability.",
     "Prefer devvault_search over devvault_list when you know what problem you're solving.",
     "Prefer devvault_list over devvault_search when browsing a domain or exploring available knowledge.",
@@ -114,7 +117,7 @@ export const registerBootstrapTool: ToolRegistrar = (server, client) => {
     description:
       "ALWAYS call this first. Returns the full index of the DevVault Knowledge Graph: " +
       "domains, playbook phases, top validated modules, AND a complete workflow guide " +
-      "explaining how to use all 21 tools effectively.",
+      "explaining how to use all 22 tools effectively.",
     inputSchema: { type: "object", properties: {}, required: [] },
     handler: async () => {
       logger.info("invoked");
