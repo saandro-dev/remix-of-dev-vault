@@ -13,7 +13,8 @@ export function BugDiaryPage() {
   const { t } = useTranslation();
   const { data: bugs, isLoading } = useBugs();
   const { data: projects } = useProjects();
-  const { data: modules } = useVaultModules();
+  const { data: modulesData } = useVaultModules();
+  const modules = modulesData?.pages.flatMap((p) => p.items);
   const toggleStatus = useToggleBugStatus();
   const deleteBugMutation = useDeleteBug();
   const { confirm, ConfirmDialog } = useConfirmDelete();

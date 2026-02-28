@@ -821,6 +821,7 @@ export type Database = {
           source_project: string
           tags: string[]
           title: string
+          total_count: number
           updated_at: string
           usage_hint: string
           validation_status: string

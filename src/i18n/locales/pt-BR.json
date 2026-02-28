@@ -174,7 +174,9 @@
     "deprecated": "Depreciado",
     "draft": "Rascunho",
     "npmDependencies": "Dependências NPM",
-    "envVarsRequired": "Variáveis de Ambiente Obrigatórias"
+    "envVarsRequired": "Variáveis de Ambiente Obrigatórias",
+    "loadMore": "Carregar Mais",
+    "showingOf": "Exibindo {{shown}} de {{total}} módulos"
   },
 
   "dependencies": {

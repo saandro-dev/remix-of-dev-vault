@@ -1,11 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/modules/auth/providers/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edge-function-client";
 import i18n from "@/i18n/config";
 import type { VaultModule, VaultModuleSummary, VaultDomain, VaultModuleType, VaultValidationStatus, VaultScope, VisibilityLevel, AiMetadata } from "../types";
 
-// Filters for module listing
+const PAGE_SIZE = 50;
+
 export interface VaultModuleFilters {
   scope?: VaultScope;
   domain?: VaultDomain;
@@ -15,25 +16,32 @@ export interface VaultModuleFilters {
   validation_status?: VaultValidationStatus;
   tags?: string[];
   query?: string;
-  limit?: number;
-  offset?: number;
 }
 
-// Lists modules with optional filters via get_visible_modules RPC
+interface VaultListResponse {
+  items: VaultModuleSummary[];
+  total: number;
+}
+
 export function useVaultModules(filters?: VaultModuleFilters) {
   const { user } = useAuth();
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["vault_modules", filters],
-    queryFn: () =>
-      invokeEdgeFunction<{ items: VaultModuleSummary[]; total: number }>("vault-crud", {
+    queryFn: ({ pageParam = 0 }) =>
+      invokeEdgeFunction<VaultListResponse>("vault-crud", {
         action: "list",
         scope: filters?.scope ?? "owned",
         domain: filters?.domain,
         module_type: filters?.module_type,
         query: filters?.query,
-        limit: filters?.limit ?? 50,
-        offset: filters?.offset ?? 0,
-      }).then((d) => d.items),
+        limit: PAGE_SIZE,
+        offset: pageParam,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
     enabled: !!user,
   });
 }
@@ -41,13 +49,20 @@ export function useVaultModules(filters?: VaultModuleFilters) {
 // Advanced search via SQL function
 export function useVaultSearch(params: VaultModuleFilters & { validated?: boolean }) {
   const { user } = useAuth();
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["vault_search", params],
-    queryFn: () =>
-      invokeEdgeFunction<{ items: VaultModuleSummary[]; total: number }>("vault-crud", {
+    queryFn: ({ pageParam = 0 }) =>
+      invokeEdgeFunction<VaultListResponse>("vault-crud", {
         action: "search",
         ...params,
-      }).then((d) => d.items),
+        limit: PAGE_SIZE,
+        offset: pageParam,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
     enabled: !!user && !!(params.query || params.domain || params.module_type || params.saas_phase != null),
   });
 }
@@ -55,12 +70,14 @@ export function useVaultSearch(params: VaultModuleFilters & { validated?: boolea
 // Fetches all SaaS playbook modules grouped by phase
 export function useVaultPlaybook() {
   const { user } = useAuth();
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["vault_playbook"],
     queryFn: () =>
       invokeEdgeFunction<{ phases: Record<number, VaultModuleSummary[]>; total: number }>("vault-crud", {
         action: "get_playbook",
-      }).then((d) => d.phases),
+      }),
+    initialPageParam: 0,
+    getNextPageParam: () => undefined,
     enabled: !!user,
   });
 }
