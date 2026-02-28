@@ -1,66 +1,39 @@
 
 
-## Diagnostico: GET 400 "Protocol version mismatch" Persiste
+## Diagnostico: A Interceptacao GET 405 Esta Causando a Falha
 
-### Evidencia dos Logs (13:51:09Z)
+### Evidencia dos Logs
 
-```text
-POST initialize → 200, negocia protocolVersion "2025-03-26"
-POST initialized → 202
-GET  → mcp-lite compara "2025-03-26" com "2025-06-18" hardcoded → 400 "Protocol version mismatch"
-POST tools/list → 200 (SSE, funciona)
+**Conexao bem-sucedida (13:51) — SEM interceptor GET:**
+```
+POST initialize → 200 ✅
+POST initialized → 202 ✅
+GET  → 400 "Protocol version mismatch" (mcp-lite bug, mas cliente TOLEROU) ✅
+POST tools/list → 200 ✅ CONECTADO!
 ```
 
-O mcp-lite v0.10.0 tem um bug: o handler de GET verifica contra `2025-06-18` (hardcoded), mas o POST `initialize` negocia `2025-03-26`. O GET sempre vai falhar com 400. A conexao anterior funcionou porque o cliente Lovable tolerou o 400 naquela tentativa — comportamento inconsistente.
+**Conexao falhada (13:58) — COM interceptor GET 405:**
+```
+POST initialize → 200 ✅
+(nenhuma request subsequente — cliente abortou)
+❌ "Connection failed"
+```
 
 ### Causa Raiz
 
-Bug no mcp-lite 0.10.0: `handleGet()` compara `MCP-Protocol-Version` contra uma versao diferente da negociada no `initialize`. Nao ha versao mais nova disponivel no npm (0.10.0 e a latest).
+O interceptor GET que retorna **405 Method Not Allowed** e pior que o 400 original do mcp-lite. O cliente Lovable interpreta 405 como "este endpoint nao suporta este metodo" e aborta a conexao. Com o 400 do mcp-lite, o cliente simplesmente ignora o SSE e continua em modo POST-only.
 
 ### Solucao
 
-Interceptar GET **antes** do transport e retornar 405 com corpo JSON-RPC e `Content-Type: application/json` — diferente da tentativa anterior que usou texto plano. Isso sinaliza ao cliente MCP que SSE nao esta disponivel, forcando modo POST-only.
+**Remover o interceptor GET.** Deixar o mcp-lite retornar seu 400 nativo. A evidencia mostra que o cliente funciona perfeitamente com o 400.
 
 ### Mudanca
 
 **Arquivo: `supabase/functions/devvault-mcp/index.ts`**
 
-Adicionar interceptacao de GET apos auth e antes do `httpHandler`, retornando resposta JSON-RPC formatada:
+Remover linhas 83-104 (o bloco `if (c.req.method === "GET")` com o interceptor 405).
 
-```typescript
-// After auth passes, before httpHandler:
-if (c.req.method === "GET") {
-  return withCors(new Response(
-    JSON.stringify({
-      jsonrpc: "2.0",
-      error: {
-        code: -32000,
-        message: "SSE transport not available. Use POST-only mode.",
-      },
-      id: null,
-    }),
-    {
-      status: 405,
-      headers: {
-        "Content-Type": "application/json",
-        "Allow": "POST, OPTIONS",
-      },
-    },
-  ));
-}
-```
+### Validacao
 
-### Diferenca da Tentativa Anterior
-
-| Aspecto | Tentativa anterior | Nova solucao |
-|---------|-------------------|--------------|
-| Body | Texto plano `"Method Not Allowed"` | JSON-RPC formatado |
-| Content-Type | Nenhum (text/plain implicito) | `application/json` |
-| Formato | Nao-MCP | Compativel com protocolo JSON-RPC |
-
-### Arquivo Afetado
-
-| Arquivo | Acao |
-|---------|------|
-| `supabase/functions/devvault-mcp/index.ts` | Interceptar GET com resposta JSON-RPC 405 |
+A conexao de 13:51:03-13:51:11 prova que o fluxo completo funciona quando o GET retorna 400 do mcp-lite. O interceptor 405 foi uma otimizacao que piorou o comportamento.
 
