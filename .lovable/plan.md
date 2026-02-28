@@ -1,88 +1,75 @@
 
 
-## Diagnóstico: Lacuna Crítica no Fluxo Bug → Solução
+## Diagnóstico Completo — 3 Bugs Críticos + 2 Melhorias de Design
 
-O fluxo atual tem um **gap arquitetural grave**:
-
-```text
-Sessão 1 (IA encontra bug):
-  devvault_diary_bug({ title, symptom }) → retorna { bug_id: "abc-123" }
-  ✅ Bug criado como "open"
-
-Sessão 2 (IA descobre solução dias depois):
-  devvault_diary_resolve({ bug_id: ???, solution }) → ❌ COMO ENCONTRAR O bug_id?
-```
-
-O `devvault_diary_resolve` exige `bug_id`, mas **não existe nenhuma tool para a IA consultar bugs existentes**. Em sessões diferentes (ou agentes diferentes), o `bug_id` é desconhecido. A IA fica cega — tem um diário que só permite escrever, não ler.
-
-Além disso, sem uma tool de listagem, a IA **não pode evitar duplicatas** — pode criar o mesmo bug 10 vezes sem saber.
+O relatório é preciso e de alta qualidade. Confirmei cada bug lendo o código-fonte. Aqui está a causa-raiz de cada um e o plano de correção.
 
 ---
 
-## Solution Analysis
+### BUG-1: `hybrid_search_vault_modules` — Operador vetorial quebrado (P0)
 
-### Solution A: Criar `devvault_diary_list` (tool de consulta)
-- Maintainability: 10/10 — Tool isolada, Single Responsibility
-- Zero TD: 10/10 — Resolve o gap permanentemente
-- Architecture: 10/10 — Completa o CRUD (Create + Resolve já existem, falta Read)
-- Scalability: 10/10 — Filtros por status/tags permitem queries eficientes
-- Security: 10/10 — Filtra por `user_id` do auth context
-- **FINAL SCORE: 10/10**
+**Causa-raiz confirmada**: A função SQL usa `SET search_path TO 'public'`, mas o operador `<=>` do pgvector vive no schema `extensions`. O Postgres não encontra o operador porque `extensions` não está no search_path.
 
-### Solution B: Retornar todos os bugs no bootstrap
-- Maintainability: 5/10 — Polui o bootstrap com dados dinâmicos pesados
-- Zero TD: 6/10 — Não escala (100+ bugs no bootstrap = resposta gigante)
-- Architecture: 4/10 — Viola SRP do bootstrap (índice de conhecimento ≠ dados pessoais)
-- Scalability: 3/10 — Cresce linearmente com bugs
-- Security: 10/10
-- **FINAL SCORE: 5.2/10**
-
-### DECISION: Solution A (Score 10)
-Solution B polui o bootstrap e não escala. Uma tool dedicada com filtros é a solução correta.
+**Correção**: Migration SQL — recriar `hybrid_search_vault_modules` com `SET search_path TO 'public', 'extensions'`.
 
 ---
 
-## Plano de Implementação
+### BUG-2: `devvault_diagnose` — Zero resultados para erros reais (P0)
 
-### 1. `supabase/functions/_shared/mcp-tools/diary-list.ts` [NEW]
+**Causa-raiz confirmada**: As 4 estratégias falham em cascata:
+1. `common_errors` — vazio na maioria dos módulos (problema de conteúdo)
+2. `solves_problems` — match por substring exato, falha com erros longos
+3. `resolved_gaps` — ILIKE com substring de 100 chars, muito restritivo
+4. `hybrid_search` — depende de BUG-1 (operador quebrado)
 
-Tool `devvault_diary_list` com:
-- **Filtros**: `status` (open/resolved), `tags`, `project_id`, `search` (busca em title+symptom)
-- **Paginação**: `limit` (default 20), `offset`
-- **Ordenação**: `created_at desc` por padrão
-- **Response**: Lista de bugs com `id`, `title`, `symptom`, `status`, `cause_code`, `solution`, `tags`, `created_at`
-- **`_hint`**: Guia o agente para `devvault_diary_resolve` nos bugs `open`
+**Correção**: 
+- Corrigir BUG-1 (desbloqueia estratégia 4)
+- Adicionar **Strategy 5: tag-based fallback** em `diagnose-troubleshoot.ts` — extrair palavras-chave do erro e buscar por tags com overlap
+- Melhorar Strategy 2: tokenizar o erro em palavras e fazer match parcial contra cada `solves_problems` entry
 
-### 2. `supabase/functions/_shared/mcp-tools/register.ts` [EDIT]
+---
 
-Importar e registrar `registerDiaryListTool`. Total: **22 tools**.
+### BUG-3: `devvault_list` — Busca textual limitada (P1)
 
-### 3. `supabase/functions/_shared/mcp-tools/bootstrap.ts` [EDIT]
+**Causa-raiz confirmada**: A RPC `query_vault_modules` faz ILIKE em `title`, `description`, `why_it_matters`, `usage_hint`, `tags` e `solves_problems`. Mas **não busca** em `code`, `code_example`, `context_markdown`. Termos como "redirect" ou "https" que aparecem no código não são encontrados.
 
-- Atualizar `_purpose` de "21" para "22"
-- Adicionar `devvault_diary_list` ao `tool_catalog.bug_diary`
-- Atualizar `behavioral_rules` com: "ALWAYS search existing bugs with devvault_diary_list before creating new ones to avoid duplicates"
+**Correção**: Migration SQL — adicionar `code` e `code_example` ao ILIKE fallback da RPC `query_vault_modules`. Também adicionar `module_group` ao ILIKE (permite buscar "whatsapp-integration").
 
-### 4. `supabase/functions/devvault-mcp/index.ts` [EDIT]
+---
 
-Atualizar comentário para "22 tools".
+### DESIGN-1: `load_context` — Descoberta limitada a `source_project` (P2)
 
-### 5. `docs/EDGE_FUNCTIONS_REGISTRY.md` [EDIT]
+**Causa-raiz confirmada**: O discovery mode lista apenas por `source_project`. Módulos sobre Evolution API estão em `source_project: "risecheckout"`, invisíveis para quem não conhece esse nome.
 
-Atualizar contagem e adicionar `devvault_diary_list` à lista.
+**Correção em `load-context.ts`**: Adicionar parâmetro `tags` ao discovery mode. Se tags forem fornecidas, buscar módulos por overlap de tags independente do `source_project`. Adicionar `_hint` sugerindo busca por tags.
 
-### 6. `devvault_diary_bug` response hint [EDIT in `diary-bug.ts`]
+---
 
-Adicionar `_hint` na resposta: "Use devvault_diary_list to find this bug later, or save the bug_id to resolve it with devvault_diary_resolve."
+### DESIGN-2: Bootstrap — Regra de debugging ausente (P2)
 
-### Arquivos Afetados
+**Causa-raiz**: O `AGENT_GUIDE` não instrui explicitamente o agente a consultar o vault durante debugging de erros.
+
+**Correção em `bootstrap.ts`**: Adicionar regra comportamental: "When debugging errors in Edge Functions or external APIs, ALWAYS call devvault_diagnose with the error message BEFORE attempting manual fixes."
+
+---
+
+## Arquivos Afetados
 
 ```text
-supabase/functions/_shared/mcp-tools/diary-list.ts     [NEW]
-supabase/functions/_shared/mcp-tools/diary-bug.ts      [EDIT — add _hint]
-supabase/functions/_shared/mcp-tools/register.ts       [EDIT — +1 tool]
-supabase/functions/_shared/mcp-tools/bootstrap.ts      [EDIT — update guide]
-supabase/functions/devvault-mcp/index.ts               [EDIT — comment]
-docs/EDGE_FUNCTIONS_REGISTRY.md                        [EDIT — +1 tool]
+supabase/migrations/XXXX_fix_hybrid_search_path.sql              [NEW — Migration]
+supabase/migrations/XXXX_expand_query_vault_ilike.sql             [NEW — Migration]  
+supabase/functions/_shared/mcp-tools/diagnose-troubleshoot.ts     [EDIT — +Strategy 5 tag fallback + improve Strategy 2]
+supabase/functions/_shared/mcp-tools/load-context.ts              [EDIT — +tags discovery]
+supabase/functions/_shared/mcp-tools/bootstrap.ts                 [EDIT — +debugging rule]
+docs/EDGE_FUNCTIONS_REGISTRY.md                                   [EDIT — document fixes]
 ```
+
+### Ordem de Execução
+
+1. **Migration BUG-1** — Fix search_path (desbloqueia search e diagnose)
+2. **Migration BUG-3** — Expand ILIKE fields
+3. **diagnose-troubleshoot.ts** — Tag fallback + tokenized matching
+4. **load-context.ts** — Tag-based discovery
+5. **bootstrap.ts** — Debugging behavioral rule
+6. **EDGE_FUNCTIONS_REGISTRY.md** — Document changes
 
