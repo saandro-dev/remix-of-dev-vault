@@ -1,59 +1,74 @@
 
 
-## Plano: Correcao de Qualidade de Dados do MCP + Restauracao do config.toml
+## Auditoria Completa — Estado do Codebase DevVault
 
-### Contexto
+### Veredicto Geral: **SUCESSO com 3 issues menores**
 
-O relatorio do agente identificou 6 problemas. Alem disso, a reconexao do Supabase removeu as configuracoes de `verify_jwt = false` do `config.toml`, o que quebrara TODAS as Edge Functions em producao.
+---
 
-### Problema Critico (Pre-requisito)
+### 1. config.toml — RESTAURADO COM SUCESSO
 
-O diff mostra que `supabase/config.toml` perdeu todas as 15 entradas `[functions.*] verify_jwt = false`. Sem isso, as Edge Functions rejeitam requests sem JWT valido, quebrando o MCP e o frontend inteiro. Isso precisa ser restaurado ANTES de qualquer correcao de dados.
+Todas as 15 Edge Functions estao com `verify_jwt = false`. O arquivo corresponde exatamente ao esperado. Nenhuma funcao faltando.
 
-### Estrutura de Execucao
+### 2. Zero Acesso Direto ao Banco no Frontend — APROVADO
 
-```text
-1. RESTAURAR config.toml          (codigo — config perdido na reconexao)
-2. UPDATE usage_hint               (dados — 33 modulos)
-3. UPDATE why_it_matters           (dados — ~13 modulos vazios)
-4. INSERT dependencies             (dados — 7 modulos whatsapp)
-5. UPDATE titulos para ingles      (dados — ~19 modulos em portugues)
-6. UPDATE code_example             (dados — ~12 modulos sem exemplo)
+Busca por `supabase.from(` no diretorio `src/` retornou **zero resultados**. Todas as operacoes passam por `invokeEdgeFunction()` via `src/lib/edge-function-client.ts`. Protocolo §5.5 cumprido integralmente.
+
+### 3. Zero Codigo Morto / Legado — APROVADO
+
+- Nenhum `TODO`, `FIXME`, `HACK`, `TEMP`, `WORKAROUND` encontrado em todo o codebase
+- Nenhum `is_public` (campo legado) encontrado no frontend
+- Nenhum `console.log` espurio (os encontrados sao apenas dentro de strings de exemplo na documentacao da API em `apiReference.ts` — correto)
+
+### 4. Limite de 300 Linhas — APROVADO
+
+- `vault-crud/index.ts`: 270 linhas
+- `vault-ingest/index.ts`: 267 linhas
+- Nenhum arquivo ultrapassa o limite
+
+### 5. Idioma do Codigo — 1 ISSUE MENOR
+
+**Violacao encontrada:** `src/lib/edge-function-client.ts` linha 7 contem comentario em portugues:
 ```
+// Busca a sessão atual para enviar o JWT do usuário logado no header Authorization
+```
+**Acao:** Traduzir para ingles conforme §8.1 do protocolo.
 
-### Detalhamento
+### 6. Documentacao e Comentarios — APROVADOS
 
-**Passo 1 — Restaurar `supabase/config.toml`**
-Reescrever o arquivo com todas as 15 Edge Functions configuradas com `verify_jwt = false`. Funcoes: `global-search`, `vault-ingest`, `create-api-key`, `revoke-api-key`, `vault-crud`, `projects-crud`, `folders-crud`, `project-api-keys-crud`, `bugs-crud`, `dashboard-stats`, `list-devvault-keys`, `profiles-crud`, `vault-query`, `admin-crud`, `devvault-mcp`.
+- Todos os edge functions tem JSDoc headers em ingles
+- MCP tools tem `description` claras em ingles
+- Nenhum comentario desatualizado encontrado
 
-**Passo 2 — Preencher `usage_hint` em todos os 33 modulos**
-Executar UPDATE SQL em lote. Formato padrao: `"Use when [situacao especifica]"`. Exemplos:
-- `evolution-api-v2-client` → `"Use when integrating with Evolution API v2 for WhatsApp automation"`
-- `rate-limit-guard` → `"Use when adding rate limiting to Edge Functions to prevent abuse"`
-- `saas-playbook-phase-1` → `"Use when starting a new SaaS project to set up the foundation correctly"`
+### 7. Arquitetura e SOLID — APROVADO
 
-**Passo 3 — Preencher `why_it_matters` nos ~13 modulos vazios**
-Foco nos 7 modulos do grupo `whatsapp-integration` + outros sem o campo. Formato: 1-2 frases sobre consequencia de NAO usar.
+- Frontend completamente desacoplado do banco (via edge-function-client)
+- Cada MCP tool em arquivo separado com registrar pattern
+- Hooks seguem Single Responsibility (useVaultModules, useVaultModule, useVaultSearch separados)
+- Logger injetado via factory pattern tanto no frontend quanto no backend
 
-**Passo 4 — Inserir dependencias no grupo `whatsapp-integration`**
-INSERT na tabela `vault_module_dependencies` com a estrutura de dependencias real:
-- Modulo 2 (types) depende de 1 (client) — required
-- Modulo 4 (webhook) depende de 1, 2 — required
-- Modulo 5 (template) depende de 2 — required
-- Modulo 6 (dispatcher) depende de 1, 2, 5 — required
-- Modulo 7 (hooks) depende de 2 — required
+### 8. Seguranca — APROVADO
 
-**Passo 5 — Traduzir titulos/descricoes para ingles**
-UPDATE nos ~19 modulos com titulos em portugues. Exemplos:
-- `"Schema SQL para Automacao de WhatsApp"` → `"SQL Schema for WhatsApp Automation"`
-- `"Padrão de Respostas de API"` → `"API Response Helpers Pattern"`
+- Todas as edge functions validam auth (JWT ou API Key)
+- RLS ativo em todas as tabelas
+- Rate limiting implementado no vault-ingest e MCP
+- API keys armazenadas via Vault (encrypted)
 
-**Passo 6 — Adicionar `code_example` nos modulos sem**
-Foco nos 7 modulos do `whatsapp-integration` e outros sem exemplo. Requer leitura do `code` de cada modulo para gerar exemplos de uso coerentes.
+### 9. Migration SQL (Passo 2-5 do plano) — PENDENTE VERIFICACAO
 
-### Estimativa
+A migration `20260228001203_a3af6328-0e83-400e-a8f0-05ae630cd5d6.sql` foi criada para preencher `usage_hint`, `why_it_matters`, traduzir titulos e inserir dependencies. **Nao e possivel verificar se foi aplicada com sucesso sem consultar o banco.** Recomendo executar uma query de verificacao.
 
-- Passo 1: 1 arquivo de codigo
-- Passos 2-6: ~8-10 blocos de SQL UPDATE/INSERT executados via ferramenta de dados
-- Nenhuma alteracao de schema necessaria (todas as colunas ja existem)
+---
+
+### Plano de Correcao (3 items)
+
+| # | Issue | Arquivo | Acao |
+|---|-------|---------|------|
+| 1 | Comentario em portugues | `src/lib/edge-function-client.ts:7` | Traduzir para ingles |
+| 2 | Verificar migration de dados | banco de dados | Executar query de validacao |
+| 3 | code_example (Passo 6 do plano original) | banco de dados | Ainda pendente — nao foi executado |
+
+### Conclusao
+
+O codebase esta em conformidade com o protocolo DevVault V2 com **uma unica violacao trivial** (comentario em portugues no edge-function-client). A arquitetura esta correta, sem divida tecnica, sem codigo morto, sem atalhos. O passo 6 do plano original (preencher `code_example`) permanece pendente para execucao futura.
 
