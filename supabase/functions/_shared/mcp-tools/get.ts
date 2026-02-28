@@ -94,16 +94,33 @@ export const registerGetTool: ToolRegistrar = (server, client, auth) => {
         result_count: 1,
       });
 
+      // Fetch ai_metadata from the raw module row
+      const { data: fullRow } = await client
+        .from("vault_modules")
+        .select("ai_metadata")
+        .eq("id", moduleId)
+        .single();
+      const aiMeta = (fullRow?.ai_metadata as Record<string, unknown>) ?? {};
+
+      // Build environment setup instructions for consuming agent
+      const envInstructions: string[] = [];
+      const npmDeps = (aiMeta.npm_dependencies as string[]) ?? [];
+      const envVars = (aiMeta.env_vars_required as string[]) ?? [];
+      if (npmDeps.length > 0) envInstructions.push(`Install NPM dependencies: npm install ${npmDeps.join(" ")}`);
+      if (envVars.length > 0) envInstructions.push(`Configure environment variables: ${envVars.join(", ")}`);
+
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
+            ai_metadata: aiMeta,
             ...mod,
             related_modules: resolvedRelated,
             dependencies,
             _changelog: changelogResult.data ?? [],
             _completeness: completeness,
             _group: groupMeta,
+            _environment_setup: envInstructions.length > 0 ? envInstructions : undefined,
             _instructions: hasRequired
               ? "⚠️ This module has REQUIRED dependencies. You MUST fetch and implement each required dependency (via devvault_get) BEFORE implementing this module."
               : "This module has no required dependencies. You can implement it directly.",

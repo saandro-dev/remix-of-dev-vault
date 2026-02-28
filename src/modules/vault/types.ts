@@ -27,6 +27,12 @@ export type VaultValidationStatus =
 
 export type DependencyType = "required" | "recommended";
 
+export interface AiMetadata {
+  npm_dependencies?: string[];
+  env_vars_required?: string[];
+  ai_rules?: string[];
+}
+
 export interface ModuleDependency {
   id: string;
   depends_on_id: string;
@@ -67,6 +73,7 @@ export interface VaultModule {
   difficulty: string | null;
   estimated_minutes: number | null;
   version: string;
+  ai_metadata: AiMetadata;
   module_dependencies?: ModuleDependency[];
   created_at: string;
   updated_at: string;

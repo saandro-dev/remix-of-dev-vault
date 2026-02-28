@@ -11,7 +11,8 @@ import { Loader2, Save, Lock, Users, Globe } from "lucide-react";
 import { useUpdateVaultModule } from "@/modules/vault/hooks/useVaultModule";
 import { useModuleDependencies, useAddDependency, useRemoveDependency } from "@/modules/vault/hooks/useModuleDependencies";
 import { DependencySelector, type PendingDependency } from "./DependencySelector";
-import type { VaultModule, VaultDomain, VisibilityLevel } from "@/modules/vault/types";
+import { TagInput } from "./TagInput";
+import type { VaultModule, VaultDomain, VisibilityLevel, AiMetadata } from "@/modules/vault/types";
 
 const DOMAINS: VaultDomain[] = ["security", "backend", "frontend", "architecture", "devops", "saas_playbook"];
 
@@ -32,6 +33,8 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
   const [dependencies, setDependencies] = useState(module.dependencies ?? "");
   const [tagsInput, setTagsInput] = useState(module.tags.join(", "));
   const [visibility, setVisibility] = useState<VisibilityLevel>(module.visibility);
+  const [npmDeps, setNpmDeps] = useState<string[]>(module.ai_metadata?.npm_dependencies ?? []);
+  const [envVars, setEnvVars] = useState<string[]>(module.ai_metadata?.env_vars_required ?? []);
   const [pendingDeps, setPendingDeps] = useState<PendingDependency[]>([]);
 
   const { data: existingDeps } = useModuleDependencies(module.id);
@@ -48,6 +51,8 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
     setDependencies(module.dependencies ?? "");
     setTagsInput(module.tags.join(", "));
     setVisibility(module.visibility);
+    setNpmDeps(module.ai_metadata?.npm_dependencies ?? []);
+    setEnvVars(module.ai_metadata?.env_vars_required ?? []);
     setPendingDeps([]);
   }, [module]);
 
@@ -86,6 +91,10 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
+    const aiMetadata: AiMetadata = {};
+    if (npmDeps.length > 0) aiMetadata.npm_dependencies = npmDeps;
+    if (envVars.length > 0) aiMetadata.env_vars_required = envVars;
+
     updateMutation.mutate({
       title,
       description: description || null,
@@ -96,6 +105,7 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
       dependencies: dependencies || null,
       tags,
       visibility,
+      ai_metadata: aiMetadata,
     });
   };
 
@@ -154,6 +164,16 @@ export function EditModuleSheet({ module, open, onOpenChange }: EditModuleSheetP
             selected={pendingDeps}
             onChange={setPendingDeps}
           />
+
+          {/* AI Metadata */}
+          <div className="space-y-2">
+            <Label>{t("createModule.npmDeps")}</Label>
+            <TagInput value={npmDeps} onChange={setNpmDeps} placeholder={t("createModule.npmDepsPlaceholder")} />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("createModule.envVars")}</Label>
+            <TagInput value={envVars} onChange={setEnvVars} placeholder={t("createModule.envVarsPlaceholder")} />
+          </div>
 
           {/* Visibility */}
           <div className="space-y-2 p-3 rounded-lg border border-border">

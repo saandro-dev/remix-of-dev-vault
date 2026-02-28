@@ -172,7 +172,9 @@
     "noPrerequisites": "Nenhum pré-requisito definido.",
     "validated": "Validado",
     "deprecated": "Depreciado",
-    "draft": "Rascunho"
+    "draft": "Rascunho",
+    "npmDependencies": "Dependências NPM",
+    "envVarsRequired": "Variáveis de Ambiente Obrigatórias"
   },
 
   "dependencies": {
@@ -223,7 +225,14 @@
     "sourceProjectPlaceholder": "risecheckout, devvault...",
     "validationStatus": "Status de Validação",
     "visibility": "Visibilidade",
-    "createModule": "Criar Módulo"
+    "createModule": "Criar Módulo",
+    "tabAi": "Metadados IA",
+    "npmDeps": "Dependências NPM",
+    "npmDepsHint": "Pacotes que o agente deve instalar (pressione Enter para adicionar)",
+    "npmDepsPlaceholder": "ex: axios, zod, bcrypt...",
+    "envVars": "Variáveis de Ambiente",
+    "envVarsHint": "Variáveis de ambiente necessárias (pressione Enter para adicionar)",
+    "envVarsPlaceholder": "ex: STRIPE_SECRET_KEY..."
   },
 
   "editModule": {

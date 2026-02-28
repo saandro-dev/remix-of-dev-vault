@@ -576,6 +576,7 @@ export type Database = {
       }
       vault_modules: {
         Row: {
+          ai_metadata: Json
           category: Database["public"]["Enums"]["vault_category"]
           code: string
           code_example: string | null
@@ -617,6 +618,7 @@ export type Database = {
           why_it_matters: string | null
         }
         Insert: {
+          ai_metadata?: Json
           category?: Database["public"]["Enums"]["vault_category"]
           code?: string
           code_example?: string | null
@@ -658,6 +660,7 @@ export type Database = {
           why_it_matters?: string | null
         }
         Update: {
+          ai_metadata?: Json
           category?: Database["public"]["Enums"]["vault_category"]
           code?: string
           code_example?: string | null
@@ -763,6 +766,7 @@ export type Database = {
       get_vault_module: {
         Args: { p_id?: string; p_slug?: string }
         Returns: {
+          ai_metadata: Json
           code: string
           code_example: string
           common_errors: Json
