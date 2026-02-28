@@ -73,10 +73,26 @@ app.all("/*", async (c) => {
   registerAllTools(server, client, authResult);
 
   const transport = new StreamableHttpTransport();
-  const mcpResponse = await transport.bind(server)(c.req.raw);
 
-  // Ensure CORS headers on MCP transport responses too
-  return withCors(mcpResponse);
+  try {
+    const handler = transport.bind(server);
+    const mcpResponse = await handler(c.req.raw);
+    console.log("[MCP:DIAG] transport response", { status: mcpResponse.status });
+    return withCors(mcpResponse);
+  } catch (err) {
+    console.error("[MCP:DIAG] transport error", {
+      message: String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    return withCors(new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32603, message: `Internal MCP error: ${String(err)}` },
+        id: null,
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    ));
+  }
 });
 
 Deno.serve(app.fetch);
