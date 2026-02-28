@@ -45,7 +45,16 @@ function withCors(response: Response): Response {
 
 // ─── MODULE-LEVEL SINGLETONS ────────────────────────────────────────────────
 const client = getSupabaseClient("general");
-const mcp = new McpServer({ name: "devvault", version: "2.4.0" });
+const mcp = new McpServer({
+  name: "devvault",
+  version: "2.4.0",
+  logger: {
+    error: (...args: unknown[]) => console.error("[MCP:LIB]", ...args),
+    warn: (...args: unknown[]) => console.warn("[MCP:LIB]", ...args),
+    info: (...args: unknown[]) => console.info("[MCP:LIB]", ...args),
+    debug: (...args: unknown[]) => console.debug("[MCP:LIB]", ...args),
+  },
+});
 
 // Mutable auth — updated per-request, captured by reference in tool handlers.
 // Edge Functions are single-threaded, so no race conditions.
@@ -78,16 +87,6 @@ app.all("/*", async (c) => {
   }
 
   console.log("[MCP:DIAG] auth passed", { userId: authResult.userId });
-
-  // GET requests seek an SSE stream, which requires persistent sessions.
-  // Edge Functions are stateless (fresh boot per request), so SSE is impossible.
-  // Return 405 so the client falls back to POST-only (stateless) mode.
-  if (c.req.method === "GET") {
-    return withCors(new Response("Method Not Allowed", {
-      status: 405,
-      headers: { "Allow": "POST, DELETE, OPTIONS" },
-    }));
-  }
 
   // Mutate shared reference — tools see updated values
   requestAuth.userId = authResult.userId;
