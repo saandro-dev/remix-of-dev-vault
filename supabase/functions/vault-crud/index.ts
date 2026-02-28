@@ -185,19 +185,17 @@ serve(withSentry("vault-crud", async (req: Request) => {
 
       case "domain_counts": {
         const { scope = "owned" } = body;
-        const { data, error } = await client.rpc("get_visible_modules", {
+        const { data, error } = await client.rpc("get_domain_counts", {
           p_user_id: user.id,
           p_scope: scope,
-          p_limit: 10000,
-          p_offset: 0,
         });
         if (error) throw error;
         const counts: Record<string, number> = {};
         let grandTotal = 0;
         for (const row of data ?? []) {
-          const d = (row as Record<string, unknown>).domain as string;
-          counts[d] = (counts[d] ?? 0) + 1;
-          grandTotal++;
+          const r = row as Record<string, unknown>;
+          counts[r.domain as string] = Number(r.count);
+          grandTotal = Number(r.grand_total);
         }
         return createSuccessResponse(req, { counts, total: grandTotal });
       }

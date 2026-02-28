@@ -131,6 +131,7 @@ export function useCreateVaultModule(onSuccess?: (createdModule: VaultModule) =>
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["vault_modules"] });
       queryClient.invalidateQueries({ queryKey: ["vault_playbook"] });
+      queryClient.invalidateQueries({ queryKey: ["vault_domain_counts"] });
       toast({ title: i18n.t("toast.moduleCreated") });
       onSuccess?.(data);
     },
@@ -151,6 +152,7 @@ export function useUpdateVaultModule(onSuccess?: () => void) {
       queryClient.invalidateQueries({ queryKey: ["vault_modules"] });
       queryClient.invalidateQueries({ queryKey: ["vault_module", vars.id] });
       queryClient.invalidateQueries({ queryKey: ["vault_playbook"] });
+      queryClient.invalidateQueries({ queryKey: ["vault_domain_counts"] });
       toast({ title: i18n.t("toast.moduleUpdated") });
       onSuccess?.();
     },
