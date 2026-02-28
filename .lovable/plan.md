@@ -1,52 +1,70 @@
 
 
-## Knowledge Graph Evolution — Post-Implementation Status
+## Validacao Completa — Resultado da Auditoria
 
-### Completed: All 4 Phases Successfully Implemented (2026-02-28)
+### Veredicto: 98% Sucesso — 2 problemas restantes
 
 ---
 
-### Schema Changes (Phase 1)
+### O que esta CORRETO (confirmado arquivo por arquivo)
 
-| Field | Type | Status |
-|---|---|---|
-| `common_errors` | jsonb | ✅ Added |
-| `solves_problems` | text[] | ✅ Added |
-| `test_code` | text | ✅ Added |
-| `difficulty` | text | ✅ Added |
-| `estimated_minutes` | integer | ✅ Added |
-| `prerequisites` | jsonb[] | ✅ Already existed |
-| `vault_module_changelog` table | table | ✅ Created |
-
-### SQL Functions (Phase 2)
-
-| Function | Status |
+| Area | Status |
 |---|---|
-| `get_vault_module` | ✅ Returns all new fields + prerequisites |
-| `query_vault_modules` | ✅ Searches in solves_problems |
-| `vault_module_completeness` | ✅ Scores 12-13 fields including new ones |
-| Search triggers | ✅ Index solves_problems in tsvector |
+| `devvault-mcp/index.ts` — header com "Tools (9)" | ✅ |
+| `register.ts` — 9 tools registradas | ✅ |
+| `validate.ts` — tool completa com logger estruturado | ✅ |
+| `ingest.ts` — aceita todos os 6 novos campos | ✅ |
+| `update.ts` — ALLOWED_UPDATE_FIELDS com todos os 6 novos campos | ✅ |
+| `get.ts` — resolve related_modules, inclui changelog | ✅ |
+| `get-group.ts` — gera checklist markdown com difficulty/time | ✅ |
+| `list.ts` — strip heavy fields, logger estruturado | ✅ |
+| `search.ts` — description menciona solves_problems, logger estruturado | ✅ |
+| `bootstrap.ts` — logger estruturado | ✅ |
+| `domains.ts` — logger estruturado | ✅ |
+| `completeness.ts` — delega para SQL (correto) | ✅ |
+| `types.ts` — AuthContext + ToolRegistrar limpos | ✅ |
+| SQL `vault_module_completeness` — 12-13 campos, bonus fields | ✅ |
+| SQL `query_vault_modules` — busca em solves_problems | ✅ |
+| SQL `get_vault_module` — retorna todos os novos campos | ✅ |
+| SQL triggers — indexam solves_problems no tsvector | ✅ |
+| `vault_module_changelog` tabela + RLS | ✅ |
+| `docs/EDGE_FUNCTIONS_REGISTRY.md` — 9 tools, novos campos | ✅ |
+| `docs/VAULT_CONTENT_STANDARDS.md` — reescrito com todos os campos | ✅ |
+| `.lovable/plan.md` — estado pos-implementacao | ✅ |
+| Zero codigo morto nos MCP tools | ✅ |
+| Zero imports nao utilizados | ✅ |
 
-### MCP Tools (Phase 3) — 9 Tools Total
+---
 
-| Tool | Status |
+### Problema 1: `auth.ts` usa `console.log` em vez de `logger` estruturado
+
+O arquivo `supabase/functions/_shared/mcp-tools/auth.ts` (linhas 38, 47, 54, 60, 67, 85) usa `console.log("[MCP:AUTH]")` diretamente. Todos os outros MCP tools foram migrados para `createLogger()`. Este arquivo ficou de fora da migracao.
+
+**Acao:** Migrar para `const logger = createLogger("mcp-auth")` e substituir todos os `console.log`/`console.error` por `logger.info`/`logger.error`.
+
+---
+
+### Problema 2: `src/modules/vault/types.ts` — tipo `VaultModule` nao possui os novos campos
+
+O tipo TypeScript do frontend (`VaultModule` interface, linhas 39-66) nao inclui os 5 novos campos adicionados ao banco: `common_errors`, `solves_problems`, `test_code`, `difficulty`, `estimated_minutes`. Embora o frontend nao acesse esses campos diretamente (acesso via Edge Functions), o tipo deveria refletir a realidade do schema para manter a integridade do contrato de dados. Isso viola o protocolo §5.4 (nomenclatura clara) e §4.4 (divida tecnica zero — tipo desatualizado e um passivo).
+
+**Acao:** Adicionar os 5 campos opcionais ao tipo `VaultModule`:
+```typescript
+common_errors: Array<{ error: string; cause: string; fix: string }> | null;
+solves_problems: string[] | null;
+test_code: string | null;
+difficulty: string | null;
+estimated_minutes: number | null;
+```
+
+---
+
+### Plano de Correcao (2 arquivos)
+
+| Arquivo | Mudanca |
 |---|---|
-| `devvault_bootstrap` | ✅ Structured logger |
-| `devvault_search` | ✅ Searches solves_problems, structured logger |
-| `devvault_get` | ✅ Resolves related_modules to {id, slug, title}, includes changelog |
-| `devvault_list` | ✅ Strips heavy fields, structured logger |
-| `devvault_domains` | ✅ Structured logger |
-| `devvault_ingest` | ✅ Accepts all new fields |
-| `devvault_update` | ✅ Accepts all new fields |
-| `devvault_get_group` | ✅ Generates markdown implementation checklist |
-| `devvault_validate` | ✅ NEW — Exposes completeness score as tool |
+| `supabase/functions/_shared/mcp-tools/auth.ts` | Migrar `console.log` para `createLogger("mcp-auth")` |
+| `src/modules/vault/types.ts` | Adicionar 5 novos campos ao tipo `VaultModule` |
 
-### Documentation (Phase 4 — Audit Fixes)
+Apos as correcoes: redeploy de `devvault-mcp`.
 
-| Document | Status |
-|---|---|
-| `devvault-mcp/index.ts` header | ✅ Updated to "Tools (9)" |
-| `docs/EDGE_FUNCTIONS_REGISTRY.md` | ✅ Lists 9 tools + new fields |
-| `docs/VAULT_CONTENT_STANDARDS.md` | ✅ Full rewrite with all new fields, changelog table, corrected related_modules |
-| `.lovable/plan.md` | ✅ Reflects post-implementation state |
-| All MCP tools | ✅ Migrated from console.log to structured logger |
