@@ -7,6 +7,7 @@
 
 import { createLogger } from "../logger.ts";
 import { enrichModuleDependencies } from "../dependency-helpers.ts";
+import { trackUsage } from "./usage-tracker.ts";
 import type { ToolRegistrar } from "./types.ts";
 
 const logger = createLogger("mcp-tool:get-group");
@@ -54,6 +55,13 @@ export const registerGetGroupTool: ToolRegistrar = (server, client) => {
       // Generate implementation checklist in markdown
       const totalMinutes = enriched.reduce((sum, m) => sum + (Number(m.estimated_minutes) || 0), 0);
       const checklist = generateChecklist(enriched, groupName, totalMinutes);
+
+      trackUsage(client, auth, {
+        event_type: "get_group",
+        tool_name: "devvault_get_group",
+        query_text: groupName,
+        result_count: enriched.length,
+      });
 
       return {
         content: [{

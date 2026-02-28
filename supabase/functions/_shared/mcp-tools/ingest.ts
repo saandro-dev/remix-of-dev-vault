@@ -73,12 +73,12 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
           items: {
             type: "object",
             properties: {
-              depends_on_id: { type: "string", description: "UUID of the dependency module" },
+              depends_on: { type: "string", description: "UUID or slug of the dependency module" },
+              depends_on_id: { type: "string", description: "UUID of the dependency module (legacy, prefer depends_on)" },
               dependency_type: { type: "string", enum: ["required", "recommended"] },
             },
-            required: ["depends_on_id"],
           },
-          description: "Array of module dependencies to link",
+          description: "Array of module dependencies. Use 'depends_on' with UUID or slug.",
         },
       },
       required: ["title", "code"],
@@ -121,10 +121,13 @@ export const registerIngestTool: ToolRegistrar = (server, client, auth) => {
         return { content: [{ type: "text", text: `Error: ${error.message}` }] };
       }
 
-      const deps = params.dependencies as Array<{ depends_on_id: string; dependency_type?: string }> | undefined;
+      const deps = params.dependencies as Array<{ depends_on_id?: string; depends_on?: string; dependency_type?: string }> | undefined;
       if (deps && deps.length > 0) {
         try {
-          await batchInsertDependencies(client, data.id, deps);
+          const depResult = await batchInsertDependencies(client, data.id, deps);
+          if (depResult.failed.length > 0) {
+            warnings.push(`Dependencies not found (skipped): ${depResult.failed.join(", ")}`);
+          }
         } catch (depError) {
           warnings.push(`Dependencies partially failed: ${(depError as Error).message}`);
         }

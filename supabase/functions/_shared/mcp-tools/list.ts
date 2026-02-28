@@ -2,18 +2,21 @@
  * mcp-tools/list.ts — devvault_list tool.
  *
  * Lists modules with optional filters: text search, domain, module_type,
- * tags, and module_group.
+ * tags, and module_group. Filtering is fully delegated to the SQL RPC
+ * (zero in-memory filtering).
  */
 
 import { createLogger } from "../logger.ts";
+import { trackUsage } from "./usage-tracker.ts";
 import type { ToolRegistrar } from "./types.ts";
 
 const logger = createLogger("mcp-tool:list");
 
-export const registerListTool: ToolRegistrar = (server, client) => {
+export const registerListTool: ToolRegistrar = (server, client, auth) => {
   server.tool("devvault_list", {
     description:
-      "List modules with optional filters including text search, tags, and group. " +
+      "List modules with optional filters including text search, tags, group, and domain. " +
+      "All filtering is done server-side in SQL for efficiency. " +
       "For semantic/intent-based search with relevance scoring, prefer devvault_search.",
     inputSchema: {
       type: "object",
@@ -52,6 +55,7 @@ export const registerListTool: ToolRegistrar = (server, client) => {
         if (params.domain) rpcParams.p_domain = params.domain;
         if (params.module_type) rpcParams.p_module_type = params.module_type;
         if (params.tags) rpcParams.p_tags = params.tags;
+        if (params.group) rpcParams.p_group = params.group;
 
         const { data, error } = await client.rpc("query_vault_modules", rpcParams);
         logger.info("RPC result", {
@@ -66,19 +70,18 @@ export const registerListTool: ToolRegistrar = (server, client) => {
         }
 
         // Trim heavy fields from list results, keep useful metadata
-        let modules = (data as Record<string, unknown>[]).map((m) => {
+        const modules = (data as Record<string, unknown>[]).map((m) => {
           const { code, context_markdown, ...rest } = m;
           return rest;
         });
-        if (params.group) {
-          const groupName = params.group as string;
-          const { data: groupModules } = await client
-            .from("vault_modules")
-            .select("id")
-            .eq("module_group", groupName);
-          const groupIds = new Set((groupModules ?? []).map((m: Record<string, unknown>) => m.id as string));
-          modules = modules.filter((m) => groupIds.has(m.id as string));
-        }
+
+        // Track analytics
+        trackUsage(client, auth, {
+          event_type: "list",
+          tool_name: "devvault_list",
+          query_text: params.query as string | undefined,
+          result_count: modules.length,
+        });
 
         return {
           content: [{

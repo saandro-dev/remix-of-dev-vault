@@ -6,11 +6,12 @@
  */
 
 import { createLogger } from "../logger.ts";
+import { trackUsage } from "./usage-tracker.ts";
 import type { ToolRegistrar } from "./types.ts";
 
 const logger = createLogger("mcp-tool:search");
 
-export const registerSearchTool: ToolRegistrar = (server, client) => {
+export const registerSearchTool: ToolRegistrar = (server, client, auth) => {
   server.tool("devvault_search", {
     description:
       "Search the Knowledge Graph by intent/text. Returns modules matching your query " +
@@ -65,11 +66,20 @@ export const registerSearchTool: ToolRegistrar = (server, client) => {
           return { content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
 
+        const resultCount = (data as unknown[])?.length ?? 0;
+
+        trackUsage(client, auth, {
+          event_type: resultCount > 0 ? "search" : "search_miss",
+          tool_name: "devvault_search",
+          query_text: params.query as string | undefined,
+          result_count: resultCount,
+        });
+
         return {
           content: [{
             type: "text",
             text: JSON.stringify({
-              total_results: (data as unknown[])?.length ?? 0,
+              total_results: resultCount,
               modules: data,
               _hint: "Use devvault_get with a module's id or slug to fetch full code and dependencies.",
             }, null, 2),

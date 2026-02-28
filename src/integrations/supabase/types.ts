@@ -632,6 +632,50 @@ export type Database = {
         }
         Relationships: []
       }
+      vault_usage_events: {
+        Row: {
+          api_key_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          module_id: string | null
+          query_text: string | null
+          result_count: number | null
+          tool_name: string
+          user_id: string | null
+        }
+        Insert: {
+          api_key_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          module_id?: string | null
+          query_text?: string | null
+          result_count?: number | null
+          tool_name: string
+          user_id?: string | null
+        }
+        Update: {
+          api_key_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          module_id?: string | null
+          query_text?: string | null
+          result_count?: number | null
+          tool_name?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_usage_events_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -726,42 +770,80 @@ export type Database = {
           total: number
         }[]
       }
-      query_vault_modules: {
-        Args: {
-          p_domain?: string
-          p_limit?: number
-          p_module_type?: string
-          p_offset?: number
-          p_query?: string
-          p_saas_phase?: number
-          p_tags?: string[]
-        }
-        Returns: {
-          code: string
-          code_example: string
-          context_markdown: string
-          created_at: string
-          description: string
-          difficulty: string
-          domain: string
-          estimated_minutes: number
-          id: string
-          language: string
-          module_type: string
-          phase_title: string
-          related_modules: string[]
-          relevance_score: number
-          saas_phase: number
-          slug: string
-          source_project: string
-          tags: string[]
-          title: string
-          updated_at: string
-          usage_hint: string
-          validation_status: string
-          why_it_matters: string
-        }[]
-      }
+      query_vault_modules:
+        | {
+            Args: {
+              p_domain?: string
+              p_limit?: number
+              p_module_type?: string
+              p_offset?: number
+              p_query?: string
+              p_saas_phase?: number
+              p_tags?: string[]
+            }
+            Returns: {
+              code: string
+              code_example: string
+              context_markdown: string
+              created_at: string
+              description: string
+              difficulty: string
+              domain: string
+              estimated_minutes: number
+              id: string
+              language: string
+              module_type: string
+              phase_title: string
+              related_modules: string[]
+              relevance_score: number
+              saas_phase: number
+              slug: string
+              source_project: string
+              tags: string[]
+              title: string
+              updated_at: string
+              usage_hint: string
+              validation_status: string
+              why_it_matters: string
+            }[]
+          }
+        | {
+            Args: {
+              p_domain?: string
+              p_group?: string
+              p_limit?: number
+              p_module_type?: string
+              p_offset?: number
+              p_query?: string
+              p_saas_phase?: number
+              p_tags?: string[]
+            }
+            Returns: {
+              code: string
+              code_example: string
+              context_markdown: string
+              created_at: string
+              description: string
+              difficulty: string
+              domain: string
+              estimated_minutes: number
+              id: string
+              language: string
+              module_type: string
+              phase_title: string
+              related_modules: string[]
+              relevance_score: number
+              saas_phase: number
+              slug: string
+              source_project: string
+              tags: string[]
+              title: string
+              updated_at: string
+              usage_hint: string
+              validation_status: string
+              why_it_matters: string
+            }[]
+          }
       read_project_api_key: {
         Args: { p_key_id: string; p_user_id: string }
         Returns: string
