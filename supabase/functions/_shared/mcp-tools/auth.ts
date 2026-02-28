@@ -9,7 +9,10 @@
 import { validateApiKey } from "../api-key-guard.ts";
 import { getSupabaseClient } from "../supabase-client.ts";
 import { checkRateLimit } from "../rate-limit-guard.ts";
+import { createLogger } from "../logger.ts";
 import type { AuthContext } from "./types.ts";
+
+const logger = createLogger("mcp-auth");
 
 const MCP_RATE_LIMIT = {
   maxAttempts: 120,
@@ -18,7 +21,6 @@ const MCP_RATE_LIMIT = {
 };
 
 export async function authenticateRequest(req: Request): Promise<AuthContext | Response> {
-  // Determine which header the key came from (for diagnostics)
   const devvaultHeader = req.headers.get("x-devvault-key");
   const apiKeyHeader = req.headers.get("x-api-key");
   const authHeader = req.headers.get("Authorization");
@@ -34,8 +36,7 @@ export async function authenticateRequest(req: Request): Promise<AuthContext | R
         ? "authorization"
         : "none";
 
-  // Diagnostic logging
-  console.log("[MCP:AUTH] key extraction", {
+  logger.info("Key extraction", {
     source,
     keyPrefix: rawKey ? rawKey.substring(0, 12) + "..." : "null",
     hasDevVaultKey: !!devvaultHeader,
@@ -44,27 +45,27 @@ export async function authenticateRequest(req: Request): Promise<AuthContext | R
   });
 
   if (!rawKey) {
-    console.log("[MCP:AUTH] REJECTED — no key found in any header");
+    logger.warn("Rejected — no key found in any header");
     return jsonRpcError(401, -32001, "Missing X-DevVault-Key header");
   }
 
   const client = getSupabaseClient("admin");
   const result = await validateApiKey(client, rawKey);
 
-  console.log("[MCP:AUTH] validation result", {
+  logger.info("Validation result", {
     valid: result.valid,
     hasUserId: !!result.userId,
     hasKeyId: !!result.keyId,
   });
 
   if (!result.valid || !result.userId || !result.keyId) {
-    console.log("[MCP:AUTH] REJECTED — invalid or revoked key");
+    logger.warn("Rejected — invalid or revoked key");
     return jsonRpcError(401, -32001, "Invalid or revoked API key");
   }
 
   const rateCheck = await checkRateLimit(result.userId, "devvault-mcp", MCP_RATE_LIMIT);
   if (rateCheck.blocked) {
-    console.log("[MCP:AUTH] REJECTED — rate limited", {
+    logger.warn("Rejected — rate limited", {
       retryAfter: rateCheck.retryAfterSeconds,
     });
     return new Response(
@@ -82,7 +83,7 @@ export async function authenticateRequest(req: Request): Promise<AuthContext | R
     );
   }
 
-  console.log("[MCP:AUTH] ACCEPTED", { userId: result.userId });
+  logger.info("Accepted", { userId: result.userId });
   return { userId: result.userId, keyId: result.keyId };
 }
 

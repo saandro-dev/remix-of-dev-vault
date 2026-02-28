@@ -60,6 +60,11 @@ export interface VaultModule {
   tags: string[];
   module_group: string | null;
   implementation_order: number | null;
+  common_errors: Array<{ error: string; cause: string; fix: string }> | null;
+  solves_problems: string[] | null;
+  test_code: string | null;
+  difficulty: string | null;
+  estimated_minutes: number | null;
   module_dependencies?: ModuleDependency[];
   created_at: string;
   updated_at: string;
