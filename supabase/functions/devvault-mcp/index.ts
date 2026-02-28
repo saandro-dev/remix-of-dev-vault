@@ -1,5 +1,5 @@
 /**
- * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v2.4).
+ * devvault-mcp/index.ts — Universal MCP Server for AI Agents (v3.0).
  *
  * Thin shell: Hono router, CORS, auth middleware, MCP transport.
  * All tool logic lives in _shared/mcp-tools/ (one file per tool).
@@ -8,9 +8,10 @@
  * Auth is a mutable object updated per-request — safe because Edge Functions
  * are single-threaded.
  *
- * Tools (9): devvault_bootstrap, devvault_search, devvault_get,
- *            devvault_list, devvault_domains, devvault_ingest,
- *            devvault_update, devvault_get_group, devvault_validate.
+ * Tools (11): devvault_bootstrap, devvault_search, devvault_get,
+ *             devvault_list, devvault_domains, devvault_ingest,
+ *             devvault_update, devvault_get_group, devvault_validate,
+ *             devvault_delete, devvault_diagnose.
  */
 
 import { Hono } from "hono";
@@ -47,7 +48,7 @@ function withCors(response: Response): Response {
 const client = getSupabaseClient("general");
 const mcp = new McpServer({
   name: "devvault",
-  version: "2.4.0",
+  version: "3.0.0",
   logger: {
     error: (...args: unknown[]) => console.error("[MCP:LIB]", ...args),
     warn: (...args: unknown[]) => console.warn("[MCP:LIB]", ...args),

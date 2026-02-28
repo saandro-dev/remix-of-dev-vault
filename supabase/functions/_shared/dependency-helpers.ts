@@ -1,8 +1,17 @@
+/**
+ * dependency-helpers.ts — Shared helpers for module dependency management.
+ *
+ * Supports both UUID and slug-based dependency references.
+ * All slug→UUID resolution happens server-side in a single batch query.
+ */
+
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createLogger } from "./logger.ts";
 import { createSuccessResponse, createErrorResponse, ERROR_CODES } from "./api-helpers.ts";
 
 const logger = createLogger("dependency-helpers");
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface DepModuleInfo {
   title: string;
@@ -50,37 +59,106 @@ export async function enrichModuleDependencies(
 }
 
 /**
+ * Resolves a dependency reference (UUID or slug) to a UUID.
+ * Returns null if the module is not found.
+ */
+async function resolveToUuid(
+  client: SupabaseClient,
+  ref: string,
+): Promise<string | null> {
+  if (UUID_RE.test(ref)) return ref;
+
+  const { data } = await client
+    .from("vault_modules")
+    .select("id")
+    .eq("slug", ref)
+    .maybeSingle();
+
+  return data?.id ?? null;
+}
+
+/**
  * Batch-inserts dependencies for a module.
- * Accepts an array of { depends_on_id, dependency_type? } objects.
+ * Accepts depends_on_id (UUID) OR depends_on (slug or UUID).
+ * Resolves slugs to UUIDs internally.
  */
 export async function batchInsertDependencies(
   client: SupabaseClient,
   moduleId: string,
-  dependencies: Array<{ depends_on_id: string; dependency_type?: string }>
-): Promise<void> {
-  if (!dependencies || dependencies.length === 0) return;
+  dependencies: Array<{ depends_on_id?: string; depends_on?: string; dependency_type?: string }>
+): Promise<{ inserted: number; failed: string[] }> {
+  if (!dependencies || dependencies.length === 0) return { inserted: 0, failed: [] };
 
-  const rows = dependencies.map((dep) => ({
-    module_id: moduleId,
-    depends_on_id: dep.depends_on_id,
-    dependency_type: dep.dependency_type ?? "required",
-  }));
+  const failed: string[] = [];
+  const rows: Array<{ module_id: string; depends_on_id: string; dependency_type: string }> = [];
 
-  const { error } = await client
-    .from("vault_module_dependencies")
-    .insert(rows);
-
-  if (error) {
-    logger.error("batch insert dependencies failed", { error: error.message, moduleId });
-    throw error;
+  // Collect all slugs that need resolution
+  const slugsToResolve: string[] = [];
+  for (const dep of dependencies) {
+    const ref = dep.depends_on ?? dep.depends_on_id;
+    if (!ref) continue;
+    if (!UUID_RE.test(ref)) slugsToResolve.push(ref);
   }
 
-  logger.info(`batch inserted ${rows.length} dependencies for module=${moduleId}`);
+  // Batch resolve slugs in one query
+  const slugToId: Record<string, string> = {};
+  if (slugsToResolve.length > 0) {
+    const { data: resolved } = await client
+      .from("vault_modules")
+      .select("id, slug")
+      .in("slug", slugsToResolve);
+    for (const m of resolved ?? []) {
+      const mod = m as Record<string, unknown>;
+      slugToId[mod.slug as string] = mod.id as string;
+    }
+  }
+
+  for (const dep of dependencies) {
+    const ref = dep.depends_on ?? dep.depends_on_id;
+    if (!ref) {
+      failed.push("empty reference");
+      continue;
+    }
+
+    let resolvedId: string;
+    if (UUID_RE.test(ref)) {
+      resolvedId = ref;
+    } else {
+      const mapped = slugToId[ref];
+      if (!mapped) {
+        failed.push(ref);
+        continue;
+      }
+      resolvedId = mapped;
+    }
+
+    rows.push({
+      module_id: moduleId,
+      depends_on_id: resolvedId,
+      dependency_type: dep.dependency_type ?? "required",
+    });
+  }
+
+  if (rows.length > 0) {
+    const { error } = await client
+      .from("vault_module_dependencies")
+      .insert(rows);
+
+    if (error) {
+      logger.error("batch insert dependencies failed", { error: error.message, moduleId });
+      throw error;
+    }
+  }
+
+  logger.info(`batch inserted ${rows.length} dependencies for module=${moduleId}`, {
+    failed: failed.length > 0 ? failed : undefined,
+  });
+
+  return { inserted: rows.length, failed };
 }
 
 /**
  * Handles the "add_dependency" action for vault-crud.
- * Validates ownership, prevents self-referencing, and inserts the dependency row.
  */
 export async function handleAddDependency(
   req: Request,
@@ -102,7 +180,6 @@ export async function handleAddDependency(
     return createErrorResponse(req, ERROR_CODES.VALIDATION_ERROR, "A module cannot depend on itself", 422);
   }
 
-  // Verify the caller owns the source module
   const { data: ownerCheck } = await client
     .from("vault_modules")
     .select("id")
@@ -114,7 +191,6 @@ export async function handleAddDependency(
     return createErrorResponse(req, ERROR_CODES.NOT_FOUND, "Module not found or not owned", 404);
   }
 
-  // Verify target module exists
   const { data: targetCheck } = await client
     .from("vault_modules")
     .select("id")
@@ -149,7 +225,6 @@ export async function handleAddDependency(
 
 /**
  * Handles the "remove_dependency" action for vault-crud.
- * Deletes a dependency row by its ID.
  */
 export async function handleRemoveDependency(
   req: Request,
@@ -178,7 +253,6 @@ export async function handleRemoveDependency(
 
 /**
  * Handles the "list_dependencies" action for vault-crud.
- * Returns enriched dependencies for a given module.
  */
 export async function handleListDependencies(
   req: Request,

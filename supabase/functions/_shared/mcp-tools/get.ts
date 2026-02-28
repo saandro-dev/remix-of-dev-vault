@@ -8,6 +8,7 @@
 import { createLogger } from "../logger.ts";
 import { enrichModuleDependencies } from "../dependency-helpers.ts";
 import { getCompleteness } from "./completeness.ts";
+import { trackUsage } from "./usage-tracker.ts";
 import type { ToolRegistrar } from "./types.ts";
 
 const logger = createLogger("mcp-tool:get");
@@ -85,6 +86,13 @@ export const registerGetTool: ToolRegistrar = (server, client) => {
           total: count ?? 0,
         };
       }
+
+      trackUsage(client, auth, {
+        event_type: "get",
+        tool_name: "devvault_get",
+        module_id: moduleId,
+        result_count: 1,
+      });
 
       return {
         content: [{
