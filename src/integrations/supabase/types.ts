@@ -955,6 +955,7 @@ export type Database = {
           source_project: string
           tags: string[]
           title: string
+          total_count: number
           updated_at: string
           validation_status: Database["public"]["Enums"]["vault_validation_status"]
           why_it_matters: string
