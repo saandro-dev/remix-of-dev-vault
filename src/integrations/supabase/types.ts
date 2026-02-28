@@ -412,6 +412,68 @@ export type Database = {
         }
         Relationships: []
       }
+      vault_knowledge_gaps: {
+        Row: {
+          context: string | null
+          created_at: string
+          domain: string | null
+          error_message: string
+          hit_count: number
+          id: string
+          promoted_module_id: string | null
+          reported_by: string | null
+          resolution: string | null
+          resolution_code: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          context?: string | null
+          created_at?: string
+          domain?: string | null
+          error_message: string
+          hit_count?: number
+          id?: string
+          promoted_module_id?: string | null
+          reported_by?: string | null
+          resolution?: string | null
+          resolution_code?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          context?: string | null
+          created_at?: string
+          domain?: string | null
+          error_message?: string
+          hit_count?: number
+          id?: string
+          promoted_module_id?: string | null
+          reported_by?: string | null
+          resolution?: string | null
+          resolution_code?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_knowledge_gaps_promoted_module_id_fkey"
+            columns: ["promoted_module_id"]
+            isOneToOne: false
+            referencedRelation: "vault_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vault_module_changelog: {
         Row: {
           changes: string[]

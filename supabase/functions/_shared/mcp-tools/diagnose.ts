@@ -128,7 +128,30 @@ export const registerDiagnoseTool: ToolRegistrar = (server, client, auth) => {
           }
         }
 
-        // Strategy 3: ILIKE fallback in usage_hint and why_it_matters via RPC
+        // Strategy 3: Search resolved knowledge gaps
+        const { data: resolvedGaps } = await client
+          .from("vault_knowledge_gaps")
+          .select("id, error_message, resolution, resolution_code, domain, resolved_at, promoted_module_id")
+          .in("status", ["resolved", "promoted_to_module"])
+          .ilike("error_message", `%${errorMsg.substring(0, 100)}%`)
+          .limit(5);
+
+        const gapMatches: Array<Record<string, unknown>> = [];
+        for (const gap of (resolvedGaps ?? []) as Record<string, unknown>[]) {
+          gapMatches.push({
+            id: gap.id,
+            match_type: "resolved_gap",
+            relevance: 0.7,
+            error_message: gap.error_message,
+            resolution: gap.resolution,
+            resolution_code: gap.resolution_code,
+            domain: gap.domain,
+            promoted_module_id: gap.promoted_module_id,
+            resolved_at: gap.resolved_at,
+          });
+        }
+
+        // Strategy 4: ILIKE fallback in usage_hint and why_it_matters via RPC
         const { data: ilikeFallback } = await client.rpc("query_vault_modules", {
           p_query: errorMsg,
           p_domain: domain ?? null,
@@ -152,7 +175,7 @@ export const registerDiagnoseTool: ToolRegistrar = (server, client, auth) => {
         }
 
         // Combine and sort by relevance
-        const allMatches = [...errorMatches, ...solvesMatches, ...ilikeMatches]
+        const allMatches = [...errorMatches, ...solvesMatches, ...gapMatches, ...ilikeMatches]
           .sort((a, b) => (b.relevance as number) - (a.relevance as number))
           .slice(0, limit);
 
@@ -168,6 +191,7 @@ export const registerDiagnoseTool: ToolRegistrar = (server, client, auth) => {
           total: allMatches.length,
           errorMatches: errorMatches.length,
           solvesMatches: solvesMatches.length,
+          gapMatches: gapMatches.length,
           ilikeMatches: ilikeMatches.length,
         });
 
@@ -181,14 +205,16 @@ export const registerDiagnoseTool: ToolRegistrar = (server, client, auth) => {
                 match_breakdown: {
                   common_errors: errorMatches.length,
                   solves_problems: solvesMatches.length,
+                  resolved_gaps: gapMatches.length,
                   text_search: ilikeMatches.length,
                 },
               },
               matching_modules: allMatches,
               _hint: allMatches.length > 0
                 ? "Use devvault_get with a module's slug to fetch the full code and implementation details."
-                : "No matching modules found. Consider rephrasing the error or broadening the search. " +
-                  "You can also use devvault_search with keywords from the error.",
+                : "No solution found. Use devvault_report_bug to register this gap. " +
+                  "When you solve it, call devvault_resolve_bug to document the solution " +
+                  "and optionally promote it to a reusable module.",
             }, null, 2),
           }],
         };
