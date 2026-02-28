@@ -39,45 +39,57 @@ export const registerListTool: ToolRegistrar = (server, client) => {
       required: [],
     },
     handler: async (params: Record<string, unknown>) => {
-      const limit = Math.min(Number(params.limit ?? 20), 50);
-      const offset = Number(params.offset ?? 0);
+      console.log("[MCP:TOOL] devvault_list invoked", JSON.stringify({ params }));
+      try {
+        const limit = Math.min(Number(params.limit ?? 20), 50);
+        const offset = Number(params.offset ?? 0);
 
-      const rpcParams: Record<string, unknown> = {
-        p_limit: limit,
-        p_offset: offset,
-      };
-      if (params.query) rpcParams.p_query = params.query;
-      if (params.domain) rpcParams.p_domain = params.domain;
-      if (params.module_type) rpcParams.p_module_type = params.module_type;
-      if (params.tags) rpcParams.p_tags = params.tags;
+        const rpcParams: Record<string, unknown> = {
+          p_limit: limit,
+          p_offset: offset,
+        };
+        if (params.query) rpcParams.p_query = params.query;
+        if (params.domain) rpcParams.p_domain = params.domain;
+        if (params.module_type) rpcParams.p_module_type = params.module_type;
+        if (params.tags) rpcParams.p_tags = params.tags;
 
-      const { data, error } = await client.rpc("query_vault_modules", rpcParams);
-      if (error) {
-        logger.error("list failed", { error: error.message });
-        return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        const { data, error } = await client.rpc("query_vault_modules", rpcParams);
+        console.log("[MCP:TOOL] devvault_list RPC result", JSON.stringify({
+          success: !error,
+          resultCount: (data as unknown[])?.length ?? 0,
+          error: error?.message,
+        }));
+
+        if (error) {
+          logger.error("list failed", { error: error.message });
+          return { content: [{ type: "text", text: `Error: ${error.message}` }] };
+        }
+
+        let modules = data as Record<string, unknown>[];
+        if (params.group) {
+          const groupName = params.group as string;
+          const { data: groupModules } = await client
+            .from("vault_modules")
+            .select("id")
+            .eq("module_group", groupName);
+          const groupIds = new Set((groupModules ?? []).map((m: Record<string, unknown>) => m.id as string));
+          modules = modules.filter((m) => groupIds.has(m.id as string));
+        }
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              total_results: modules.length,
+              offset,
+              modules,
+            }, null, 2),
+          }],
+        };
+      } catch (err) {
+        console.error("[MCP:TOOL] devvault_list UNCAUGHT", String(err));
+        return { content: [{ type: "text", text: `Uncaught error: ${String(err)}` }] };
       }
-
-      let modules = data as Record<string, unknown>[];
-      if (params.group) {
-        const groupName = params.group as string;
-        const { data: groupModules } = await client
-          .from("vault_modules")
-          .select("id")
-          .eq("module_group", groupName);
-        const groupIds = new Set((groupModules ?? []).map((m: Record<string, unknown>) => m.id as string));
-        modules = modules.filter((m) => groupIds.has(m.id as string));
-      }
-
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            total_results: modules.length,
-            offset,
-            modules,
-          }, null, 2),
-        }],
-      };
     },
   });
 };
